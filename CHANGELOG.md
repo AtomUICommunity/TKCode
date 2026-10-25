@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.6
+
+Adds projects: a project list in the sidebar, a dialog to create and edit projects, and projects with several folders that the agent can read and edit. Subagents get their own card in the transcript and a tab on the right that shows their full messages. The file explorer gains a context menu with rename, create and move to Trash.
+
+### Added
+
+- **Projects.** The sidebar lists your projects and replaces the "all projects" drop-down. Click a project to show only its sessions; with none selected, all sessions are shown. Create and edit projects in a dialog: name, device and source folders, with one folder marked as primary. Projects can be pinned, and removing one only removes it from TKCode, never your files or sessions.
+  - The primary folder is the working directory of new sessions. TKCode looks for `AGENTS.md`, `.agents` and `.mcp.json` there, and git and project memory follow it. The other folders can be read, edited and searched, with the same approvals as the primary one, and are listed in the system prompt.
+  - Changing a project's folders applies to all its sessions before their next turn. Changing the primary folder only affects new sessions.
+  - The file explorer shows every folder, `@` file completion searches all of them, and the branch picker switches per folder. `/add-dir` adds a folder to the current session only.
+- **Subagent cards and tabs.** A subagent shows as a small card with its name, model and a background marker. Clicking it opens a tab on the right with its complete messages, rendered like the main agent's, updating live while it runs. It also opens for finished subagents, after reopening a session, and after the Agent Host restarts. Works with the built-in agent, Claude Code and Codex.
+- **File explorer actions.** A context menu on files, folders and the workspace root: open, reveal, new file, new folder, rename, show in Finder / File Explorer / file manager, open in terminal, copy full or relative path, and move to Trash or Recycle Bin (never a permanent delete). The toolbar can refresh, collapse all and show or hide hidden files.
+
+### Fixed
+
+- Subagents now follow the permission level of their parent session. Before, a subagent still asked for approval when the parent had full access.
+- Tool details of external runtimes are saved with the session, so they are still there after reopening it.
+
+**Full Changelog**: https://github.com/AtomUICommunity/TKCode/compare/v0.1.5...v0.1.6
+
 ## 0.1.5
 
 The composer now keeps a separate draft for every session, including across restarts, and ↑ / ↓ bring back the messages you sent earlier in the session. The branch picker follows branch changes made outside the app and works in git worktrees and submodules.
