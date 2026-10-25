@@ -6,6 +6,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:smv="using:StreamMark.Avalonia"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:views="using:TKCode.Desktop.Views"
@@ -24,7 +25,7 @@
         <Style Selector="Border#ReviseRow.highlighted">
             <Setter Property="Background" Value="{DynamicResource TKCode.SelectedBg}" />
         </Style>
-        <Style Selector="atom|TextArea#PlanEditor">
+        <Style Selector="arc|Textarea#PlanEditor">
             <Setter Property="AcceptsReturn" Value="True" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="FontFamily" Value="{StaticResource TKCode.MonoFont}" />
@@ -53,25 +54,25 @@
                                TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding PlanPath}" />
                 </DockPanel>
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                    <atom:Button x:Name="EditButton" SizeType="Small" Variant="Text" Color="Default" Focusable="False"
-                                 Command="{Binding ToggleEditCommand}" ToolTip.Tip="{loc:TKCodeLangResource PlanReviewEditTip}">
+                    <arc:Button Variant="Ghost" x:Name="EditButton" Size="Small" Focusable="False"
+                                Command="{Binding ToggleEditCommand}" arc:Tooltip.Tip="{loc:TKCodeLangResource PlanReviewEditTip}">
                         <StackPanel Orientation="Horizontal" Spacing="5">
                             <Panel VerticalAlignment="Center">
-                                <icons:LucideIcon Kind="Pencil" Width="12" Height="12" IsVisible="{Binding !IsEditing}" />
-                                <icons:LucideIcon Kind="Check" Width="12" Height="12" IsVisible="{Binding IsEditing}" />
+                                <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Kind="Pencil" Width="12" Height="12" IsVisible="{Binding !IsEditing}" />
+                                <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Kind="Check" Width="12" Height="12" IsVisible="{Binding IsEditing}" />
                             </Panel>
                             <TextBlock Text="{Binding EditButtonText}" FontSize="12" VerticalAlignment="Center" />
                         </StackPanel>
-                    </atom:Button>
-                    <atom:Button SizeType="Small" Variant="Text" Shape="Circle" Focusable="False"
-                                 Command="{Binding OpenInEditorCommand}" ToolTip.Tip="{loc:TKCodeLangResource PlanReviewOpenInEditor}">
-                        <atom:Button.Icon><icons:LucideIcon Kind="ExternalLink" /></atom:Button.Icon>
-                    </atom:Button>
-                    <atom:Button SizeType="Small" Variant="Text" Shape="Circle" Focusable="False"
-                                 Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Conversation.StopCommand, FallbackValue={x:Null}}"
-                                 ToolTip.Tip="{loc:TKCodeLangResource QuestionStopTip}">
-                        <atom:Button.Icon><icons:LucideIcon Kind="StopFilled" /></atom:Button.Icon>
-                    </atom:Button>
+                    </arc:Button>
+                    <arc:Button Classes="icon" Variant="Ghost" Size="Small" Focusable="False"
+                                Command="{Binding OpenInEditorCommand}" arc:Tooltip.Tip="{loc:TKCodeLangResource PlanReviewOpenInEditor}" AutomationProperties.Name="{loc:TKCodeLangResource PlanReviewOpenInEditor}">
+                        <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="ExternalLink" />
+                    </arc:Button>
+                    <arc:Button Classes="icon" Variant="Ghost" Size="Small" Focusable="False"
+                                Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Conversation.StopCommand, FallbackValue={x:Null}}"
+                                arc:Tooltip.Tip="{loc:TKCodeLangResource QuestionStopTip}" AutomationProperties.Name="{loc:TKCodeLangResource QuestionStopTip}">
+                        <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="StopFilled" />
+                    </arc:Button>
                 </StackPanel>
             </Grid>
 
@@ -79,12 +80,11 @@
             <Border x:Name="PlanBox" Background="{DynamicResource TKCode.CodeBg}" CornerRadius="{StaticResource TKCode.RadiusSmall}"
                     BorderBrush="{DynamicResource TKCode.Divider}" BorderThickness="1" ClipToBounds="True">
                 <Panel>
-                    <ScrollViewer x:Name="PlanScroll" IsVisible="{Binding !IsEditing}" atom:ScrollViewer.IsLiteMode="True"
-                                  HorizontalScrollBarVisibility="Disabled">
+                    <arc:ScrollArea x:Name="PlanScroll" IsVisible="{Binding !IsEditing}">
                         <smv:MarkdownView x:Name="PlanView" Markdown="{Binding Plan}" Margin="14,10,14,12" HorizontalAlignment="Stretch" />
-                    </ScrollViewer>
-                    <atom:TextArea x:Name="PlanEditor" IsVisible="{Binding IsEditing}" StyleVariant="Borderless" Background="Transparent"
-                                   IsAutoSize="False" VerticalContentAlignment="Top" Text="{Binding EditText, Mode=TwoWay}" Margin="4,2" />
+                    </arc:ScrollArea>
+                    <arc:Textarea x:Name="PlanEditor" IsVisible="{Binding IsEditing}" Classes="bare" IsResizable="False"
+                                  VerticalContentAlignment="Top" Text="{Binding EditText, Mode=TwoWay}" Margin="4,2" />
                 </Panel>
             </Border>
 
@@ -120,8 +120,8 @@
                                        Foreground="{DynamicResource TKCode.KbdFg}" />
                         </Border>
                         <TextBlock Grid.Column="1" Classes="strong" Text="{Binding ReviseOption.Label}" Margin="10,0,12,0" VerticalAlignment="Center" />
-                        <atom:LineEdit x:Name="FeedbackInput" Grid.Column="2" SizeType="Small" StyleVariant="Borderless" Background="Transparent"
-                                       Text="{Binding Feedback, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="{Binding FeedbackPlaceholder}"
+                        <arc:Input x:Name="FeedbackInput" Grid.Column="2" Size="Small" Classes="bare"
+                                       Text="{Binding Feedback, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Placeholder="{Binding FeedbackPlaceholder}"
                                        VerticalAlignment="Center" />
                         <icons:LucideIcon Grid.Column="3" Kind="CornerDownLeft" Width="12" Height="12" Margin="8,0,2,0" VerticalAlignment="Center"
                                           StrokeBrush="{DynamicResource TKCode.TextTertiary}" IsVisible="{Binding IsReviseHighlighted}" />
@@ -135,19 +135,19 @@
             <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Classes="tertiary" Text="{Binding HintsText}" FontSize="12" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" Margin="2,0" />
-                <atom:Button Grid.Column="1" SizeType="Small" Color="Default" Variant="Text" Focusable="False" Command="{Binding DismissCommand}">
+                <arc:Button Variant="Ghost" Grid.Column="1" Size="Small" Focusable="False" Command="{Binding DismissCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="{loc:TKCodeLangResource PlanReviewDismiss}" VerticalAlignment="Center" />
                         <Border Classes="kbd"><TextBlock Text="Esc" /></Border>
                     </StackPanel>
-                </atom:Button>
-                <atom:Button x:Name="ConfirmButton" Grid.Column="2" SizeType="Small" Color="Default" Variant="Solid" Focusable="False" Margin="6,0,0,0"
-                             Command="{Binding ConfirmCommand}">
+                </arc:Button>
+                <arc:Button Variant="Primary" x:Name="ConfirmButton" Grid.Column="2" Size="Small" Focusable="False" Margin="6,0,0,0"
+                            Command="{Binding ConfirmCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="{loc:TKCodeLangResource PlanReviewConfirm}" VerticalAlignment="Center" />
-                        <icons:LucideIcon Kind="CornerDownLeft" Width="12" Height="12" VerticalAlignment="Center" />
+                        <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Kind="CornerDownLeft" Width="12" Height="12" VerticalAlignment="Center" />
                     </StackPanel>
-                </atom:Button>
+                </arc:Button>
             </Grid>
         </StackPanel>
     </Border>

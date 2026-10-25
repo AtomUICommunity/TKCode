@@ -1,4 +1,5 @@
 using TKCode.Agent.Coding.Prompt;
+using TKCode.Agent.Coding.Sessions;
 using TKCode.Agent.Coding.Tools;
 using TKCode.Agent.Coding.Tools.Tasks;
 using TKCode.Agent.Coding.Workspace;
@@ -28,6 +29,12 @@ public sealed record BuiltinOptions
 
     /// <summary>bash 工具使用的 shell（settings.json 的 agent.shell.profile），每次执行命令时读取；为 null 时用默认选择。</summary>
     public Func<string?>? ShellProfile { get; init; }
+
+    /// <summary>
+    /// 附加目录的来源（docs/design/projects.md §6.3）：每批用户输入之前取一次，用 <see cref="WorkspaceRoots.Sync"/> 替换工作区的附加目录。
+    /// 返回全部附加目录与其中只属于本会话的目录。null 表示不同步（子 Agent 跟随父会话的工作区）。
+    /// </summary>
+    public Func<SessionStore, (IReadOnlyList<string> All, IReadOnlyList<string> SessionOnly)>? AdditionalDirectories { get; init; }
 
     /// <summary>
     /// 项目记忆目录（settings.json 的 autoMemory，docs/design/memory.md）：加 memory 节、在会话开头注入索引、目录读写免审批。

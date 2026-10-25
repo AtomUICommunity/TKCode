@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using TKCode.Config;
 using TKCode.Desktop.Controls.Composer;
 using TKCode.Desktop.Icons;
 using TKCode.Desktop.Localization;
@@ -16,19 +17,40 @@ namespace TKCode.Desktop.ViewModels;
 /// <summary>侧栏会话列表中的一行。会话在 UI 中打开后关联 <see cref="Live"/>，状态随事件更新。</summary>
 public sealed partial class SessionItemViewModel : ObservableObject
 {
-    public SessionItemViewModel(string sessionId, string filePath, string cwd)
+    /// <param name="project">会话所属的项目（docs/design/projects.md §5.3）；不属于任何项目时为 null。</param>
+    public SessionItemViewModel(string sessionId, string filePath, string cwd, Project? project = null)
     {
         SessionId = sessionId;
         FilePath = filePath;
         Cwd = cwd;
-        ProjectName = System.IO.Path.GetFileName(cwd.TrimEnd(System.IO.Path.DirectorySeparatorChar));
+        SetProject(project);
     }
 
     public string SessionId { get; }
     public string FilePath { get; }
     public string Cwd { get; }
-    public string ProjectName { get; }
+
+    /// <summary>所属项目的 id；不属于任何项目时为 null。</summary>
+    public string? ProjectId { get; private set; }
+
+    /// <summary>项目名；不属于任何项目时为 cwd 的文件夹名（命令面板的副标题）。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ProjectInitial))]
+    public partial string ProjectName { get; private set; } = "";
+
+    /// <summary>侧栏的项目徽标：只有属于某个项目的会话才显示。</summary>
+    [ObservableProperty]
+    public partial bool HasProject { get; private set; }
+
     public string ProjectInitial => ProjectName.Length > 0 ? ProjectName[..1].ToUpperInvariant() : "?";
+
+    /// <summary>归属或项目名变化（重命名、移除项目）后更新。</summary>
+    public void SetProject(Project? project)
+    {
+        ProjectId = project?.Id;
+        HasProject = project is not null;
+        ProjectName = project?.Name ?? System.IO.Path.GetFileName(Cwd.TrimEnd(System.IO.Path.DirectorySeparatorChar));
+    }
 
     [ObservableProperty]
     public partial string? Title { get; set; }
@@ -189,6 +211,7 @@ public sealed partial class ConversationViewModel : ObservableObject
 {
     private readonly AgentHostConnection _host;
     private readonly StateService _settings;
+    private readonly ProjectService _projects;
     private readonly UserSettingsService _userSettings;
     private readonly DraftStore _drafts;
     private readonly ILogger<ConversationViewModel> _logger;
@@ -201,9 +224,10 @@ public sealed partial class ConversationViewModel : ObservableObject
     private string? _defaultModelRef;
 
     public ConversationViewModel(AgentHostConnection host, StateService settings, UserSettingsService userSettings, DraftStore drafts,
-        ILogger<ConversationViewModel> logger)
+        ProjectService projects, ILogger<ConversationViewModel> logger)
     {
         _host = host;
+        _projects = projects;
         _userSettings = userSettings;
         _drafts = drafts;
         _draftSaveTimer = new DispatcherTimer { Interval = DraftSaveDelay };
@@ -231,7 +255,8 @@ public sealed partial class ConversationViewModel : ObservableObject
             }
         };
         Mcp.ArgumentEdited += MarkDraftEdited;
-        Files = new FileCompletionProvider(host, () => CurrentCwd, settings);
+        Files = new FileCompletionProvider(host, () => CurrentCwd, settings, () => CurrentAdditionalRoots);
+        PendingDirectories.CollectionChanged += (_, _) => WorkspaceRootsChanged?.Invoke();
         Assets = new AssetCatalogCache(host, () => CurrentCwd, logger);
         var builtins = new BuiltinCommandProvider([
             new("new", TKCodeLangResourceKind.BuiltinNewDescription, LucideKind.SquarePen, NewChat),
@@ -244,6 +269,8 @@ public sealed partial class ConversationViewModel : ObservableObject
             // 外部运行时有自己的 /compact（由运行时命令列出并原样发送）
             new("compact", TKCodeLangResourceKind.BuiltinCompactDescription, LucideKind.Minimize2, () => _ = CompactActiveAsync(null),
                 () => Active is { Runtime: null }),
+            // 只给本会话追加文件夹（docs/design/projects.md §10.4）：选中后打开文件夹选择框；也可以输入 /add-dir 路径
+            new("add-dir", TKCodeLangResourceKind.AddDirCommandDescription, LucideKind.FolderPlus, () => AddDirectoryRequested?.Invoke()),
         ]);
         RolePicker.RoleChosen += role => _ = ApplyRoleAsync(role);
         RolePicker.Show(userSettings.Current.DefaultRole);
@@ -268,6 +295,7 @@ public sealed partial class ConversationViewModel : ObservableObject
         };
         _settings = settings;
         _logger = logger;
+        projects.Changed += OnProjectsChanged;
         OpenPlanFile = path => ShellOpen.Open(path, logger);
         _host.SessionEvent += OnSessionEvent;
         _host.Disconnected += reason =>
@@ -287,6 +315,8 @@ public sealed partial class ConversationViewModel : ObservableObject
             StatusMessage = Strings.Format(TKCodeLangResourceKind.StatusHostDisconnectedFormat, reason);
         };
         BranchPicker = new BranchPickerViewModel(SwitchBranchAsync, IsWorkspaceBusy, RefreshBranch);
+        // 切换会话或项目、文件夹变化：分支选择器的仓库随之更新
+        WorkspaceRootsChanged += RefreshBranch;
         Picker = new ModelPickerViewModel(settings);
         ContextUsage = new ContextUsageViewModel(async (sessionId, ct) => await (await _host.GetServerAsync()).GetContextUsageAsync(sessionId, ct), logger);
         userSettings.Changed += () => ApplyDefaultModel();
@@ -320,7 +350,8 @@ public sealed partial class ConversationViewModel : ObservableObject
 
     public BranchPickerViewModel BranchPicker { get; }
 
-    private GitBranchWatcher? _branchWatcher;
+    /// <summary>各仓库的分支监视（多文件夹项目每个仓库一个）。</summary>
+    private List<(string Path, GitBranchWatcher Watcher)> _branchWatchers = [];
 
     public string DeviceName => DeviceInfo.Name;
 
@@ -362,14 +393,14 @@ public sealed partial class ConversationViewModel : ObservableObject
     /// <summary>新会话使用的项目；null 表示不在项目中工作（使用用户主目录）。</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(WorkspaceName), nameof(HeaderSubtitle))]
-    public partial WorkspaceInfo? Workspace { get; private set; }
+    public partial Project? Workspace { get; private set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BranchName))]
     public partial string? Branch { get; private set; }
 
-    /// <summary>当前会话或工作区的目录：@ 文件路径相对于它。</summary>
-    public string? CurrentCwd => Active?.Cwd ?? Workspace?.Path;
+    /// <summary>当前会话的 cwd，没有会话时为所选项目的主文件夹：@ 文件路径相对于它。</summary>
+    public string? CurrentCwd => Active?.Cwd ?? Workspace?.Primary;
 
     /// <summary>输入框的内容：文字与 tag（docs/design/composer.md §6.4）。</summary>
     public ComposerDocument Composer { get; } = new();
@@ -483,6 +514,7 @@ public sealed partial class ConversationViewModel : ObservableObject
     /// <summary>当前会话变了（切换、新对话、删除、断线都经过这里）：旧会话的草稿存起来，换上新会话的。</summary>
     partial void OnActiveChanged(SessionViewModel? oldValue, SessionViewModel? newValue)
     {
+        WorkspaceRootsChanged?.Invoke();
         var from = oldValue?.SessionId ?? DraftStore.NewChatKey;
         var to = newValue?.SessionId ?? DraftStore.NewChatKey;
         if (from == to)
@@ -629,24 +661,23 @@ public sealed partial class ConversationViewModel : ObservableObject
     public string HeaderTitle => Active?.Title ?? Strings.Get(TKCodeLangResourceKind.NewSession);
     public string? HeaderIconKey => Active?.ModelIconKey ?? Picker.Selected?.IconKey;
     public string HeaderSubtitle => Strings.Format(TKCodeLangResourceKind.SessionSubtitleFormat,
-        Active?.ProjectName ?? WorkspaceName, DeviceName);
+        Active is { } active ? _projects.Resolve(active.ProjectId, active.Cwd)?.Name ?? active.ProjectName : WorkspaceName, DeviceName);
 
     /// <summary>切换项目时通知侧栏同步选中状态。</summary>
     public event Action? WorkspaceChanged;
 
-    public void SetWorkspace(WorkspaceInfo? workspace)
+    public void SetWorkspace(Project? workspace)
     {
         Workspace = workspace;
-        RefreshBranch();
-        WatchBranches(workspace);
-        _settings.Current.LastWorkspace = workspace?.Path;
+        _settings.Current.LastProjectId = workspace?.Id;
         if (workspace is not null)
         {
-            _settings.Current.TouchRecentWorkspace(workspace.Path);
+            _settings.Current.TouchRecentProject(workspace.Id);
         }
         _settings.Save();
         WorkspaceChanged?.Invoke();
-        if (Active is not null && workspace is not null && !SamePath(Active.Cwd, workspace.Path))
+        WorkspaceRootsChanged?.Invoke();
+        if (Active is not null && workspace is not null && ProjectOf(Active) != workspace.Id)
         {
             NewChat();
         }
@@ -656,38 +687,87 @@ public sealed partial class ConversationViewModel : ObservableObject
         }
     }
 
+    /// <summary>项目表变化（编辑、重命名、移除）：所选项目换成新的快照，会话行的项目徽标随之更新。</summary>
+    private void OnProjectsChanged()
+    {
+        if (Workspace is { } current && _projects.Find(current.Id) is var updated && !ReferenceEquals(updated, current))
+        {
+            Workspace = updated;
+            WorkspaceChanged?.Invoke();
+        }
+        foreach (var item in Sessions)
+        {
+            item.SetProject(_projects.Resolve(item.ProjectId, item.Cwd));
+        }
+        OnPropertyChanged(nameof(HeaderSubtitle));
+        WorkspaceRootsChanged?.Invoke();
+    }
+
     /// <summary>当前项目中有会话正在运行时不允许切换分支（避免 Agent 读写到一半时工作区变化）。</summary>
     private bool IsWorkspaceBusy() =>
-        Workspace is { } workspace && _open.Values.Any(s => s.IsRunning && SamePath(s.Cwd, workspace.Path));
+        Workspace is { } workspace && _open.Values.Any(s => s.IsRunning && workspace.HasFolder(s.Cwd));
 
     private async Task<string?> SwitchBranchAsync(string branch)
     {
-        if (Workspace is not { } workspace)
+        if (BranchPicker.SelectedRepository is not { } repository)
         {
             return null;
         }
-        var error = await GitService.SwitchAsync(workspace.Path, branch);
+        var error = await GitService.SwitchAsync(repository, branch);
         RefreshBranch();
         return error;
     }
 
-    /// <summary>重新读取当前分支与分支列表（切换项目、弹层打开、.git 变化时）。</summary>
+    /// <summary>
+    /// 工作区里的 Git 仓库（docs/design/projects.md §10.3）：主文件夹在前，然后是项目的其他文件夹与本会话追加的文件夹；
+    /// 位于同一个仓库（同一个 git 目录）的文件夹只算一次。
+    /// </summary>
+    private IReadOnlyList<string> Repositories()
+    {
+        if (CurrentCwd is not { } cwd)
+        {
+            return [];
+        }
+        var seen = new HashSet<string>(PathRules.Comparer);
+        var result = new List<string>();
+        foreach (var folder in (IEnumerable<string>)[cwd, .. CurrentAdditionalRoots])
+        {
+            if (GitLayout.Find(folder) is { } layout && seen.Add(Path.GetFullPath(layout.GitDir)))
+            {
+                result.Add(folder);
+            }
+        }
+        return result;
+    }
+
+    /// <summary>重新读取各仓库的当前分支与所选仓库的分支列表（切换项目、弹层打开、.git 变化、文件夹变化时）。</summary>
     private void RefreshBranch()
     {
-        Branch = Workspace?.ReadBranch();
-        BranchPicker.Load(Branch, Workspace?.ReadBranches() ?? []);
+        var repositories = Repositories();
+        BranchPicker.SetRepositories(repositories.Select(r => (r, Project.FolderName(r), GitRepository.ReadBranch(r))).ToArray());
+        Branch = repositories.Count > 0 && CurrentCwd is { } cwd && PathRules.SamePath(repositories[0], cwd) ? BranchPicker.Repositories[0].Branch : null;
+        var selected = BranchPicker.SelectedRepository;
+        BranchPicker.Load(selected is null ? null : GitRepository.ReadBranch(selected), selected is null ? [] : GitRepository.ReadBranches(selected));
+        WatchBranches(repositories);
     }
 
     /// <summary>
-    /// 监视当前项目的分支变化：在终端 / Agent 里 git switch、新建或删除分支后，底部分支选择器随之更新，
-    /// 不必等到下一次切换项目。
+    /// 监视各仓库的分支变化：在终端 / Agent 里 git switch、新建或删除分支后，底部分支选择器随之更新，
+    /// 不必等到下一次切换项目。仓库不变时保留已有的监视。
     /// </summary>
-    private void WatchBranches(WorkspaceInfo? workspace)
+    private void WatchBranches(IReadOnlyList<string> repositories)
     {
-        _branchWatcher?.Dispose();
-        _branchWatcher = workspace is null
-            ? null
-            : new GitBranchWatcher(workspace.Path, () => Dispatcher.UIThread.Post(RefreshBranch, DispatcherPriority.Background));
+        if (repositories.SequenceEqual(_branchWatchers.Select(w => w.Path), PathRules.Comparer))
+        {
+            return;
+        }
+        foreach (var (_, watcher) in _branchWatchers)
+        {
+            watcher.Dispose();
+        }
+        _branchWatchers = repositories
+            .Select(r => (r, new GitBranchWatcher(r, () => Dispatcher.UIThread.Post(RefreshBranch, DispatcherPriority.Background))))
+            .ToList();
     }
 
     [RelayCommand]
@@ -814,6 +894,115 @@ public sealed partial class ConversationViewModel : ObservableObject
     /// <summary>/role：请求打开模式选择器（由主窗口处理）。</summary>
     public event Action? RolePickerRequested;
 
+    /// <summary>/add-dir：请求打开文件夹选择框（由主窗口处理），选中的文件夹交给 <see cref="AddSessionDirectoryAsync"/>。</summary>
+    public event Action? AddDirectoryRequested;
+
+    // ---- 多文件夹（docs/design/projects.md §10） ----
+
+    /// <summary>空状态里用 /add-dir 追加的文件夹：创建会话时一起发给 Host（§6.4）。</summary>
+    public ObservableCollection<string> PendingDirectories { get; } = [];
+
+    /// <summary>工作区的根目录变了（项目的文件夹、本会话追加的文件夹、切换会话或项目）：文件树与 @ 搜索随之更新。</summary>
+    public event Action? WorkspaceRootsChanged;
+
+    /// <summary>某个打开的会话开始或停止运行（侧栏项目行的运行指示随之更新）。</summary>
+    public event Action? RunningChanged;
+
+    /// <summary>项目里有打开的会话正在运行（docs/design/projects.md §8.3）。</summary>
+    public bool IsProjectRunning(string projectId) => _open.Values.Any(s => s.IsRunning && ProjectOf(s) == projectId);
+
+    /// <summary>当前会话（没有会话时为所选项目）主文件夹以外的根目录：项目的其他文件夹与本会话追加的文件夹，只含存在的目录。</summary>
+    public IReadOnlyList<string> CurrentAdditionalRoots
+    {
+        get
+        {
+            var project = Active is { } active ? _projects.Resolve(active.ProjectId, active.Cwd) : Workspace;
+            var cwd = CurrentCwd;
+            IEnumerable<string> folders = project?.Folders.Where(f => cwd is null || !PathRules.SamePath(f, cwd)) ?? [];
+            return folders.Concat(CurrentSessionRoots).Where(Directory.Exists).Distinct(PathRules.Comparer).ToArray();
+        }
+    }
+
+    /// <summary>只属于本会话（或空状态里待创建的会话）的文件夹。</summary>
+    public IReadOnlyList<string> CurrentSessionRoots => Active?.SessionDirectories ?? PendingDirectories;
+
+    /// <summary>/add-dir：只给本会话追加一个文件夹；没有会话时先记下，创建会话时一起发送。失败时在状态栏说明原因。</summary>
+    public async Task AddSessionDirectoryAsync(string path)
+    {
+        if (Active is not { } session)
+        {
+            var full = PathRules.Normalize(path);
+            if (!Directory.Exists(full))
+            {
+                StatusMessage = Strings.Format(TKCodeLangResourceKind.AddDirFailedFormat, path);
+                return;
+            }
+            if (!PendingDirectories.Contains(full, PathRules.Comparer) && !(CurrentCwd is { } cwd && PathRules.SamePath(cwd, full)))
+            {
+                PendingDirectories.Add(full);
+            }
+            return;
+        }
+        try
+        {
+            var server = await _host.GetServerAsync();
+            var updated = await server.AddSessionDirectoryAsync(session.SessionId, path);
+            session.SessionDirectories = updated.SessionDirectories ?? [];
+            StatusMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Adding a session folder failed");
+            StatusMessage = Strings.Format(TKCodeLangResourceKind.AddDirFailedFormat, ex.Message);
+        }
+    }
+
+    /// <summary>文件树根节点的「从本会话移除」。</summary>
+    public async Task RemoveSessionDirectoryAsync(string path)
+    {
+        if (Active is not { } session)
+        {
+            var existing = PendingDirectories.FirstOrDefault(d => PathRules.SamePath(d, path));
+            if (existing is not null)
+            {
+                PendingDirectories.Remove(existing);
+            }
+            return;
+        }
+        try
+        {
+            var server = await _host.GetServerAsync();
+            var updated = await server.RemoveSessionDirectoryAsync(session.SessionId, path);
+            session.SessionDirectories = updated.SessionDirectories ?? [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Removing a session folder failed");
+            StatusMessage = ex.Message;
+        }
+    }
+
+    /// <summary>输入的是 “/add-dir [路径]” 时返回路径（可能为空串），否则 null。</summary>
+    private static string? AddDirArgument(string text)
+    {
+        const string command = "/add-dir";
+        if (!text.StartsWith(command, StringComparison.OrdinalIgnoreCase) || (text.Length > command.Length && !char.IsWhiteSpace(text[command.Length])))
+        {
+            return null;
+        }
+        return text[command.Length..].Trim();
+    }
+
+    /// <summary>/add-dir 的路径参数：支持 ~ 与相对路径（基于当前的主文件夹）。</summary>
+    private string ResolveDirectoryArgument(string argument)
+    {
+        if (argument == "~" || argument.StartsWith("~/", StringComparison.Ordinal) || argument.StartsWith("~\\", StringComparison.Ordinal))
+        {
+            argument = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), argument.Length > 2 ? argument[2..] : "");
+        }
+        return Path.GetFullPath(argument, CurrentCwd ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+    }
+
     /// <summary>会话的 role（Agent / Ask / Plan / 自定义）。</summary>
     public RolePickerViewModel RolePicker { get; } = new();
 
@@ -924,6 +1113,19 @@ public sealed partial class ConversationViewModel : ObservableObject
             await CompactActiveAsync(compact.Length == 0 ? null : compact);
             return;
         }
+        if (images.Length == 0 && !hasFile && !hasCommand && !Mcp.HasPrompt && AddDirArgument(text) is { } directory)
+        {
+            ComposerText = "";
+            if (directory.Length == 0)
+            {
+                AddDirectoryRequested?.Invoke();
+            }
+            else
+            {
+                await AddSessionDirectoryAsync(ResolveDirectoryArgument(directory.Trim('"')));
+            }
+            return;
+        }
         if (hasFile)
         {
             text = AttachedFiles.AppendInstruction(text);
@@ -952,12 +1154,19 @@ public sealed partial class ConversationViewModel : ObservableObject
             var server = await _host.GetServerAsync();
             if (target is null)
             {
-                var cwd = Workspace?.Path ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var cwd = Workspace?.Primary ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 var model = Picker.Selected?.Model.Ref ?? "fake/fake-sonnet";
-                var session = await server.CreateSessionAsync(new CreateSessionRequest(cwd, model, Picker.Options with { PermissionMode = Permission.Mode, Role = RolePicker.Role }));
+                var session = await server.CreateSessionAsync(new CreateSessionRequest(cwd, model,
+                    Picker.Options with { PermissionMode = Permission.Mode, Role = RolePicker.Role }, Workspace?.Id,
+                    PendingDirectories.Count > 0 ? PendingDirectories.ToArray() : null));
+                PendingDirectories.Clear();
                 var live = Track(new SessionViewModel(session) { Title = title });
                 Picker.ApplyHostOptions(session.Options);
-                var item = new SessionItemViewModel(session.SessionId, session.FilePath, session.Cwd) { Live = live, Owner = this };
+                var item = new SessionItemViewModel(session.SessionId, session.FilePath, session.Cwd, _projects.Resolve(session.ProjectId, session.Cwd))
+                {
+                    Live = live,
+                    Owner = this,
+                };
                 item.SyncFrom(live);
                 Sessions.Insert(0, item);
                 // 会话已经创建：之后失败，草稿属于这个新会话
@@ -1062,15 +1271,16 @@ public sealed partial class ConversationViewModel : ObservableObject
     private const int SessionPageSize = 20;
     private int _sessionLimit = SessionPageSize;
     private bool _loadingSessions;
+    /// <summary>侧栏筛选的项目 id；null 表示全部会话。</summary>
     private string? _sessionFilter;
 
     /// <summary>还有更多会话：列表底部显示“展开更多”按钮。</summary>
     public bool HasMoreSessions { get; private set; }
 
     /// <summary>侧栏筛选的项目变化：按项目重新加载，重新从第一页开始。</summary>
-    public Task SetSessionFilterAsync(string? cwd)
+    public Task SetSessionFilterAsync(string? projectId)
     {
-        _sessionFilter = cwd;
+        _sessionFilter = projectId;
         _sessionLimit = SessionPageSize;
         return RefreshSessionsAsync();
     }
@@ -1085,7 +1295,7 @@ public sealed partial class ConversationViewModel : ObservableObject
         {
             var server = await _host.GetServerAsync();
             // 多取一条：返回条数超过显示上限，说明还有下一页
-            var page = await server.QuerySessionsAsync(_sessionFilter, 0, _sessionLimit + 1);
+            var page = await server.QuerySessionsAsync(null, 0, _sessionLimit + 1, _sessionFilter);
             var existing = Sessions.ToDictionary(s => s.SessionId);
             Sessions.Clear();
             foreach (var summary in page.Items.Take(_sessionLimit))
@@ -1122,7 +1332,7 @@ public sealed partial class ConversationViewModel : ObservableObject
         {
             var server = await _host.GetServerAsync();
             var limit = _sessionLimit + SessionPageSize;
-            var page = await server.QuerySessionsAsync(_sessionFilter, 0, limit + 1);
+            var page = await server.QuerySessionsAsync(null, 0, limit + 1, _sessionFilter);
             var known = Sessions.Select(s => s.SessionId).ToHashSet();
             foreach (var summary in page.Items.Take(limit).Where(s => !known.Contains(s.SessionId)))
             {
@@ -1147,6 +1357,7 @@ public sealed partial class ConversationViewModel : ObservableObject
     {
         item ??= new SessionItemViewModel(summary.SessionId, summary.FilePath, summary.Cwd) { Owner = this };
         item.Owner = this;
+        item.SetProject(_projects.Find(summary.ProjectId));
         if (summary.HasCustomTitle)
         {
             item.CustomTitle = summary.Title;
@@ -1247,7 +1458,8 @@ public sealed partial class ConversationViewModel : ObservableObject
         var result = await server.ForkSessionAsync(item.FilePath);
         var live = Track(new SessionViewModel(result.Session) { Title = item.CustomTitle ?? item.Title });
         live.LoadHistory(result.History, result.HistoryStart);
-        var fork = new SessionItemViewModel(result.Session.SessionId, result.Session.FilePath, result.Session.Cwd)
+        var fork = new SessionItemViewModel(result.Session.SessionId, result.Session.FilePath, result.Session.Cwd,
+            _projects.Resolve(result.Session.ProjectId, result.Session.Cwd))
         {
             Live = live,
             Owner = this,
@@ -1348,6 +1560,17 @@ public sealed partial class ConversationViewModel : ObservableObject
     private SessionViewModel Track(SessionViewModel session)
     {
         _open[session.SessionId] = session;
+        session.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SessionViewModel.SessionDirectories) && ReferenceEquals(session, Active))
+            {
+                WorkspaceRootsChanged?.Invoke();
+            }
+            if (e.PropertyName == nameof(SessionViewModel.IsRunning))
+            {
+                RunningChanged?.Invoke();
+            }
+        };
         session.RevertFile = RevertFileAsync;
         // 本轮正常结束：发出队列中的下一条（后台会话同样继续）
         session.RunEnded += completed =>
@@ -1608,7 +1831,7 @@ public sealed partial class ConversationViewModel : ObservableObject
 
     /// <summary>项目记住的档位；空状态和新会话沿用，包括“完全授权”。</summary>
     private string RememberedPermission() =>
-        Workspace?.Path is { } path && _settings.Current.PermissionModes.TryGetValue(path, out var mode)
+        Workspace?.Id is { } id && _settings.Current.PermissionModes.TryGetValue(id, out var mode)
             ? PermissionPickerViewModel.Normalize(mode)
             : PermissionPickerViewModel.Ask;
 
@@ -1628,11 +1851,8 @@ public sealed partial class ConversationViewModel : ObservableObject
         _settings.Save();
     }
 
-    /// <summary>会话所在的项目（已添加的工作区）；不在项目中工作时为 null。</summary>
-    private string? ProjectOf(SessionViewModel session) =>
-        Workspace?.Path is { } current && SamePath(current, session.Cwd)
-            ? current
-            : _settings.Current.Workspaces.FirstOrDefault(w => SamePath(w, session.Cwd));
+    /// <summary>会话所属项目的 id（docs/design/projects.md §5.3）；不在项目中工作时为 null。</summary>
+    private string? ProjectOf(SessionViewModel session) => _projects.Resolve(session.ProjectId, session.Cwd)?.Id;
 
     /// <summary>
     /// 用户在选择器中选定档位：按项目记住（包括完全授权），并同步到当前会话；
@@ -1640,7 +1860,7 @@ public sealed partial class ConversationViewModel : ObservableObject
     /// </summary>
     private async Task ApplyPermissionAsync(string mode)
     {
-        RememberPermission(Workspace?.Path, mode);
+        RememberPermission(Workspace?.Id, mode);
         if (Active is not { } session)
         {
             return; // 空状态：创建会话时随 CreateSessionRequest 发送
@@ -1769,8 +1989,4 @@ public sealed partial class ConversationViewModel : ObservableObject
         }
         UpdateContextUsage();
     }
-
-    private static bool SamePath(string a, string b) =>
-        string.Equals(Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar), Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar),
-            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 }

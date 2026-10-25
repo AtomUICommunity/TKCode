@@ -75,22 +75,24 @@ public sealed class SystemMenuTests
         var home = Directory.CreateTempSubdirectory("tkcode-recent-").FullName;
         var dirs = Enumerable.Range(0, 10).Select(i => Directory.CreateDirectory(Path.Combine(home, $"p{i}")).FullName).ToList();
         var state = new StateService(Path.Combine(home, "state.json"));
+        // 旧版 state.json 的项目路径迁移成单文件夹项目，保持侧栏顺序
         state.Current.Workspaces.AddRange(dirs);
-        var workspaces = new WorkspaceService(state);
+        var projects = new ProjectService(state, Path.Combine(home, "projects.json"));
+        string Id(string dir) => projects.FindByPath(dir)!.Id;
 
         // 没用过任何项目：按侧栏顺序，最多 8 个
-        Assert.Equal(dirs.Take(8), workspaces.Recent(8).Select(w => w.Path));
+        Assert.Equal(dirs.Take(8), projects.Recent(8).Select(p => p.Primary));
 
-        state.Current.TouchRecentWorkspace(dirs[5]);
-        state.Current.TouchRecentWorkspace(dirs[9]);
-        state.Current.TouchRecentWorkspace(dirs[5]);
+        state.Current.TouchRecentProject(Id(dirs[5]));
+        state.Current.TouchRecentProject(Id(dirs[9]));
+        state.Current.TouchRecentProject(Id(dirs[5]));
         // 最近使用的在前、不重复，其余按侧栏顺序补齐
-        Assert.Equal([dirs[5], dirs[9], dirs[0], dirs[1], dirs[2], dirs[3], dirs[4], dirs[6]], workspaces.Recent(8).Select(w => w.Path));
+        Assert.Equal([dirs[5], dirs[9], dirs[0], dirs[1], dirs[2], dirs[3], dirs[4], dirs[6]], projects.Recent(8).Select(p => p.Primary));
 
-        // 已经不存在的目录不会出现在菜单里
+        // 主文件夹已经不存在的项目不会出现在菜单里
         Directory.Delete(dirs[5]);
-        Assert.DoesNotContain(dirs[5], workspaces.Recent(8).Select(w => w.Path));
-        Assert.Equal(dirs[9], workspaces.Recent(8)[0].Path);
+        Assert.DoesNotContain(dirs[5], projects.Recent(8).Select(p => p.Primary));
+        Assert.Equal(dirs[9], projects.Recent(8)[0].Primary);
     }
 
     [Fact]
@@ -121,28 +123,28 @@ public sealed class SystemMenuTests
         await HeadlessApp.Session.Dispatch(async () =>
         {
             var vm = provider.GetRequiredService<MainWindowViewModel>();
-            var workspaces = provider.GetRequiredService<WorkspaceService>();
+            var workspaces = provider.GetRequiredService<ProjectService>();
             var updates = provider.GetRequiredService<UpdatesViewModel>();
 
             // 启动时选中的项目（侧栏第一个）已算作最近使用
-            Assert.Equal(alpha, workspaces.Recent(8)[0].Path);
+            Assert.Equal(alpha, workspaces.Recent(8)[0].Primary);
 
             // 从菜单进入项目 = 在侧栏项目选择器里选中它：筛选会话 + 新会话默认在该项目中，并离开设置页
             await vm.OpenSettingsCommand.ExecuteAsync(null);
             Assert.True(vm.IsSettingsOpen);
             vm.OpenProject(beta);
             Assert.False(vm.IsSettingsOpen);
-            Assert.Equal(beta, vm.Sidebar.Filter?.Path);
-            Assert.Equal(beta, vm.Conversation.Workspace?.Path);
-            Assert.Equal([beta, alpha], workspaces.Recent(2).Select(w => w.Path));
+            Assert.Equal(beta, vm.Sidebar.Filter?.Primary);
+            Assert.Equal(beta, vm.Conversation.Workspace?.Primary);
+            Assert.Equal([beta, alpha], workspaces.Recent(2).Select(w => w.Primary));
 
             // 不在列表里的目录先加入再进入；不存在的目录忽略
             vm.OpenProject(elsewhere);
-            Assert.Equal(elsewhere, vm.Sidebar.Filter?.Path);
-            Assert.Contains(vm.Sidebar.Projects, p => p.Path == elsewhere);
+            Assert.Equal(elsewhere, vm.Sidebar.Filter?.Primary);
+            Assert.Contains(vm.Sidebar.Projects, p => p.Primary == elsewhere);
             vm.OpenProject(Path.Combine(home, "does-not-exist"));
-            Assert.Equal(elsewhere, vm.Sidebar.Filter?.Path);
-            Assert.DoesNotContain(vm.Sidebar.Projects, p => p.Path.EndsWith("does-not-exist"));
+            Assert.Equal(elsewhere, vm.Sidebar.Filter?.Primary);
+            Assert.DoesNotContain(vm.Sidebar.Projects, p => p.Primary.EndsWith("does-not-exist"));
 
             // 新会话：离开设置页，在当前项目中开始
             await vm.OpenSettingsCommand.ExecuteAsync(null);
@@ -151,7 +153,7 @@ public sealed class SystemMenuTests
 
             var recent = workspaces.Recent(AppTray.ProjectLimit);
             Assert.Equal(5, recent.Count);
-            Assert.Equal(elsewhere, recent[0].Path);
+            Assert.Equal(elsewhere, recent[0].Primary);
 
             // 托盘：显示 / 新会话 / 项目▸ / —— / 更新 / 设置 / —— / 退出
             var tray = AppTray.BuildItems(updates, recent);
@@ -163,7 +165,7 @@ public sealed class SystemMenuTests
             Assert.Contains(tray, i => i.Action == TrayAction.Settings);
             Assert.Contains(tray, i => i.Action == TrayAction.CheckUpdates);
             var submenu = Assert.IsAssignableFrom<IReadOnlyList<TrayItem>>(tray[2].Children);
-            Assert.Equal(recent.Select(p => p.Path), submenu.Select(i => i.Argument));
+            Assert.Equal(recent.Select(p => p.Primary), submenu.Select(i => i.Argument));
             Assert.All(submenu, i => Assert.Equal(TrayAction.OpenProject, i.Action));
             // 同名项目附上上级目录名
             Assert.Contains(submenu, i => i.Argument == appOne && i.Text!.EndsWith("(one)"));
@@ -177,14 +179,14 @@ public sealed class SystemMenuTests
             var dock = AppTray.BuildDockItems(recent);
             Assert.Equal(TrayAction.NewSession, dock[0].Action);
             Assert.Null(dock[1].Text);
-            Assert.Equal(recent.Select(p => p.Path), dock.Skip(3).Select(i => i.Argument));
+            Assert.Equal(recent.Select(p => p.Primary), dock.Skip(3).Select(i => i.Argument));
             Assert.Single(AppTray.BuildDockItems([]));
 
             // 跳转列表：任务是「新会话」「退出」，项目类别的条目参数能被主实例解析回来
             var (tasks, entries) = AppTray.BuildJumpList(recent);
             Assert.Equal([AppCommand.NewSession.ToCommandLine(), AppCommand.Quit.ToCommandLine()], tasks.Select(t => t.Arguments));
             Assert.Equal(recent.Select(p => p.Name), entries.Select(e => e.Title));
-            Assert.Equal(recent.Select(p => p.Path), entries.Select(e => e.Description));
+            Assert.Equal(recent.Select(p => p.Primary), entries.Select(e => e.Description));
             Assert.Equal(AppCommand.OpenProject(beta), AppCommand.Parse(["--open-project", beta]));
             return true;
         }, CancellationToken.None);

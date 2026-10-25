@@ -16,6 +16,7 @@ namespace TKCode.Agent.Coding.Sessions;
 [JsonDerivedType(typeof(OptionsChangeEntry), "optionsChange")]
 [JsonDerivedType(typeof(RuntimeSessionEntry), "runtimeSession")]
 [JsonDerivedType(typeof(SessionMetaEntry), "meta")]
+[JsonDerivedType(typeof(SessionDirectoriesEntry), "directories")]
 [JsonDerivedType(typeof(SystemPromptEntry), "systemPrompt")]
 [JsonDerivedType(typeof(TasksEntry), "tasks")]
 [JsonDerivedType(typeof(CompactionEntry), "compaction")]
@@ -24,13 +25,19 @@ public abstract record SessionEntry
     public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
 }
 
-public sealed record SessionHeader(string SessionId, string Cwd, int Version) : SessionEntry;
+/// <param name="ProjectId">会话所属的项目（docs/design/projects.md §5.3）；旧会话与不在项目中工作的会话为 null。</param>
+public sealed record SessionHeader(string SessionId, string Cwd, int Version, string? ProjectId = null) : SessionEntry;
 
 /// <summary>
 /// 会话元数据（不属于对话树，最后一条生效）：自动生成或手动命名的标题、是否置顶。字段为 null 表示不变；
 /// 标题为空串表示清除自定义标题（回到第一条用户消息）。
 /// </summary>
 public sealed record SessionMetaEntry(string? Title, bool? Pinned) : SessionEntry;
+
+/// <summary>
+/// 只给本会话追加的文件夹（docs/design/projects.md §6.4），不属于对话树：每次写完整列表，最后一条生效。
+/// </summary>
+public sealed record SessionDirectoriesEntry(IReadOnlyList<string> Directories) : SessionEntry;
 
 public abstract record TreeEntry(string Id, string? ParentId) : SessionEntry;
 

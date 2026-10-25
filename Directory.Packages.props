@@ -1,9 +1,10 @@
 <Project>
     <PropertyGroup>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-        <AtomUIVersion>6.2.6</AtomUIVersion>
+        <AtomUIVersion>6.2.8</AtomUIVersion>
         <AvaloniaVersion>12.1.4</AvaloniaVersion>
-        <StreamMarkVersion>0.1.0-alpha.23</StreamMarkVersion>
+        <StreamMarkVersion>0.1.0</StreamMarkVersion>
+        <ArcVersion>0.3.0-preview.5</ArcVersion>
         <MicrosoftExtensionsVersion>11.0.0-rc.2.26504.105</MicrosoftExtensionsVersion>
     </PropertyGroup>
     <ItemGroup>
@@ -11,22 +12,25 @@
         <PackageVersion Include="AtomUI.Desktop.Controls" Version="$(AtomUIVersion)" />
         <PackageVersion Include="Avalonia" Version="$(AvaloniaVersion)" />
         <PackageVersion Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
-        <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.1" />
+        <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" />
         <PackageVersion Include="Avalonia.Headless" Version="$(AvaloniaVersion)" />
         <PackageVersion Include="Avalonia.Skia" Version="$(AvaloniaVersion)" />
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-        <!-- Markdown 渲染：StreamMark（独立仓库，经本地 NuGet 源引用，见 nuget.config） -->
-        <PackageVersion Include="StreamMark.Avalonia" Version="$(StreamMarkVersion)" />
-        <PackageVersion Include="StreamMark.RaTeX" Version="$(StreamMarkVersion)" />
-        <PackageVersion Include="StreamMark.Highlighting.TextMate" Version="$(StreamMarkVersion)" />
-        <PackageVersion Include="StreamMark.Mermaid" Version="$(StreamMarkVersion)" />
-        <PackageVersion Include="StreamMark.Theme.AtomUI" Version="$(StreamMarkVersion)" />
+        <!-- 组件库：TKCode.Arc（Arc 风格，基于 AtomUI；精确依赖 AtomUI 与 Avalonia 版本，升级 AtomUI 时一起升） -->
+        <PackageVersion Include="TKCode.Arc" Version="$(ArcVersion)" />
+        <PackageVersion Include="TKCode.Arc.Icons.Lucide" Version="$(ArcVersion)" />
+        <!-- Markdown 渲染：StreamMark（独立仓库，包 ID 与 nuget.org 一致；TKCode.Arc 依赖同名包，见 nuget.config） -->
+        <PackageVersion Include="TKCode.StreamMark.Avalonia" Version="$(StreamMarkVersion)" />
+        <PackageVersion Include="TKCode.StreamMark.RaTeX" Version="$(StreamMarkVersion)" />
+        <PackageVersion Include="TKCode.StreamMark.Highlighting.TextMate" Version="$(StreamMarkVersion)" />
+        <PackageVersion Include="TKCode.StreamMark.Mermaid" Version="$(StreamMarkVersion)" />
+        <PackageVersion Include="TKCode.StreamMark.Theme.AtomUI" Version="$(StreamMarkVersion)" />
         <!-- 网页工具：HTML 解析（web_fetch 的正文提取与 Markdown 转换为自写代码，见 docs/design/builtin-agent-tools.md §8） -->
-        <PackageVersion Include="AngleSharp" Version="1.8.4" />
+        <PackageVersion Include="AngleSharp" Version="1.8.5" />
         <!-- MCP 客户端（官方 C# SDK，AOT 实测 0 警告，见 docs/protocols/mcp.md §11） -->
-        <PackageVersion Include="ModelContextProtocol.Core" Version="2.2.0" />
+        <PackageVersion Include="ModelContextProtocol.Core" Version="2.3.0" />
         <!-- 仅测试用的 HTTP / OAuth MCP 服务器（ASP.NET Core，JIT） -->
-        <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+        <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.3.0" />
         <!-- 终端：随包 ConPTY（conpty.dll + OpenConsole.exe 成对升级，见 docs/terminal/12-build-and-ci.md §8.2） -->
         <PackageVersion Include="Microsoft.Windows.Console.ConPTY" Version="1.25.260930003" />
         <!-- 宿主 / 进程通信 -->
@@ -36,6 +40,6 @@
         <PackageVersion Include="xunit.v3" Version="3.2.2" />
         <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
         <!-- 更新检查的定时测试（手动推进的 TimeProvider） -->
-        <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.9.0" />
+        <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     </ItemGroup>
 </Project>

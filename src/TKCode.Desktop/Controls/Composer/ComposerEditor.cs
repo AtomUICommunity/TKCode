@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
+using TKCode.Arc;
 
 namespace TKCode.Desktop.Controls.Composer;
 
@@ -17,7 +18,7 @@ namespace TKCode.Desktop.Controls.Composer;
 /// 高度随内容在 <see cref="MinLines"/> 与 <see cref="MaxLines"/> 之间自动增长，超出后在内部滚动。
 /// Enter 不在这里处理（由宿主决定发送）；Shift+Enter 插入换行。
 /// </summary>
-public partial class ComposerEditor : Control
+public partial class ComposerEditor : Control, IExpandableLineSource
 {
     public static readonly StyledProperty<FontFamily> FontFamilyProperty = TextElement.FontFamilyProperty.AddOwner<ComposerEditor>();
     public static readonly StyledProperty<double> FontSizeProperty = TextElement.FontSizeProperty.AddOwner<ComposerEditor>();
@@ -45,11 +46,6 @@ public partial class ComposerEditor : Control
 
     /// <summary>只读（转录里的用户消息）：可以选择和复制，不能编辑，不显示光标，宽度按内容。</summary>
     public static readonly StyledProperty<bool> IsReadOnlyProperty = AvaloniaProperty.Register<ComposerEditor, bool>(nameof(IsReadOnly));
-
-    /// <summary>
-    /// 限制可见行数时裁掉其余内容，而不是在内部滚动（转录里收起的用户消息：展开才显示全部）。
-    /// </summary>
-    public static readonly StyledProperty<bool> ClipLinesProperty = AvaloniaProperty.Register<ComposerEditor, bool>(nameof(ClipLines));
 
     public static readonly DirectProperty<ComposerEditor, ComposerDocument> DocumentProperty =
         AvaloniaProperty.RegisterDirect<ComposerEditor, ComposerDocument>(nameof(Document), e => e.Document, (e, v) => e.Document = v);
@@ -84,7 +80,7 @@ public partial class ComposerEditor : Control
         FocusableProperty.OverrideDefaultValue<ComposerEditor>(true);
         CursorProperty.OverrideDefaultValue<ComposerEditor>(new Cursor(StandardCursorType.Ibeam));
         AffectsMeasure<ComposerEditor>(FontFamilyProperty, FontSizeProperty, FontWeightProperty, FontStyleProperty, PaddingProperty,
-            LineHeightProperty, MinLinesProperty, MaxLinesProperty, TagMaxWidthProperty, IsReadOnlyProperty, ClipLinesProperty);
+            LineHeightProperty, MinLinesProperty, MaxLinesProperty, TagMaxWidthProperty, IsReadOnlyProperty);
         AffectsRender<ComposerEditor>(ForegroundProperty, PlaceholderTextProperty, PlaceholderForegroundProperty, SelectionBrushProperty,
             CaretBrushProperty, TagBackgroundProperty, TagForegroundProperty);
     }
@@ -119,8 +115,6 @@ public partial class ComposerEditor : Control
     public IBrush? TagForeground { get => GetValue(TagForegroundProperty); set => SetValue(TagForegroundProperty, value); }
     public double TagMaxWidth { get => GetValue(TagMaxWidthProperty); set => SetValue(TagMaxWidthProperty, value); }
     public bool IsReadOnly { get => GetValue(IsReadOnlyProperty); set => SetValue(IsReadOnlyProperty, value); }
-
-    public bool ClipLines { get => GetValue(ClipLinesProperty); set => SetValue(ClipLinesProperty, value); }
 
     public ComposerDocument Document
     {
@@ -628,11 +622,6 @@ public partial class ComposerEditor : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
-        // 裁切模式只显示前若干行，滚轮交给外层会话视图
-        if (ClipLines)
-        {
-            return;
-        }
         var max = MaxScroll();
         if (max <= 0)
         {
@@ -807,8 +796,20 @@ public partial class ComposerEditor : Control
 
     private double LineUnit(ComposerLayout layout) => double.IsNaN(LineHeight) ? layout.FirstLineHeight : LineHeight;
 
-    /// <summary>按给定宽度排版后的行数（用户消息气泡据此判断要不要收起）。</summary>
-    public int LayoutLineCount(double width) => EnsureLayout(Math.Max(1, width)).LineCount;
+    /// <summary>
+    /// 转录里的用户消息在 <see cref="ExpandableContent"/> 里收起：前 <paramref name="lines"/> 行的底边（用上次测量的排版），
+    /// 收起高度停在行边界上，不会露出下一行的一条。
+    /// </summary>
+    double IExpandableLineSource.GetLinesBottom(int lines)
+    {
+        var layout = _layout ?? EnsureLayout();
+        return lines < layout.LineCount ? Padding.Top + layout.LineTop(lines) : Padding.Top + layout.Height + Padding.Bottom;
+    }
+
+    /// <summary>整段排版（带 tag 的消息都不长），不需要按行数截断。</summary>
+    void IExpandableLineSource.LimitLayout(int lines)
+    {
+    }
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -819,11 +820,6 @@ public partial class ComposerEditor : Control
         if (MaxLines > 0)
         {
             height = Math.Min(height, unit * MaxLines);
-        }
-        // 裁切时高度按可见行数，而不是按“行数 × 行高”（行高含行距，会把下一行露出一条）
-        if (ClipLines && MaxLines > 0 && layout.LineCount > MaxLines)
-        {
-            height = Math.Min(height, layout.LineTop(MaxLines));
         }
         var contentWidth = layout.Width + Padding.Left + Padding.Right + 2;
         // 只读时宽度按内容（气泡贴着文字），否则占满可用宽度
@@ -840,7 +836,7 @@ public partial class ComposerEditor : Control
     }
 
     private double MaxScroll(double? height = null) =>
-        ClipLines ? 0 : Math.Max(0, EnsureLayout().Height - ((height ?? Bounds.Height) - Padding.Top - Padding.Bottom));
+        Math.Max(0, EnsureLayout().Height - ((height ?? Bounds.Height) - Padding.Top - Padding.Bottom));
 
     /// <summary>滚动到光标可见。</summary>
     private void EnsureCaretVisible()

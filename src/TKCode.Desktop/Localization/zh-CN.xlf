@@ -63,7 +63,36 @@
     <unit id="ToggleWorkbench"><segment><source>Toggle workbench</source><target state="translated">切换工作台</target></segment></unit>
     <unit id="Pondering"><segment><source>Pondering…</source><target state="translated">思考中…</target></segment></unit>
     <unit id="ThoughtProcess"><segment><source>Thought process</source><target state="translated">思考过程</target></segment></unit>
-    <unit id="Thinking"><segment><source>Thinking…</source><target state="translated">正在思考…</target></segment></unit>
+    <unit id="Thinking"><segment><source>Thinking</source><target state="translated">Thinking</target></segment></unit>
+    <unit id="ExplorerOpen"><segment><source>Open</source><target state="translated">打开</target></segment></unit>
+    <unit id="ExplorerReveal"><segment><source>Reveal in file tree</source><target state="translated">在文件树中定位</target></segment></unit>
+    <unit id="ExplorerNewFile"><segment><source>New file…</source><target state="translated">新建文件…</target></segment></unit>
+    <unit id="ExplorerNewFolder"><segment><source>New folder…</source><target state="translated">新建文件夹…</target></segment></unit>
+    <unit id="ExplorerExpand"><segment><source>Expand</source><target state="translated">展开</target></segment></unit>
+    <unit id="ExplorerCollapse"><segment><source>Collapse</source><target state="translated">收起</target></segment></unit>
+    <unit id="ExplorerShowInFileManager"><segment><source>Show in file manager</source><target state="translated">在文件管理器中显示</target></segment></unit>
+    <unit id="ExplorerShowInFinder"><segment><source>Show in Finder</source><target state="translated">在 Finder 中显示</target></segment></unit>
+    <unit id="ExplorerShowInExplorer"><segment><source>Show in File Explorer</source><target state="translated">在资源管理器中显示</target></segment></unit>
+    <unit id="ExplorerOpenTerminal"><segment><source>Open in terminal</source><target state="translated">在此目录打开终端</target></segment></unit>
+    <unit id="ExplorerCopyFullPath"><segment><source>Copy full path</source><target state="translated">复制完整路径</target></segment></unit>
+    <unit id="ExplorerCopyRelativePath"><segment><source>Copy relative path</source><target state="translated">复制相对路径</target></segment></unit>
+    <unit id="ExplorerRename"><segment><source>Rename…</source><target state="translated">重命名…</target></segment></unit>
+    <unit id="ExplorerTrash"><segment><source>Move to Trash…</source><target state="translated">移到废纸篓…</target></segment></unit>
+    <unit id="ExplorerRecycle"><segment><source>Move to Recycle Bin…</source><target state="translated">移到回收站…</target></segment></unit>
+    <unit id="ExplorerOpenRoot"><segment><source>Open workspace directory</source><target state="translated">打开工作目录</target></segment></unit>
+    <unit id="ExplorerCopyRootPath"><segment><source>Copy workspace path</source><target state="translated">复制工作目录路径</target></segment></unit>
+    <unit id="ExplorerRefresh"><segment><source>Refresh</source><target state="translated">刷新</target></segment></unit>
+    <unit id="ExplorerCollapseAll"><segment><source>Collapse all</source><target state="translated">全部收起</target></segment></unit>
+    <unit id="ExplorerShowHidden"><segment><source>Show hidden files</source><target state="translated">显示隐藏文件</target></segment></unit>
+    <unit id="ExplorerHideHidden"><segment><source>Hide hidden files</source><target state="translated">隐藏文件</target></segment></unit>
+    <unit id="ExplorerFileName"><segment><source>Name</source><target state="translated">名称</target></segment></unit>
+    <unit id="ExplorerCreateAction"><segment><source>Create</source><target state="translated">创建</target></segment></unit>
+    <unit id="ExplorerRenameAction"><segment><source>Rename</source><target state="translated">重命名</target></segment></unit>
+    <unit id="ExplorerTrashAction"><segment><source>Move to Trash</source><target state="translated">移到废纸篓</target></segment></unit>
+    <unit id="ExplorerRecycleAction"><segment><source>Move to Recycle Bin</source><target state="translated">移到回收站</target></segment></unit>
+    <unit id="ExplorerTrashConfirm"><segment><source>This item will be moved to the system Trash. It will not be permanently deleted.</source><target state="translated">该项目将移到系统废纸篓，不会被永久删除。</target></segment></unit>
+    <unit id="ExplorerRecycleConfirm"><segment><source>This item will be moved to the system Recycle Bin. It will not be permanently deleted.</source><target state="translated">该项目将移到系统回收站，不会被永久删除。</target></segment></unit>
+    <unit id="ExplorerOperationFailed"><segment><source>File operation failed</source><target state="translated">文件操作失败</target></segment></unit>
     <unit id="CopyMessage"><segment><source>Copy</source><target state="translated">复制</target></segment></unit>
     <unit id="ToolPreparing"><segment><source>Preparing</source><target state="translated">准备中</target></segment></unit>
     <unit id="ToolRunning"><segment><source>Running</source><target state="translated">执行中</target></segment></unit>
@@ -213,6 +242,7 @@
     <unit id="PriceFree"><segment><source>Free</source><target state="translated">免费</target></segment></unit>
     <unit id="TemplatePickerTitle"><segment><source>Add a provider</source><target state="translated">添加厂商</target></segment></unit>
     <unit id="SearchTemplates"><segment><source>Search providers and templates…</source><target state="translated">搜索厂商或模板…</target></segment></unit>
+    <unit id="ClearSearch"><segment><source>Clear</source><target state="translated">清除</target></segment></unit>
     <unit id="TemplatePopular"><segment><source>Popular</source><target state="translated">常用</target></segment></unit>
     <unit id="TemplateLocal"><segment><source>Local</source><target state="translated">本地</target></segment></unit>
     <unit id="TemplateCustom"><segment><source>Custom</source><target state="translated">自定义</target></segment></unit>
@@ -358,8 +388,8 @@
     <unit id="ImageFileTypeName"><segment><source>Images</source><target state="translated">图片</target></segment></unit>
     <unit id="CodeExpandFormat"><segment><source>Show all {0} lines</source><target state="translated">展开全部 {0} 行</target></segment></unit>
     <unit id="CodeCollapse"><segment><source>Show less</source><target state="translated">收起</target></segment></unit>
-    <unit id="UserMessageExpand"><segment><source>Show more</source><target state="translated">展开</target></segment></unit>
-    <unit id="UserMessageCollapse"><segment><source>Show less</source><target state="translated">收起</target></segment></unit>
+    <unit id="TextExpandMore"><segment><source>Show more</source><target state="translated">展开</target></segment></unit>
+    <unit id="TextExpandLess"><segment><source>Show less</source><target state="translated">收起</target></segment></unit>
     <unit id="LinkConfirmTitle"><segment><source>Open this link?</source><target state="translated">打开这个链接？</target></segment></unit>
     <unit id="LinkConfirmMessageFormat"><segment><source>The link text points somewhere else. It will actually open {0}</source><target state="translated">链接文字和实际地址不一致，实际将打开 {0}</target></segment></unit>
     <unit id="LinkOpen"><segment><source>Open</source><target state="translated">打开</target></segment></unit>
@@ -398,6 +428,13 @@
     <unit id="SessionMessageFromFormat"><segment><source>Message from {0}</source><target state="translated">来自 {0} 的消息</target></segment></unit>
     <unit id="TaskNotificationFormat"><segment><source>Background task {0}: {1}</source><target state="translated">后台任务 {0}：{1}</target></segment></unit>
     <unit id="SubagentStatsFormat"><segment><source>{0} · {1} tool uses · {2} tokens</source><target state="translated">{0} · {1} 次工具调用 · {2} tokens</target></segment></unit>
+    <unit id="SubagentDefaultName"><segment><source>Agent</source><target state="translated">子 Agent</target></segment></unit>
+    <unit id="SubagentBackground"><segment><source>Background</source><target state="translated">后台</target></segment></unit>
+    <unit id="SubagentOpenTip"><segment><source>Show this subagent's messages</source><target state="translated">查看子 Agent 的消息</target></segment></unit>
+    <unit id="SubagentGroupSingle"><segment><source>Started a subagent</source><target state="translated">启动了 1 个子 Agent</target></segment></unit>
+    <unit id="SubagentGroupFormat"><segment><source>Started {0} subagents</source><target state="translated">启动了 {0} 个子 Agent</target></segment></unit>
+    <unit id="SubagentLoadFailedFormat"><segment><source>Could not load the subagent's messages: {0}</source><target state="translated">无法加载子 Agent 的消息：{0}</target></segment></unit>
+    <unit id="SubagentEmpty"><segment><source>No messages yet</source><target state="translated">还没有消息</target></segment></unit>
     <unit id="ApprovalRead"><segment><source>Read outside workspace</source><target state="translated">读取工作区外的文件</target></segment></unit>
     <unit id="ApprovalNetwork"><segment><source>Network access</source><target state="translated">访问网络</target></segment></unit>
     <unit id="SettingsMcp"><segment><source>MCP Servers</source><target state="translated">MCP 服务器</target></segment></unit>
@@ -754,5 +791,48 @@
     <unit id="ToolEnterPlanMode"><segment><source>Ask to enter Plan mode</source><target state="translated">申请进入 Plan 模式</target></segment></unit>
     <unit id="ApprovalReadOnlyCommand"><segment><source>Plan mode: this command may change the workspace</source><target state="translated">Plan 模式：此命令可能修改工作区</target></segment></unit>
     <unit id="CompactionPlanHandoff"><segment><source>Context cleared — continuing from the plan</source><target state="translated">已清空上下文，按计划执行</target></segment></unit>
+    <unit id="ProjectsSection"><segment><source>Projects</source><target state="translated">项目</target></segment></unit>
+    <unit id="CreateProject"><segment><source>Create project</source><target state="translated">创建项目</target></segment></unit>
+    <unit id="EditProject"><segment><source>Edit project</source><target state="translated">编辑项目</target></segment></unit>
+    <unit id="EditProjectMenu"><segment><source>Edit project…</source><target state="translated">编辑项目…</target></segment></unit>
+    <unit id="ProjectDialogDescription"><segment><source>A project can include several folders; the agent can read and edit all of them.</source><target state="translated">项目可以包含多个文件夹，Agent 可以读写其中的所有文件。</target></segment></unit>
+    <unit id="ProjectName"><segment><source>Project name</source><target state="translated">项目名称</target></segment></unit>
+    <unit id="ProjectNamePlaceholder"><segment><source>New project</source><target state="translated">新项目</target></segment></unit>
+    <unit id="ProjectDevice"><segment><source>Device</source><target state="translated">设备</target></segment></unit>
+    <unit id="ThisComputer"><segment><source>This computer</source><target state="translated">此电脑</target></segment></unit>
+    <unit id="SourceFolders"><segment><source>Source folders</source><target state="translated">源文件夹</target></segment></unit>
+    <unit id="AddFolder"><segment><source>Add folder</source><target state="translated">添加文件夹</target></segment></unit>
+    <unit id="PrimaryFolder"><segment><source>Primary</source><target state="translated">主要</target></segment></unit>
+    <unit id="MakePrimary"><segment><source>Make primary</source><target state="translated">设为主要</target></segment></unit>
+    <unit id="MakePrimaryFormat"><segment><source>Make {0} primary</source><target state="translated">将 {0} 设为主要</target></segment></unit>
+    <unit id="RemoveFolderFormat"><segment><source>Remove {0}</source><target state="translated">移除 {0}</target></segment></unit>
+    <unit id="SourceFoldersEmpty"><segment><source>Add folders the agent can read and edit</source><target state="translated">添加 Agent 可以读取和编辑的文件夹</target></segment></unit>
+    <unit id="PrimaryFolderTip"><segment><source>TKCode looks for AGENTS.md, .agents and .mcp.json in the primary folder, and new sessions start there.</source><target state="translated">TKCode 在主文件夹中查找 AGENTS.md、.agents 和 .mcp.json，新会话也从这里启动。</target></segment></unit>
+    <unit id="ProjectCreateAction"><segment><source>Create project</source><target state="translated">创建项目</target></segment></unit>
+    <unit id="ProjectSaveAction"><segment><source>Save</source><target state="translated">保存</target></segment></unit>
+    <unit id="ProjectSaveFailedFormat"><segment><source>Couldn't save the project: {0}</source><target state="translated">项目保存失败：{0}</target></segment></unit>
+    <unit id="ProjectRemove"><segment><source>Remove project…</source><target state="translated">移除项目…</target></segment></unit>
+    <unit id="ProjectRemoveAction"><segment><source>Remove project</source><target state="translated">移除项目</target></segment></unit>
+    <unit id="ProjectRemoveTitleFormat"><segment><source>Remove {0}?</source><target state="translated">移除 {0}？</target></segment></unit>
+    <unit id="ProjectRemoveText"><segment><source>This only removes the project from TKCode. Files on your computer and existing sessions are kept.</source><target state="translated">这只会从 TKCode 中移除该项目，电脑上的文件和已有会话不会被删除。</target></segment></unit>
+    <unit id="ProjectPin"><segment><source>Pin project</source><target state="translated">置顶项目</target></segment></unit>
+    <unit id="ProjectUnpin"><segment><source>Unpin project</source><target state="translated">取消置顶</target></segment></unit>
+    <unit id="ProjectNewSessionFormat"><segment><source>New session in {0}</source><target state="translated">在 {0} 中新建会话</target></segment></unit>
+    <unit id="ProjectMoreActionsFormat"><segment><source>More actions for {0}</source><target state="translated">{0} 的更多操作</target></segment></unit>
+    <unit id="NoProjects"><segment><source>No projects yet</source><target state="translated">还没有项目</target></segment></unit>
+    <unit id="SessionsInProjectFormat"><segment><source>Sessions · {0}</source><target state="translated">会话 · {0}</target></segment></unit>
+    <unit id="SessionsNoProject"><segment><source>Sessions · No project</source><target state="translated">会话 · 无项目</target></segment></unit>
+    <unit id="ClearProjectFilter"><segment><source>Show all sessions</source><target state="translated">显示全部会话</target></segment></unit>
+    <unit id="ShowMoreProjectsFormat"><segment><source>Show more ({0})</source><target state="translated">展开更多（{0}）</target></segment></unit>
+    <unit id="Collapse"><segment><source>Show less</source><target state="translated">收起</target></segment></unit>
+    <unit id="FolderMissing"><segment><source>Not found</source><target state="translated">不存在</target></segment></unit>
+    <unit id="PrimaryFolderMissing"><segment><source>The primary folder doesn't exist</source><target state="translated">主文件夹不存在</target></segment></unit>
+    <unit id="NestedFolderWarningFormat"><segment><source>{0} is inside {1}</source><target state="translated">{0} 位于 {1} 之内</target></segment></unit>
+    <unit id="PrimaryChangedNote"><segment><source>Existing sessions keep running in the previous primary folder; new sessions start in the new one.</source><target state="translated">已有会话仍在原来的主文件夹中运行，新会话从新的主文件夹开始。</target></segment></unit>
+    <unit id="SessionFolderSuffix"><segment><source>This session</source><target state="translated">本会话</target></segment></unit>
+    <unit id="RemoveSessionFolder"><segment><source>Remove from this session</source><target state="translated">从本会话移除</target></segment></unit>
+    <unit id="AddDirCommandDescription"><segment><source>Add a folder to this session</source><target state="translated">为本会话添加文件夹</target></segment></unit>
+    <unit id="AddDirFailedFormat"><segment><source>Couldn't add the folder: {0}</source><target state="translated">无法添加文件夹：{0}</target></segment></unit>
+    <unit id="AgentNoAdditionalDirectories"><segment><source>This agent can't access additional folders</source><target state="translated">此 Agent 不支持附加文件夹</target></segment></unit>
   </file>
 </xliff>

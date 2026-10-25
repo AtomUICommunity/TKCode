@@ -1,13 +1,15 @@
 namespace TKCode.Agent.Coding.Workspace;
 
 /// <summary>
-/// 会话的工作区：cwd 加上额外加入的目录。只读工具在工作区内免审批；
-/// TKCode 自己的配置（含 API Key）即使位于工作区内也视为敏感文件。
+/// 会话的工作区：cwd（主文件夹）加上附加目录（项目的其他文件夹、本会话追加的文件夹、settings 的全局目录，
+/// docs/design/projects.md §6.2）。只读工具在工作区内免审批；TKCode 自己的配置（含 API Key）即使位于工作区内也视为敏感文件。
+/// 附加目录在每批用户输入之前由 <see cref="Sync"/> 整体替换；子 Agent 与父会话共用同一个实例。
 /// </summary>
 public sealed class WorkspaceRoots
 {
     private readonly Lock _gate = new();
-    private readonly List<string> _additional = [];
+    private List<string> _additional = [];
+    private HashSet<string> _sessionOnly = new(PathUtil.Comparer);
     private string[] _realRoots;
 
     public WorkspaceRoots(string cwd, IEnumerable<string>? additional = null)
@@ -33,6 +35,15 @@ public sealed class WorkspaceRoots
         }
     }
 
+    /// <summary>附加目录中只属于本会话的那些（提示词里单独标注）。</summary>
+    public bool IsSessionOnly(string directory)
+    {
+        lock (_gate)
+        {
+            return _sessionOnly.Contains(Path.GetFullPath(directory, Cwd));
+        }
+    }
+
     public void Add(string directory)
     {
         var full = Path.GetFullPath(directory, Cwd);
@@ -42,8 +53,38 @@ public sealed class WorkspaceRoots
             {
                 return;
             }
-            _additional.Add(full);
+            _additional = [.. _additional, full];
             _realRoots = [.. _realRoots, PathUtil.RealPath(full)];
+        }
+    }
+
+    /// <summary>
+    /// 整体替换附加目录（相对路径基于 cwd；重复项与等于 cwd 的项去掉），返回是否有变化。
+    /// <paramref name="sessionOnly"/> 是其中只属于本会话的目录。
+    /// </summary>
+    public bool Sync(IEnumerable<string> additional, IEnumerable<string>? sessionOnly = null)
+    {
+        var list = new List<string>();
+        foreach (var directory in additional)
+        {
+            var full = Path.GetFullPath(directory, Cwd);
+            if (!list.Contains(full, PathUtil.Comparer) && !PathUtil.SamePath(full, Cwd))
+            {
+                list.Add(full);
+            }
+        }
+        var session = new HashSet<string>((sessionOnly ?? []).Select(d => Path.GetFullPath(d, Cwd)), PathUtil.Comparer);
+        session.IntersectWith(list);
+        lock (_gate)
+        {
+            if (list.SequenceEqual(_additional, PathUtil.Comparer) && session.SetEquals(_sessionOnly))
+            {
+                return false;
+            }
+            _additional = list;
+            _sessionOnly = session;
+            _realRoots = [PathUtil.RealPath(Cwd), .. list.Select(PathUtil.RealPath)];
+            return true;
         }
     }
 
@@ -122,5 +163,6 @@ public sealed class WorkspaceRoots
         return SensitiveFiles.Any(name => PathUtil.SamePath(real, Path.Combine(home, name)));
     }
 
-    private static readonly string[] SensitiveFiles = ["settings.json", "state.json"];
+    // projects.json：改写它就等于扩大工作区（docs/design/projects.md §5.1）
+    private static readonly string[] SensitiveFiles = ["settings.json", "state.json", "projects.json"];
 }

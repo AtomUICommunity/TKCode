@@ -27,6 +27,8 @@ public sealed partial class SessionViewModel : ObservableObject
         SessionId = session.SessionId;
         FilePath = session.FilePath;
         Cwd = session.Cwd;
+        ProjectId = session.ProjectId;
+        SessionDirectories = session.SessionDirectories ?? [];
         ModelId = session.ModelId;
         Options = session.Options;
         Runtime = session.Runtime;
@@ -49,6 +51,12 @@ public sealed partial class SessionViewModel : ObservableObject
     public string SessionId { get; }
 
     /// <summary>
+    /// 只用于显示子 Agent 的转录（右侧标签，docs/design/subagent-view.md §6.3）：不汇总本轮改动（改动属于父会话），
+    /// 也没有输入框、排队与审批。
+    /// </summary>
+    public bool IsSubagent { get; init; }
+
+    /// <summary>
     /// 外部运行时 id（claude-code / codex / acp:*）；null 表示内置 Agent。
     /// 没有消息的会话可以在运行时之间切换（Host 替换底层循环），因此可变。
     /// </summary>
@@ -65,6 +73,14 @@ public sealed partial class SessionViewModel : ObservableObject
     public string? PickerScope => IsEmpty ? null : Runtime ?? "";
     public string FilePath { get; }
     public string Cwd { get; }
+
+    /// <summary>会话头里记录的项目（旧会话为 null，按 cwd 回退归属，docs/design/projects.md §5.3）。</summary>
+    public string? ProjectId { get; }
+
+    /// <summary>只给本会话追加的文件夹（§6.4）。</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<string> SessionDirectories { get; set; }
+
     public string ProjectName => System.IO.Path.GetFileName(Cwd.TrimEnd(System.IO.Path.DirectorySeparatorChar));
     public ObservableCollection<TranscriptItemViewModel> Items { get; } = [];
 
@@ -340,6 +356,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>转录中的“打开”：请求在文件标签页中打开该文件。</summary>
     public event Action<string>? OpenRequested;
 
+    /// <summary>点击了子 Agent 卡片：在右侧打开它的转录。</summary>
+    public event Action<SessionViewModel, ToolCallBlockViewModel>? SubagentRequested;
+
     internal Task<RevertFileResult> RevertAsync(RevertFileRequest request) =>
         RevertFile is { } revert ? revert(request) : Task.FromResult(new RevertFileResult(Strings.Get(TKCodeLangResourceKind.ChangesRevertFailedNoHost)));
 
@@ -460,7 +479,10 @@ public sealed partial class SessionViewModel : ObservableObject
                         items.Add(new NotificationItemViewModel(source, text));
                         break;
                     }
-                    AppendTurnChanges(items, turnStart);
+                    if (!IsSubagent)
+                    {
+                        AppendTurnChanges(items, turnStart);
+                    }
                     if (latest)
                     {
                         Title ??= ImagePrompt.Title(TitleText(text, message.Segments));
@@ -521,7 +543,10 @@ public sealed partial class SessionViewModel : ObservableObject
                     break;
             }
         }
-        AppendTurnChanges(items, turnStart);
+        if (!IsSubagent)
+        {
+            AppendTurnChanges(items, turnStart);
+        }
         if (latest && history.Count > 0)
         {
             LastActivity = history[^1].Timestamp.ToLocalTime();
@@ -533,6 +558,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private ToolCallBlockViewModel BindTool(ToolCallBlockViewModel call)
     {
         call.OpenFileRequested = path => OpenRequested?.Invoke(System.IO.Path.IsPathRooted(path) ? path : System.IO.Path.Combine(Cwd, path));
+        call.OpenSubagentRequested = c => SubagentRequested?.Invoke(this, c);
         return call;
     }
 
@@ -603,7 +629,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
             case AgentEnded:
                 SetRunning(false);
-                AppendTurnChanges(Items, TurnStart(Items));
+                if (!IsSubagent)
+                {
+                    AppendTurnChanges(Items, TurnStart(Items));
+                }
                 NotifyChanges();
                 // 本轮被停止或出错：排队的消息暂停，不自动发出
                 var completed = _lastStopReason is not ("Error" or "Aborted");
@@ -728,10 +757,6 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         UpdatePonderText();
         foreach (var item in Items.OfType<AssistantMessageItemViewModel>())
-        {
-            item.RefreshLanguage();
-        }
-        foreach (var item in Items.OfType<UserMessageItemViewModel>())
         {
             item.RefreshLanguage();
         }

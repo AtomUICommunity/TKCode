@@ -1,0 +1,110 @@
+<!--
+  导入 MCP 服务器（设置 › MCP 服务器，docs/design/mcp.md §12）：粘贴 / 文件 / 本机扫描三个入口共用一个预览。
+  经 ScaledModal 显示，跟随界面缩放；Esc、点遮罩、关闭按钮都会关闭，导入成功后由视图模型关闭。
+-->
+<arc:DialogSurface xmlns="https://github.com/avaloniaui"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+                   xmlns:vm="using:TKCode.Desktop.ViewModels"
+                   xmlns:controls="using:TKCode.Desktop.Controls"
+                   xmlns:loc="using:TKCode.Desktop.Localization"
+                   x:Class="TKCode.Desktop.Views.McpImportDialog"
+                   x:DataType="vm:McpImportViewModel"
+                   Size="Large" ShowCloseButton="True" ContentTemplate="{x:Null}"
+                   Title="{loc:TKCodeLangResource McpImportTitle}">
+    <arc:DialogSurface.Actions>
+        <!-- 目标 + 导入 -->
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+            <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpImportTargetLabel}" VerticalAlignment="Center" Margin="0,0,10,0"
+                       IsVisible="{Binding CanTargetProject}" />
+            <arc:SegmentedControl Grid.Column="1" ItemsSource="{Binding TargetChoices}" controls:ChoiceSelection.Command="{Binding ChooseTargetCommand}"
+                                  IsVisible="{Binding CanTargetProject}" />
+            <arc:Button Grid.Column="3" Variant="Primary" Command="{Binding ImportCommand}" IsEnabled="{Binding CanImport}"
+                        Content="{Binding ImportButtonText}" />
+        </Grid>
+    </arc:DialogSurface.Actions>
+    <StackPanel Spacing="12">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+            <arc:SegmentedControl ItemsSource="{Binding ModeChoices}" controls:ChoiceSelection.Command="{Binding ChooseModeCommand}" />
+            <arc:Button Grid.Column="2" Variant="Secondary" Size="Small" VerticalAlignment="Center" Click="OnOpenFile"
+                        Content="{loc:TKCodeLangResource McpImportFromFile}" />
+        </Grid>
+        <!-- Arc 浮动滚动条：右侧留出 10px，悬停时它不会盖住内容 -->
+        <arc:ScrollArea MaxHeight="400">
+            <StackPanel Margin="0,0,10,0" Spacing="10">
+                <!-- 粘贴 -->
+                <StackPanel Spacing="6" IsVisible="{Binding IsPasteMode}">
+                    <arc:Textarea x:Name="PasteBox" Label="{loc:TKCodeLangResource McpImportPaste}" IsLabelVisible="False"
+                                  FontFamily="{StaticResource TKCode.MonoFont}" FontSize="12"
+                                  Placeholder="{loc:TKCodeLangResource McpImportPastePlaceholder}" Text="{Binding Text, Mode=TwoWay}" />
+                    <TextBlock Classes="tertiary" Text="{Binding FormatText}" IsVisible="{Binding FormatText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <arc:Alert Tone="Danger" Content="{Binding ParseError}" IsVisible="{Binding HasParseError}" />
+                </StackPanel>
+                <!-- 本机扫描 -->
+                <StackPanel Spacing="4" IsVisible="{Binding IsScanMode}">
+                    <TextBlock Classes="secondary" FontSize="12" Text="{loc:TKCodeLangResource McpImportNoSources}" TextWrapping="Wrap"
+                               IsVisible="{Binding HasNoSources}" />
+                    <ItemsControl ItemsSource="{Binding Sources}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:McpImportSourceViewModel">
+                                <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" Margin="0,1"
+                                        Command="{Binding $parent[ItemsControl].((vm:McpImportViewModel)DataContext).SelectSourceCommand}" CommandParameter="{Binding}">
+                                    <Grid ColumnDefinitions="120,*,Auto">
+                                        <TextBlock Classes="strong" Text="{Binding Client}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1" Classes="tertiary" Text="{Binding Path}" FontFamily="{StaticResource TKCode.MonoFont}"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0" />
+                                        <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding CountText}" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                <!-- 预览 -->
+                <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:McpImportItemViewModel">
+                            <Border BorderBrush="{DynamicResource TKCode.Divider}" BorderThickness="0,1,0,0" Padding="0,10,0,6">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="Auto,150,Auto,*">
+                                        <arc:Checkbox IsChecked="{Binding IsSelected, Mode=TwoWay}" IsEnabled="{Binding CanSelect}" VerticalAlignment="Center" />
+                                        <arc:Input Grid.Column="1" Size="Small" Text="{Binding Key, Mode=TwoWay}" FontFamily="{StaticResource TKCode.MonoFont}" Margin="6,0,0,0" />
+                                        <arc:Badge Grid.Column="2" Size="Small" Margin="8,0,0,0" VerticalAlignment="Center" Content="{Binding TypeText}" />
+                                        <TextBlock Grid.Column="3" Classes="tertiary" Text="{Binding Summary}" FontFamily="{StaticResource TKCode.MonoFont}" Margin="8,0,0,0"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" arc:Tooltip.Tip="{Binding Summary}" />
+                                    </Grid>
+                                    <StackPanel Margin="30,0,0,0" Spacing="4">
+                                        <TextBlock Text="{Binding Error}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                                        <TextBlock Text="{Binding KeyProblem}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" IsVisible="{Binding HasKeyProblem}" />
+                                        <TextBlock Text="{loc:TKCodeLangResource McpImportOverwrites}" FontSize="12" Foreground="{DynamicResource TKCode.GitModified}" IsVisible="{Binding Overwrites}" />
+                                        <ItemsControl ItemsSource="{Binding Notes}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TKCode.TextSecondary}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Classes="tertiary" Text="{Binding DroppedText}" TextWrapping="Wrap" IsVisible="{Binding HasDropped}" />
+                                        <ItemsControl ItemsSource="{Binding Inputs}" IsVisible="{Binding HasInputs}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:McpImportInputViewModel">
+                                                    <Grid ColumnDefinitions="150,*" Margin="0,2">
+                                                        <TextBlock Classes="secondary" Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                        <arc:Input Grid.Column="1" Size="Small" Text="{Binding Value, Mode=TwoWay}"
+                                                                   Placeholder="{loc:TKCodeLangResource McpImportInputHint}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <arc:Checkbox IsChecked="{Binding ImportAutoApprove, Mode=TwoWay}" Content="{Binding AutoApproveText}" IsVisible="{Binding HasAutoApprove}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </arc:ScrollArea>
+        <arc:Alert Tone="Danger" Content="{Binding Error}" IsVisible="{Binding HasError}" />
+    </StackPanel>
+</arc:DialogSurface>

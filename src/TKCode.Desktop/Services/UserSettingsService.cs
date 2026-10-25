@@ -17,6 +17,9 @@ public sealed class UserSettingsService : IDisposable
     private FileSystemWatcher? _watcher;
     private Timer? _timer;
 
+    /// <summary>上次读取时文件的修改时间与长度：监视器在应用自己写完后也会触发，文件没变就不再重新读取和通知。</summary>
+    private (DateTime WriteTime, long Length)? _loadedStamp;
+
     public UserSettingsService(ILogger<UserSettingsService> logger)
         : this(logger, ConfigPaths.SettingsFile)
     {
@@ -167,11 +170,25 @@ public sealed class UserSettingsService : IDisposable
 
     private void Reload()
     {
+        _loadedStamp = Stamp();
         var result = SettingsFile.Load(_path);
         Errors = result.Errors;
         if (result.Settings is { } settings)
         {
             Current = settings;
+        }
+    }
+
+    private (DateTime WriteTime, long Length)? Stamp()
+    {
+        try
+        {
+            var info = new FileInfo(_path);
+            return info.Exists ? (info.LastWriteTimeUtc, info.Length) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 
@@ -183,6 +200,11 @@ public sealed class UserSettingsService : IDisposable
             Directory.CreateDirectory(dir);
             _timer = new Timer(_ => Dispatcher.UIThread.Post(() =>
             {
+                // 自己刚写的那次已经在 Update 里读过并通知过了：整个设置页会因此再刷新一遍
+                if (_loadedStamp is { } loaded && Stamp() == loaded)
+                {
+                    return;
+                }
                 Reload();
                 Changed?.Invoke();
             }), null, Timeout.Infinite, Timeout.Infinite);

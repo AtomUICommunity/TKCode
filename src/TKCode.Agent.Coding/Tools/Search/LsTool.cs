@@ -13,11 +13,11 @@ public sealed class LsTool(ToolContext context) : IAgentTool
 
     public string Description =>
         "List the entries of a directory, sorted alphabetically, with '/' after directory names. Includes dotfiles. " +
-        $"Returns at most `limit` entries (default {DefaultLimit}). Path defaults to the workspace root.";
+        $"Returns at most `limit` entries (default {DefaultLimit}). Path defaults to the primary working directory.";
 
     public string ParametersSchemaJson => """
         {"type":"object","properties":{
-          "path":{"type":"string","description":"Directory to list (absolute or relative to the workspace root). Defaults to the workspace root."},
+          "path":{"type":"string","description":"Directory to list (absolute or relative to the primary working directory). Defaults to the primary working directory; pass an absolute path to list an additional working directory."},
           "limit":{"type":"integer","minimum":1,"description":"Maximum number of entries to return (default 500)."}},
          "additionalProperties":false}
         """;

@@ -1,0 +1,43 @@
+<!-- 子 Agent 组里的一行：状态、名称、模型、后台标记，右侧 ↗；整行可点击，在右侧工作台打开它的转录（docs/design/subagent-view.md §6.2）。 -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+             xmlns:vm="using:TKCode.Desktop.ViewModels"
+             xmlns:icons="using:TKCode.Desktop.Icons"
+             xmlns:controls="using:TKCode.Desktop.Controls"
+             xmlns:loc="using:TKCode.Desktop.Localization"
+             x:Class="TKCode.Desktop.Views.SubagentCardView"
+             x:DataType="vm:SubagentCardViewModel"
+             HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+    <!-- Arc 按钮的标签区按内容宽度居中（宽度弹簧动画），所以按钮只做整行的悬停 / 按下 / 焦点与点击，内容叠在上面且不接收指针 -->
+    <Panel Height="28">
+        <arc:Button x:Name="OpenSubagentButton" Variant="Ghost" Size="Small" IsPressScaleEnabled="False"
+                    MinHeight="0" Height="28" Padding="0"
+                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    Command="{Binding OpenCommand}" ToolTip.Tip="{loc:TKCodeLangResource SubagentOpenTip}"
+                    AutomationProperties.Name="{Binding DisplayName}" />
+        <Grid ColumnDefinitions="14,*,Auto,Auto,Auto" Margin="8,0" VerticalAlignment="Center" IsHitTestVisible="False">
+            <!-- 状态：运行中转圈，失败显示警示，其余是一个小圆点 -->
+            <controls:DotSpinner Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsRunning}" />
+            <icons:LucideIcon Kind="CircleAlert" Width="12" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                              StrokeBrush="{DynamicResource TKCode.Danger}" IsVisible="{Binding IsFailed}" />
+            <Ellipse Width="5" Height="5" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     Fill="{DynamicResource TKCode.TextTertiary}">
+                <Ellipse.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="!IsRunning" />
+                        <Binding Path="!IsFailed" />
+                    </MultiBinding>
+                </Ellipse.IsVisible>
+            </Ellipse>
+            <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="13" Margin="8,0" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+            <arc:Badge Grid.Column="2" Size="Small" Content="{Binding Model}" IsVisible="{Binding HasModel}"
+                       MaxWidth="200" VerticalAlignment="Center" />
+            <arc:Badge Grid.Column="3" Size="Small" Tone="Info" Content="{loc:TKCodeLangResource SubagentBackground}"
+                       IsVisible="{Binding IsBackground}" Margin="6,0,0,0" VerticalAlignment="Center" />
+            <icons:LucideIcon Grid.Column="4" Kind="ExternalLink" Width="12" Height="12" Margin="10,0,0,0" VerticalAlignment="Center"
+                              StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
+        </Grid>
+    </Panel>
+</UserControl>

@@ -55,8 +55,8 @@ public interface IAgentHostServer
     /// <summary>已打开会话中 <paramref name="before"/> 之前的若干轮历史。</summary>
     Task<HistoryPageDto> GetHistoryAsync(string sessionId, int before, int turnLimit, CancellationToken cancellationToken = default);
 
-    /// <summary>分页列出会话（基于会话索引，只重新解析修改过的文件）。</summary>
-    Task<SessionPageDto> QuerySessionsAsync(string? cwd, int offset, int limit, CancellationToken cancellationToken = default);
+    /// <summary>分页列出会话（基于会话索引，只重新解析修改过的文件）。<paramref name="projectId"/> 不为 null 时只列出属于该项目的会话。</summary>
+    Task<SessionPageDto> QuerySessionsAsync(string? cwd, int offset, int limit, string? projectId = null, CancellationToken cancellationToken = default);
 
     /// <summary>重命名；空串恢复为第一条用户消息。</summary>
     Task RenameSessionAsync(string filePath, string title, CancellationToken cancellationToken = default);
@@ -65,6 +65,12 @@ public interface IAgentHostServer
 
     /// <summary>永久删除会话文件；会话正在 Host 中打开时先中止并关闭。</summary>
     Task DeleteSessionAsync(string filePath, CancellationToken cancellationToken = default);
+
+    /// <summary>只给本会话追加一个文件夹（不写进项目，docs/design/projects.md §6.4）；下一轮开始前生效。返回更新后的会话。</summary>
+    Task<SessionDto> AddSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default);
+
+    /// <summary>移除只属于本会话的文件夹；下一轮开始前生效。</summary>
+    Task<SessionDto> RemoveSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default);
 
     /// <summary>在新会话中继续：复制当前分支的历史与参数到一个新会话并打开（仅内置 Agent）。</summary>
     Task<OpenSessionResult> ForkSessionAsync(string filePath, CancellationToken cancellationToken = default);
@@ -114,6 +120,15 @@ public interface IAgentHostServer
     /// <summary>输入框 @ 文件：在目录的文件索引中模糊搜索。</summary>
     Task<FileSearchResultDto> SearchFilesAsync(FileSearchRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// 打开子 Agent 的转录：返回已结束消息的历史与尚在进行中的事件（Replay），此后经 <see cref="IAgentHostClient.OnSubagentEvent"/>
+    /// 推送该子 Agent 的事件，直到 <see cref="CloseSubagentAsync"/>（docs/design/subagent-view.md §5.2）。
+    /// </summary>
+    Task<SubagentOpenResult> OpenSubagentAsync(string sessionId, string toolCallId, CancellationToken cancellationToken = default);
+
+    /// <summary>停止推送子 Agent 的事件。</summary>
+    Task CloseSubagentAsync(string sessionId, string toolCallId, CancellationToken cancellationToken = default);
+
     /// <summary>撤销 Agent 的文件改动：文件仍与改动后的内容一致时才恢复。</summary>
     Task<RevertFileResult> RevertFileAsync(RevertFileRequest request, CancellationToken cancellationToken = default);
 
@@ -128,6 +143,11 @@ public interface IAgentHostClient
 {
     /// <summary>会话事件通知（JSON-RPC notification，无返回）。</summary>
     void OnSessionEvent(SessionEventNotification notification);
+
+    /// <summary>已打开的子 Agent 转录的事件（notification）。</summary>
+    void OnSubagentEvent(SubagentEventNotification notification)
+    {
+    }
 
     /// <summary>settings.json 变化后推送最新模型列表（notification）。</summary>
     void OnModelsChanged(ModelsChangedNotification notification);
@@ -162,5 +182,5 @@ public interface IAgentHostClient
 
 public static class RpcProtocol
 {
-    public const int Version = 23;
+    public const int Version = 25;
 }

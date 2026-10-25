@@ -66,6 +66,8 @@ public sealed record ParsedToolDetails
     public string? AfterSha256 { get; init; }
 
     public string? SubagentName { get; init; }
+    public string? SubagentModel { get; init; }
+    public bool SubagentBackground { get; init; }
     public string? SubagentStatus { get; init; }
     public string? SubagentActivity { get; init; }
     public int ToolUses { get; init; }
@@ -112,6 +114,8 @@ public sealed record ParsedToolDetails
                 {
                     Kind = kind,
                     SubagentName = Str(root, "name"),
+                    SubagentModel = Str(root, "model"),
+                    SubagentBackground = root.TryGetProperty("background", out var background) && background.ValueKind == JsonValueKind.True,
                     SubagentStatus = Str(root, "status"),
                     SubagentActivity = Str(root, "currentActivity"),
                     ToolUses = Int(root, "toolUses") ?? 0,

@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TKCode.Desktop.Motion;
 using TKCode.Desktop.Services;
 using TKCode.Desktop.ViewModels;
 using TKCode.Desktop.Views;
@@ -58,16 +59,56 @@ public sealed class ActivityGroupSnapshotTests
             RunTool(session, "m2", 1, "c3", "Read", """{"file_path":"/Users/dev/cowork/README.md"}""", "# CoWork\nAI gateway");
             Apply(session, new MessageEnded("m2", "assistant", "ToolUse", null, null), new MessageStarted("m3", "assistant", null),
                 new ThinkingDelta("m3", 0, "README is stale: it references global.json 10.0.301, the actual SDK is 10.0.400."));
-            RunCommand(session, "m3", 1, "c4", "echo \"--- diffstat ---\" && git diff --stat", "error: unknown option", failed: true);
-            Apply(session, new MessageEnded("m3", "assistant", "ToolUse", null, null));
             await Settle();
             var group = FindGroup(window);
+            // 流式输出中的思考展开，结束后收起
+            var pondering = group.Steps.OfType<ThinkingBlockViewModel>().Single();
+            Assert.True(pondering.IsExpanded);
+            Apply(session, new ThinkingEnded("m3", 0));
+            Assert.False(pondering.IsExpanded);
+            RunCommand(session, "m3", 1, "c4", "echo \"--- diffstat ---\" && git diff --stat", "error: unknown option", failed: true);
+            // 执行中的命令展开显示实时输出；已完成的步骤都收起
+            Apply(session, new ToolCallStarted("m3", 2, "c5", "Bash"), new ToolCallEnded("m3", 2, "c5", """{"command":"dotnet build"}"""),
+                new ToolExecutionStarted("c5", "Bash", """{"command":"dotnet build"}"""),
+                new ToolExecutionUpdated("c5", "Bash", "Restoring…\nBuilding TKCode.Desktop…"));
+            await Settle();
             Assert.True(group.IsActive);
-            Assert.True(group.IsExpanded);
-            // m1 的思考紧跟正文，单独显示；组内是 3 条命令、1 次读取与 m3 的思考
-            Assert.Equal("思考过程 · 运行 3 条命令 · 读取 1 个文件", group.Summary);
-            Assert.Equal(5, group.Steps.Count);
+            // 进行中只显示正在进行的步骤：已完成的收起、计入摘要；执行中的命令展开显示实时输出
+            Assert.False(group.IsExpanded);
+            Assert.True(group.ShowSteps);
+            // m1 的思考紧跟正文，单独显示；组内是 4 条命令、1 次读取与 m3 的思考
+            Assert.Equal("思考过程 · 运行 4 条命令 · 读取 1 个文件", group.Summary);
+            Assert.Equal(6, group.Steps.Count);
+            var running = group.Steps.OfType<ToolCallBlockViewModel>().Single(s => s.IsBusy);
+            Assert.True(running.IsExpanded);
+            Assert.All(group.Steps.OfType<ToolCallBlockViewModel>().Where(s => !s.IsBusy), s => Assert.False(s.IsExpanded));
+            var stepView = Assert.Single(window.GetVisualDescendants().OfType<ToolStepView>());
+            Assert.Same(running, stepView.DataContext);
             HeadlessApp.Save(window, "activity-running");
+
+            // 完成后整行带动画收起（连同详情），收起播完后才释放；没有正在进行的步骤时整组收起
+            var stepRow = stepView.GetVisualAncestors().OfType<Reveal>().First();
+            var detail = stepView.GetVisualDescendants().OfType<Reveal>().Single();
+            Assert.NotNull(detail.Child);
+            HeadlessApp.WithMotion(() =>
+            {
+                Apply(session, new ToolExecutionEnded("c5", "Bash", false, "Build succeeded.", 1800));
+                Assert.False(running.IsExpanded);
+                Assert.False(group.ShowSteps);
+                Assert.True(stepRow.IsAnimating);
+                Assert.True(detail.IsAnimating);
+                Assert.NotNull(stepRow.Child);
+                HeadlessApp.Step(window, 60);
+                Assert.InRange(stepRow.Bounds.Height, 1, stepView.Bounds.Height - 1);
+                HeadlessApp.Save(window, "activity-step-collapsing");
+                MotionTicker.FinishAll();
+            });
+            // 整行（连同详情）一起释放
+            window.UpdateLayout();
+            Assert.Null(stepRow.Child);
+            Assert.Empty(window.GetVisualDescendants().OfType<ToolStepView>());
+            Apply(session, new MessageEnded("m3", "assistant", "ToolUse", null, null));
+            await Settle();
 
             // 最终回答：组结束并自动折叠
             Apply(session, new MessageStarted("m4", "assistant", null),
@@ -75,16 +116,18 @@ public sealed class ActivityGroupSnapshotTests
                 new MessageEnded("m4", "assistant", "Stop", null, new UsageDto(1200, 300, 8000, 0)), new AgentEnded());
             await Settle();
             Assert.False(group.IsActive);
-            // 一轮结束：中间的思考、工具与正文收进“已工作”工作空间组，默认收起，最后一段正文留在外面
+            // 一轮结束：中间的思考、工具与正文收进“已工作”工作空间组，默认收起，最后一段正文留在外面。
+            // 进行中的活动组就地变成工作空间组（同一行，收起有动画）
             var done = FindGroup(window);
+            Assert.Same(group, done);
             Assert.True(done.IsTurnWork);
             Assert.False(done.IsExpanded);
             Assert.StartsWith("已工作 ", done.Summary);
-            Assert.Equal(7, done.Steps.Count);
             HeadlessApp.Save(window, "activity-done");
 
-            // 手动展开工作空间，再展开一条命令与一段思考
+            // 手动展开工作空间（展开时才同步步骤），再展开一条命令与一段思考
             done.ToggleCommand.Execute(null);
+            Assert.Equal(8, done.Steps.Count);
             ((ToolCallBlockViewModel)done.Steps[2]).ToggleCommand.Execute(null);
             ((ThinkingBlockViewModel)done.Steps[5]).ToggleCommand.Execute(null);
             await Settle();
@@ -121,6 +164,57 @@ public sealed class ActivityGroupSnapshotTests
             Assert.True(transcript.IsPinnedToBottom);
             window.Close();
             return true;
+        }, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>一轮结束：进行中的活动组就地变成工作空间组，条目不被移除重建（收起动画在同一行上播放），收起期间步骤不变。</summary>
+    [Fact]
+    public async Task TurnEnd_CollapsesLiveGroupInPlace()
+    {
+        await HeadlessApp.Session.Dispatch(() =>
+        {
+            var entries = new System.Collections.ObjectModel.ObservableCollection<StreamMark.Avalonia.Transcript.TranscriptEntry>();
+            var adapter = new TKCode.Desktop.Controls.TranscriptAdapter(entries);
+            var session = new SessionViewModel(new SessionDto("s1", "/tmp", "m", "/tmp/s1.jsonl", new SessionOptionsDto()));
+            adapter.Attach(session);
+            ActivityGroupViewModel[] Groups() => entries.OfType<StreamMark.Avalonia.Transcript.ContentEntry>()
+                .Select(e => e.Content).OfType<ActivityGroupViewModel>().ToArray();
+
+            // 思考 → 正文 → 两条命令（第二条仍在运行）：组的第一个块不是这一段的第一个块
+            Apply(session, new AgentStarted(), new MessageStarted("u1", "user", "扫描项目"),
+                new MessageStarted("m1", "assistant", null),
+                new ThinkingDelta("m1", 0, "Look at the layout first."), new ThinkingEnded("m1", 0),
+                new TextDelta("m1", 1, "先看一下目录结构。"));
+            RunCommand(session, "m1", 2, "c1", "ls", "src\ntests");
+            Apply(session, new ToolCallStarted("m1", 3, "c2", "Bash"), new ToolCallEnded("m1", 3, "c2", """{"command":"git status"}"""),
+                new ToolExecutionStarted("c2", "Bash", """{"command":"git status"}"""));
+            var live = Assert.Single(Groups());
+            Assert.False(live.IsExpanded);
+            Assert.True(live.ShowSteps);
+            Assert.Equal(2, live.Steps.Count);
+
+            var removed = new List<StreamMark.Avalonia.Transcript.TranscriptEntry>();
+            entries.CollectionChanged += (_, e) =>
+            {
+                if (e.Action is System.Collections.Specialized.NotifyCollectionChangedAction.Remove or System.Collections.Specialized.NotifyCollectionChangedAction.Replace)
+                {
+                    removed.AddRange(e.OldItems!.OfType<StreamMark.Avalonia.Transcript.TranscriptEntry>());
+                }
+            };
+            Apply(session, new ToolExecutionEnded("c2", "Bash", false, "clean", 300),
+                new MessageEnded("m1", "assistant", "Stop", null, null), new AgentEnded());
+
+            var done = Assert.Single(Groups());
+            Assert.Same(live, done);
+            Assert.True(done.IsTurnWork);
+            Assert.False(done.IsExpanded);
+            Assert.False(done.ShowSteps);
+            Assert.DoesNotContain(removed, e => e is StreamMark.Avalonia.Transcript.ContentEntry { Content: ActivityGroupViewModel });
+            // 收起期间步骤保持原样；展开时才换成整段内容（思考 + 两条命令）
+            Assert.Equal(2, done.Steps.Count);
+            done.ToggleCommand.Execute(null);
+            Assert.Equal(3, done.Steps.Count);
+            Assert.IsType<ThinkingBlockViewModel>(done.Steps[0]);
         }, TestContext.Current.CancellationToken);
     }
 

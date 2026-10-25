@@ -3,6 +3,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:icons="using:TKCode.Desktop.Icons"
              xmlns:controls="using:TKCode.Desktop.Controls"
@@ -61,7 +62,7 @@
 
                     <StackPanel Spacing="4" IsVisible="{Binding HasAgents}">
                         <TextBlock Classes="tertiary" FontSize="12" Text="{loc:TKCodeLangResource TaskSectionAgents}" />
-                        <ScrollViewer MaxHeight="160" atom:ScrollViewer.IsLiteMode="True" HorizontalScrollBarVisibility="Disabled">
+                        <arc:ScrollArea MaxHeight="160">
                             <ItemsControl ItemsSource="{Binding Agents}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:BackgroundTaskItemViewModel">
@@ -77,12 +78,12 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </ScrollViewer>
+                        </arc:ScrollArea>
                     </StackPanel>
 
                     <StackPanel Spacing="4" IsVisible="{Binding HasShells}">
                         <TextBlock Classes="tertiary" FontSize="12" Text="{loc:TKCodeLangResource TaskSectionShells}" />
-                        <ScrollViewer MaxHeight="160" atom:ScrollViewer.IsLiteMode="True" HorizontalScrollBarVisibility="Disabled">
+                        <arc:ScrollArea MaxHeight="160">
                             <ItemsControl ItemsSource="{Binding Shells}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:BackgroundTaskItemViewModel">
@@ -98,12 +99,12 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </ScrollViewer>
+                        </arc:ScrollArea>
                     </StackPanel>
 
                     <StackPanel Spacing="4" IsVisible="{Binding TaskList.IsVisible}">
                         <TextBlock Classes="tertiary" FontSize="12" Text="{loc:TKCodeLangResource TaskSectionTasks}" />
-                        <ScrollViewer MaxHeight="160" atom:ScrollViewer.IsLiteMode="True" HorizontalScrollBarVisibility="Disabled">
+                        <arc:ScrollArea MaxHeight="160">
                             <ItemsControl ItemsSource="{Binding TaskList.Items}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:TaskItemViewModel">
@@ -123,7 +124,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </ScrollViewer>
+                        </arc:ScrollArea>
                     </StackPanel>
                 </StackPanel>
             </Border>

@@ -1,10 +1,11 @@
 <!--
-  项目选择：触发按钮（文件夹图标 + 名称 + ⌄）+ 弹层（搜索 / 项目列表 / 新建项目… / 不使用项目）。
-  Classes="sidebar" 时触发按钮占满宽度、文字加粗（侧栏顶部的“全部项目”）。
+  空状态输入框上方的项目选择：触发按钮（文件夹图标 + 名称 + ⌄）+ 弹层（搜索 / 项目列表 / 新建项目… / 不使用项目）。
+  「新建项目…」打开创建项目弹窗（docs/design/projects.md §8.4）。
 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:motion="using:TKCode.Desktop.Motion"
              xmlns:controls="using:TKCode.Desktop.Controls"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
@@ -13,22 +14,9 @@
              xmlns:loc="using:TKCode.Desktop.Localization"
              x:Class="TKCode.Desktop.Views.ProjectPickerView"
              x:DataType="vm:ProjectPickerViewModel">
-    <UserControl.Styles>
-        <Style Selector="views|ProjectPickerView.sidebar Button#Trigger">
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="MinHeight" Value="30" />
-            <Setter Property="Padding" Value="8,0" />
-            <Setter Property="Foreground" Value="{DynamicResource TKCode.TextPrimary}" />
-        </Style>
-        <Style Selector="views|ProjectPickerView.sidebar TextBlock#TitleText">
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="views|ProjectPickerView.sidebar :is(Popup)#Popup">
-            <Setter Property="Width" Value="240" />
-        </Style>
-    </UserControl.Styles>
     <Panel>
-        <Button x:Name="Trigger" Theme="{StaticResource TKCode.ChipButton}" Classes.selected="{Binding #Popup.IsOpen}" Click="OnTriggerClick">
+        <Button x:Name="Trigger" Theme="{StaticResource TKCode.ChipButton}" Classes.selected="{Binding #Popup.IsOpen}" Click="OnTriggerClick"
+                ToolTip.Tip="{Binding Tip}">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <icons:LucideIcon Kind="Folder" Width="14" Height="14" VerticalAlignment="Center" />
                 <TextBlock x:Name="TitleText" Grid.Column="1" Text="{Binding Title}" Margin="7,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
@@ -42,16 +30,16 @@
             <Border Classes="menu" Margin="0,0,16,16">
                 <StackPanel Margin="4">
                     <Border Background="{DynamicResource TKCode.MenuInputBg}" CornerRadius="6" Margin="0,0,0,4">
-                        <atom:LineEdit x:Name="SearchBox" StyleVariant="Borderless" Background="Transparent"
-                                       PlaceholderText="{loc:TKCodeLangResource SearchProjects}" Text="{Binding Search, Mode=TwoWay}" />
+                        <arc:Input x:Name="SearchBox" Classes="bare"
+                                       Placeholder="{loc:TKCodeLangResource SearchProjects}" Text="{Binding Search, Mode=TwoWay}" />
                     </Border>
-                    <ScrollViewer MaxHeight="260" atom:ScrollViewer.IsLiteMode="True">
+                    <arc:ScrollArea MaxHeight="260">
                         <ItemsControl ItemsSource="{Binding Items}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:ProjectItemViewModel">
                                     <Button Theme="{StaticResource TKCode.MenuItem}" Classes.selected="{Binding IsSelected}" MinHeight="32" Margin="0,1"
                                             Command="{Binding $parent[UserControl].((vm:ProjectPickerViewModel)DataContext).SelectCommand}"
-                                            CommandParameter="{Binding}" ToolTip.Tip="{Binding Info.Path, FallbackValue={x:Null}}">
+                                            CommandParameter="{Binding}" ToolTip.Tip="{Binding Project.Primary, FallbackValue={x:Null}}">
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Classes="strong" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Grid.Column="1" Classes="tertiary" Text="{Binding Meta}" Margin="12,0,0,0" FontSize="11"
@@ -61,7 +49,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </ScrollViewer>
+                    </arc:ScrollArea>
                     <Border Classes="menuDivider" Margin="-4,4" />
                     <Button Theme="{StaticResource TKCode.MenuItem}" MinHeight="32" Command="{Binding NewProjectCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
@@ -69,8 +57,7 @@
                             <TextBlock Classes="strong" Text="{loc:TKCodeLangResource NewProject}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Theme="{StaticResource TKCode.MenuItem}" MinHeight="32" Command="{Binding ChooseNoProjectCommand}"
-                            IsVisible="{Binding ShowNoProject}">
+                    <Button Theme="{StaticResource TKCode.MenuItem}" MinHeight="32" Command="{Binding ChooseNoProjectCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <icons:LucideIcon Kind="X" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
                             <TextBlock Classes="strong" Text="{loc:TKCodeLangResource NoProject}" VerticalAlignment="Center" />

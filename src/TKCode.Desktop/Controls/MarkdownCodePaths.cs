@@ -13,7 +13,7 @@ internal static class MarkdownCodePaths
 {
     /// <summary>相对路径的基准目录：文件预览用文件所在目录，会话用工作目录。</summary>
     public static string? Directory(AvaloniaObject source, MainWindowViewModel vm) =>
-        MarkdownServices.GetImageBaseUri(source) ?? vm.Conversation.Active?.Cwd ?? vm.Conversation.Workspace?.Path;
+        MarkdownServices.GetImageBaseUri(source) ?? vm.Conversation.Active?.Cwd ?? vm.Conversation.Workspace?.Primary;
 
     /// <summary>指针下的行内代码如果是一个已存在的文件，返回绝对路径。已经是链接的代码交给链接点击。</summary>
     public static string? Hit(TextSegmentView view, Point local, string? directory)

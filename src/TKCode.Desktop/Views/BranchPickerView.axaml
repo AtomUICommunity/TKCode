@@ -2,6 +2,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:motion="using:TKCode.Desktop.Motion"
              xmlns:controls="using:TKCode.Desktop.Controls"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
@@ -14,6 +15,9 @@
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <icons:LucideIcon Kind="GitBranch" Width="12" Height="12" VerticalAlignment="Center" />
                 <TextBlock Text="{Binding DisplayName}" FontSize="12" VerticalAlignment="Center" />
+                <!-- 多文件夹项目：其他仓库的数目（docs/design/projects.md §10.3） -->
+                <TextBlock Classes="tertiary" Text="{Binding MoreText}" FontSize="11" VerticalAlignment="Center"
+                           IsVisible="{Binding HasMultipleRepositories}" />
                 <icons:LucideIcon Kind="ChevronDown" Width="11" Height="11" VerticalAlignment="Center" />
             </StackPanel>
         </Button>
@@ -23,11 +27,36 @@
             <controls:ZoomHost>
             <Border Classes="menu" Width="320" Margin="0,0,16,16">
                 <StackPanel Margin="4">
+                    <!-- 多个仓库：先选仓库，下面列出它的分支 -->
+                    <StackPanel x:Name="RepositoryList" IsVisible="{Binding HasMultipleRepositories}">
+                        <ItemsControl ItemsSource="{Binding Repositories}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BranchRepositoryViewModel">
+                                    <Button Theme="{StaticResource TKCode.MenuItem}" Classes.selected="{Binding IsSelected}" MinHeight="30" Margin="0,1"
+                                            Command="{Binding $parent[UserControl].((vm:BranchPickerViewModel)DataContext).SelectRepositoryCommand}"
+                                            CommandParameter="{Binding}" ToolTip.Tip="{Binding Path}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <icons:LucideIcon Kind="Folder" Width="13" Height="13" VerticalAlignment="Center"
+                                                              StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
+                                            <TextBlock Grid.Column="1" Classes="strong" Text="{Binding Name}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" VerticalAlignment="Center">
+                                                <icons:LucideIcon Kind="GitBranch" Width="11" Height="11" VerticalAlignment="Center"
+                                                                  StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
+                                                <TextBlock Classes="tertiary" Text="{Binding Branch}" FontSize="11" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Border Classes="menuDivider" Margin="-4,4" />
+                    </StackPanel>
                     <Border Background="{DynamicResource TKCode.MenuInputBg}" CornerRadius="6" Margin="0,0,0,4">
-                        <atom:LineEdit x:Name="SearchBox" StyleVariant="Borderless" Background="Transparent"
-                                       PlaceholderText="{loc:TKCodeLangResource SearchRefs}" Text="{Binding Search, Mode=TwoWay}" />
+                        <arc:Input x:Name="SearchBox" Classes="bare"
+                                       Placeholder="{loc:TKCodeLangResource SearchRefs}" Text="{Binding Search, Mode=TwoWay}" />
                     </Border>
-                    <ScrollViewer MaxHeight="260" atom:ScrollViewer.IsLiteMode="True">
+                    <arc:ScrollArea MaxHeight="260">
                         <ItemsControl ItemsSource="{Binding Items}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:BranchItemViewModel">
@@ -43,7 +72,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </ScrollViewer>
+                    </arc:ScrollArea>
                     <motion:Reveal IsOpen="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <TextBlock Classes="secondary" Text="{Binding Error}" FontSize="12" TextWrapping="Wrap" Margin="8,6"
                                    Foreground="{DynamicResource TKCode.Danger}" />
@@ -56,10 +85,10 @@
                             <TextBlock Classes="strong" Text="{Binding ConfirmText}" TextTrimming="CharacterEllipsis" />
                             <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource SwitchBranchHint}" TextWrapping="Wrap" />
                             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,6,0,0">
-                                <atom:Button SizeType="Small" Color="Default" Variant="Text" Command="{Binding CancelCommand}"
-                                             Content="{loc:TKCodeLangResource Cancel}" />
-                                <atom:Button SizeType="Small" Color="Default" Variant="Solid" Command="{Binding ConfirmCommand}"
-                                             IsLoading="{Binding IsSwitching}" Content="{loc:TKCodeLangResource SwitchBranch}" />
+                                <arc:Button Variant="Ghost" Size="Small" Command="{Binding CancelCommand}"
+                                            Content="{loc:TKCodeLangResource Cancel}" />
+                                <arc:Button Variant="Primary" Size="Small" Command="{Binding ConfirmCommand}"
+                                            IsLoading="{Binding IsSwitching}" Content="{loc:TKCodeLangResource SwitchBranch}" />
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>

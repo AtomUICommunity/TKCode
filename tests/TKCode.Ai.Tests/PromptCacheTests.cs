@@ -184,10 +184,40 @@ public sealed class PromptCacheTests
     [Theory]
     [InlineData("https://api.x.ai/v1", "x-grok-conv-id")]
     [InlineData("https://openrouter.ai/api/v1", "x-session-id")]
+    [InlineData("https://opencode.ai/inference/go/openai/v1", "x-opencode-session")]
     public async Task Chat_SessionAffinityHeaders(string baseUrl, string header)
     {
         var (_, request) = await ChatRequest(Chat("m", baseUrl), Run.Context(UserMessage.FromText("q")), new StreamOptions { SessionId = "s1" });
         Assert.Equal("tkcode:s1", request.Headers.GetValues(header).Single());
+    }
+
+    [Fact]
+    public async Task Chat_SessionAffinityHeader_IsNotSentToOtherProviders()
+    {
+        var (_, request) = await ChatRequest(Chat("m", "https://relay.example.com/v1"), Run.Context(UserMessage.FromText("q")), new StreamOptions { SessionId = "s1" });
+        Assert.False(request.Headers.Contains("x-opencode-session"));
+    }
+
+    [Fact]
+    public async Task OpenCodeGo_Responses_And_Messages_CarryTheSessionHeader_AndItIsStablePerSession()
+    {
+        var responses = new FakeHandler((HttpStatusCode.OK, "data: [DONE]\n\n"));
+        var model = new ModelInfo { Id = "gpt-6-luna", Name = "m", Provider = "p", Api = KnownApis.OpenAIResponses, BaseUrl = "https://opencode.ai/inference/go/openai/v1" };
+        var api = new OpenAIResponsesApi(new HttpClient(responses));
+        await Run.StreamAsync(api, model, Run.Context(UserMessage.FromText("q")), new StreamOptions { SessionId = "s1" });
+        await Run.StreamAsync(api, model, Run.Context(UserMessage.FromText("q2")), new StreamOptions { SessionId = "s1" });
+        await Run.StreamAsync(api, model, Run.Context(UserMessage.FromText("q")), new StreamOptions { SessionId = "s2" });
+        var values = responses.Requests.Select(r => r.Headers.GetValues("x-opencode-session").Single()).ToList();
+        Assert.Equal(["tkcode:s1", "tkcode:s1", "tkcode:s2"], values);
+
+        var messages = new FakeHandler((HttpStatusCode.OK, "data: [DONE]\n\n"));
+        var claude = Opus with { BaseUrl = "https://opencode.ai/inference/go/anthropic" };
+        await Run.StreamAsync(new AnthropicMessagesApi(new HttpClient(messages)), claude, Run.Context(UserMessage.FromText("q")), new StreamOptions { ApiKey = "k", SessionId = "s1" });
+        Assert.Equal("tkcode:s1", messages.Requests[0].Headers.GetValues("x-opencode-session").Single());
+
+        var other = new FakeHandler((HttpStatusCode.OK, "data: [DONE]\n\n"));
+        await Run.StreamAsync(new AnthropicMessagesApi(new HttpClient(other)), Opus, Run.Context(UserMessage.FromText("q")), new StreamOptions { ApiKey = "k", SessionId = "s1" });
+        Assert.False(other.Requests[0].Headers.Contains("x-opencode-session"));
     }
 
     [Fact]

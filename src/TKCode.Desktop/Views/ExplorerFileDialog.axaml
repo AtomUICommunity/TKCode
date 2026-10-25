@@ -1,0 +1,19 @@
+<arc:DialogSurface xmlns="https://github.com/avaloniaui"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:arc="clr-namespace:TKCode.Arc;assembly=TKCode.Arc"
+                   x:Class="TKCode.Desktop.Views.ExplorerFileDialog"
+                   Size="Medium" ShowCloseButton="True" ContentTemplate="{x:Null}">
+    <arc:DialogSurface.Actions>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <arc:Button x:Name="CancelButton" Variant="Secondary" Click="OnCancelClick" />
+            <arc:Button x:Name="SubmitButton" Variant="Primary" Click="OnSubmitClick" />
+        </StackPanel>
+    </arc:DialogSurface.Actions>
+    <StackPanel Spacing="12">
+        <TextBlock x:Name="TargetName" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <TextBlock x:Name="TargetPath" FontSize="12" TextWrapping="Wrap" Classes="secondary" />
+        <arc:Input x:Name="NameInput" />
+        <arc:Alert x:Name="WarningMessage" Tone="Warning" IsVisible="False" />
+        <arc:Alert x:Name="ErrorMessage" Tone="Danger" IsVisible="False" />
+    </StackPanel>
+</arc:DialogSurface>

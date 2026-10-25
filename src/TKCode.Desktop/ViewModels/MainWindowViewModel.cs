@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using TKCode.Config;
+using TKCode.Desktop.Localization;
 using TKCode.Desktop.Services;
 
 namespace TKCode.Desktop.ViewModels;
@@ -23,7 +24,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         UserSettingsService userSettings,
         AgentHostConnection host,
         UpdatesViewModel updates,
-        ILogger<SettingsViewModel> settingsLogger)
+        ILogger<SettingsViewModel> settingsLogger,
+        IExplorerFileOperations? fileOperations = null,
+        IExplorerPlatformActions? platformActions = null)
     {
         Updates = updates;
         // 卡片的「查看更新说明」打开设置 › 关于
@@ -35,12 +38,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Sidebar = sidebar;
         Conversation = conversation;
         Workbench = workbench;
+        workbench.Host = host;
         conversation.Files.OpenFiles = () => workbench.Tabs.OfType<FileTabViewModel>().Select(t => t.FilePath);
         Themes = themes;
         this.userSettings = userSettings;
         this.host = host;
         this.settingsLogger = settingsLogger;
-        Explorer = new FileExplorerViewModel(workbench);
+        _platformActions = platformActions ?? new ExplorerPlatformActions();
+        Explorer = new FileExplorerViewModel(workbench, fileOperations, _platformActions);
         // 打开文件或面板时自动显示编辑区
         workbench.OpenRequested += () => IsWorkbenchOpen = true;
         workbench.Emptied += () => IsWorkbenchOpen = false;
@@ -60,10 +65,31 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 SyncExplorerRoot();
             }
         };
+        conversation.WorkspaceRootsChanged += SyncExplorerRoot;
+        Explorer.RemoveSessionRootAsync = conversation.RemoveSessionDirectoryAsync;
         SyncExplorerRoot();
     }
 
+    private readonly IExplorerPlatformActions _platformActions;
+
     public SidebarViewModel Sidebar { get; }
+
+    /// <summary>项目菜单的「在 Finder 中显示」（按平台命名）。</summary>
+    public string RevealProjectText => Strings.Get(OperatingSystem.IsWindows() ? TKCodeLangResourceKind.SessionRevealExplorer
+        : OperatingSystem.IsMacOS() ? TKCodeLangResourceKind.SessionRevealFinder : TKCodeLangResourceKind.SessionRevealFolder);
+
+    /// <summary>在系统文件管理器中显示文件夹（项目菜单）；失败时只记日志。</summary>
+    public async void RevealFolder(string path)
+    {
+        try
+        {
+            await _platformActions.ShowAsync(path, isDirectory: true);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or PlatformNotSupportedException or System.ComponentModel.Win32Exception)
+        {
+            settingsLogger.LogWarning(ex, "Revealing {Path} failed", path);
+        }
+    }
     public ConversationViewModel Conversation { get; }
     public WorkbenchViewModel Workbench { get; }
     public ThemeService Themes { get; }
@@ -80,7 +106,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void ToggleExplorer() => IsExplorerOpen = !IsExplorerOpen;
 
-    private void SyncExplorerRoot() => Explorer.SetRoot(Conversation.Active?.Cwd ?? Conversation.Workspace?.Path);
+    /// <summary>文件树：主文件夹，以及项目的其他文件夹与本会话追加的文件夹（docs/design/projects.md §10.1）。</summary>
+    private void SyncExplorerRoot() =>
+        Explorer.SetRoots(Conversation.CurrentCwd, Conversation.CurrentAdditionalRoots, Conversation.CurrentSessionRoots);
 
     /// <summary>⌘K 命令面板。</summary>
     public CommandPaletteViewModel Palette => field ??= new CommandPaletteViewModel(this);

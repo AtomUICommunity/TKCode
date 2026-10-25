@@ -12,8 +12,12 @@ namespace TKCode.Runtimes.Codex;
 
 /// <summary>线程级设置：线程启动时发送一次，之后只在变化时作为 turn/start 的覆盖发送（这些覆盖是 sticky 的）。</summary>
 /// <param name="ReadOnly">只读沙箱（TKCode 的 Plan 模式，docs/design/composer.md §11），优先于完全授权。</param>
+/// <param name="WritableRoots">workspace-write 沙箱下 cwd 以外的可写目录（docs/design/projects.md §6.8）；thread/start 不能携带，随 turn/start 覆盖。</param>
 internal sealed record CodexThreadSettings(string? Model, string ApprovalPolicy, bool FullAccess, bool NetworkAccess, string? ServiceTier,
-    bool ReadOnly = false);
+    bool ReadOnly = false, IReadOnlyList<string>? WritableRoots = null)
+{
+    public IReadOnlyList<string> Roots => WritableRoots ?? [];
+}
 
 /// <summary>
 /// 一个 Codex 会话 = 一个 <c>codex app-server</c> 进程 + 一个主线程（规格 docs/protocols/codex-app-server.md）。
@@ -25,6 +29,9 @@ internal sealed record CodexThreadSettings(string? Model, string ApprovalPolicy,
 /// </summary>
 internal sealed class CodexSession : IRuntimeSession
 {
+    /// <summary>可写目录随每轮的 sandboxPolicy 发送（sticky），目录变化不需要重启 app-server。</summary>
+    public bool AppliesDirectoriesPerTurn => true;
+
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan InterruptGrace = TimeSpan.FromSeconds(10);
 
@@ -40,6 +47,16 @@ internal sealed class CodexSession : IRuntimeSession
     private CodexThreadSettings? _thread;
     private Turn? _turn;
     private CodexUsage? _baseline;
+
+    /// <summary>子 Agent 线程（parentThreadId 为主线程，docs/design/subagent-view.md §5.6）。</summary>
+    private readonly Dictionary<string, ChildThread> _children = new(StringComparer.Ordinal);
+
+    /// <summary>登记之前就到达的子线程通知（thread/started 或 spawnAgent 之前），登记后按顺序补上。</summary>
+    private readonly Dictionary<string, List<(string Method, JsonElement Params)>> _orphans = new(StringComparer.Ordinal);
+    private const int MaxOrphans = 2000;
+
+    /// <summary>最近一轮的模型与选项（子 Agent 的写入器沿用）。</summary>
+    private Turn? _lastTurn;
 
     public CodexSession(Stream stdout, Stream stdin, IRuntimeHost host, string? developerInstructions,
         IAsyncDisposable? process = null, Func<string>? describeExit = null)
@@ -135,6 +152,8 @@ internal sealed class CodexSession : IRuntimeSession
                 FullAccess = sandbox is { } sb ? sb.Str("type") == "dangerFullAccess" : requested.FullAccess,
                 ReadOnly = sandbox is { } ro ? ro.Str("type") == "readOnly" : requested.ReadOnly,
                 NetworkAccess = sandbox is { } net ? net.Bool("networkAccess") : requested.NetworkAccess,
+                // thread/start 只有 sandbox 字符串：以服务端报告的为准，需要时由第一轮的 sandboxPolicy 覆盖
+                WritableRoots = sandbox is { } roots ? roots.Arr("writableRoots").Select(r => r.GetString()).OfType<string>().ToArray() : [],
             };
             // 新线程的累计用量从 0 开始；恢复的线程在本轮第一条用量通知时用 total − last 作为基线（§5.5）
             _baseline = isNew ? CodexUsage.Zero : null;
@@ -189,7 +208,8 @@ internal sealed class CodexSession : IRuntimeSession
         options.Permission == TKCode.Agent.PermissionMode.FullAccess,
         options.Permission == TKCode.Agent.PermissionMode.AutoApprove,
         options.FastMode && options.Model.SupportsFastMode ? "priority" : null,
-        options.Mode.ReadOnly);
+        options.Mode.ReadOnly,
+        options.AdditionalDirectories);
 
     // ---------------- 轮次 ----------------
 
@@ -199,6 +219,7 @@ internal sealed class CodexSession : IRuntimeSession
         await RunOnQueueAsync(() =>
         {
             _turn = turn;
+            _lastTurn = turn;
             return ValueTask.CompletedTask;
         });
 
@@ -283,8 +304,9 @@ internal sealed class CodexSession : IRuntimeSession
         {
             w.WriteString("approvalPolicy", wanted.ApprovalPolicy);
         }
+        var rootsChanged = !wanted.FullAccess && !wanted.ReadOnly && !wanted.Roots.SequenceEqual(current.Roots);
         if (wanted.ReadOnly != current.ReadOnly || wanted.FullAccess != current.FullAccess ||
-            (!wanted.FullAccess && wanted.NetworkAccess != current.NetworkAccess))
+            (!wanted.FullAccess && wanted.NetworkAccess != current.NetworkAccess) || rootsChanged)
         {
             w.WriteStartObject("sandboxPolicy");
             if (wanted.ReadOnly)
@@ -299,6 +321,12 @@ internal sealed class CodexSession : IRuntimeSession
             {
                 w.WriteString("type", "workspaceWrite");
                 w.WriteBoolean("networkAccess", wanted.NetworkAccess);
+                w.WriteStartArray("writableRoots");
+                foreach (var root in wanted.Roots)
+                {
+                    w.WriteStringValue(root);
+                }
+                w.WriteEndArray();
             }
             w.WriteEndObject();
         }
@@ -314,7 +342,8 @@ internal sealed class CodexSession : IRuntimeSession
             }
         }
         _thread = current with { Model = wanted.Model ?? current.Model, ApprovalPolicy = wanted.ApprovalPolicy, FullAccess = wanted.FullAccess,
-            NetworkAccess = wanted.FullAccess ? current.NetworkAccess : wanted.NetworkAccess, ServiceTier = wanted.ServiceTier, ReadOnly = wanted.ReadOnly };
+            NetworkAccess = wanted.FullAccess ? current.NetworkAccess : wanted.NetworkAccess, ServiceTier = wanted.ServiceTier, ReadOnly = wanted.ReadOnly,
+            WritableRoots = wanted.FullAccess || wanted.ReadOnly ? current.WritableRoots : wanted.WritableRoots };
 
         var efforts = options.Model.Compat?.ReasoningEfforts;
         var off = options.ThinkingLevel == ThinkingLevel.Off;
@@ -399,12 +428,23 @@ internal sealed class CodexSession : IRuntimeSession
 
     private async ValueTask HandleNotificationAsync(string method, JsonElement p)
     {
-        // 只处理主线程的通知；子 Agent 线程与全局通知不影响当前轮次（§1.3）
-        if (p.Str("threadId") is { } threadId && threadId != _threadId)
+        if (method == "thread/started")
         {
+            await OnThreadStartedAsync(p.Obj("thread") ?? default);
             return;
         }
-        var turn = _turn;
+        // 子 Agent 线程的通知进入它自己的转录，不影响当前轮次（§1.3）
+        if (p.Str("threadId") is { } threadId && threadId != _threadId)
+        {
+            await OnChildNotificationAsync(threadId, method, p);
+            return;
+        }
+        await HandleTurnNotificationAsync(_turn, method, p);
+    }
+
+    /// <summary>一个线程的轮次通知（主线程或子 Agent 线程，后者的 <paramref name="turn"/> 带 <see cref="Turn.Child"/>）。</summary>
+    private async ValueTask HandleTurnNotificationAsync(Turn? turn, string method, JsonElement p)
+    {
         switch (method)
         {
             case "turn/started" when turn is not null:
@@ -460,7 +500,7 @@ internal sealed class CodexSession : IRuntimeSession
                     await turn.Writer.ToolProgressAsync(mcp.Id, mcp.Name, progress);
                 }
                 break;
-            case "thread/tokenUsage/updated":
+            case "thread/tokenUsage/updated" when turn?.Child is null:
                 OnUsage(turn, p.Obj("tokenUsage") ?? default);
                 break;
             case "error" when turn is not null && IsCurrent(turn, p):
@@ -498,6 +538,9 @@ internal sealed class CodexSession : IRuntimeSession
                 break; // 第一个增量到达时才开块，避免空的思考块（§5.4）
             case "userMessage" or "contextCompaction" or "plan":
                 break;
+            case "subAgentActivity":
+                await OnSubAgentActivityAsync(item);
+                break;
             default:
                 var tool = ToolOf(item);
                 if (tool is null)
@@ -506,6 +549,10 @@ internal sealed class CodexSession : IRuntimeSession
                 }
                 turn.Tools[id] = tool;
                 await turn.Writer.ToolCallAsync(tool.Id, tool.Name, tool.ArgumentsJson);
+                if (turn.Child is null && IsSpawn(item))
+                {
+                    await OnSpawnAsync(turn, tool, item);
+                }
                 // 命令与文件修改可能需要审批：审批通过、出现输出或完成时才算开始执行；其他工具立即开始
                 if (turn.Options.AutoApprove || tool.Kind is not ("commandExecution" or "fileChange"))
                 {
@@ -544,7 +591,18 @@ internal sealed class CodexSession : IRuntimeSession
                     await turn.Writer.ThinkingAsync(summary);
                 }
                 break;
+            case "userMessage" when turn.Child is not null:
+                // 子 Agent 收到的任务（父 Agent 的 prompt 或 sendInput）：主线程的用户消息由 TKCode 自己写入
+                var prompt = string.Join("\n", item.Arr("content").Where(c => c.Str("type") == "text").Select(c => c.Str("text")).OfType<string>());
+                if (prompt.Length > 0)
+                {
+                    await turn.Writer.UserMessageAsync(UserMessage.FromText(prompt));
+                }
+                break;
             case "userMessage" or "contextCompaction" or "plan":
+                break;
+            case "subAgentActivity":
+                await OnSubAgentActivityAsync(item);
                 break;
             default:
                 if (!turn.Tools.TryGetValue(id, out var tool))
@@ -555,6 +613,10 @@ internal sealed class CodexSession : IRuntimeSession
                         break;
                     }
                     turn.Tools[id] = tool;
+                }
+                if (turn.Child is null && IsSpawn(item))
+                {
+                    await OnSpawnAsync(turn, tool, item);
                 }
                 await CompleteToolAsync(turn, tool, item);
                 break;
@@ -609,7 +671,27 @@ internal sealed class CodexSession : IRuntimeSession
                 return new ToolState(id, "webSearch", "web_search", JsonBuilder.Object(w => w.WriteString("query", item.Str("query"))).GetRawText());
             case "imageView":
                 return new ToolState(id, "imageView", "view_image", JsonBuilder.Object(w => w.WriteString("path", item.Str("path"))).GetRawText());
-            case "dynamicToolCall" or "collabAgentToolCall":
+            case "collabAgentToolCall":
+                // 子 Agent 协作：spawnAgent 显示为子 Agent 卡片；参数取 prompt / model / 接收方（§5.6）
+                return new ToolState(id, "collabAgentToolCall", IsSpawn(item) ? SpawnToolName : item.Str("tool") ?? "collabAgentToolCall",
+                    JsonBuilder.Object(w =>
+                    {
+                        if (item.Str("prompt") is { } prompt)
+                        {
+                            w.WriteString("prompt", prompt);
+                        }
+                        if (item.Str("model") is { } model)
+                        {
+                            w.WriteString("model", model);
+                        }
+                        w.WriteStartArray("receiverThreadIds");
+                        foreach (var receiver in item.Arr("receiverThreadIds"))
+                        {
+                            w.WriteStringValue(receiver.GetString());
+                        }
+                        w.WriteEndArray();
+                    }).GetRawText());
+            case "dynamicToolCall":
                 var args = item.Prop("arguments");
                 return new ToolState(id, item.Str("type")!, item.Str("tool") ?? item.Str("type")!,
                     args is { ValueKind: JsonValueKind.Object } d ? d.GetRawText() : "{}");
@@ -676,6 +758,7 @@ internal sealed class CodexSession : IRuntimeSession
                 text = isError ? "Tool failed." : "Done.";
                 break;
         }
+        details ??= tool.Details;
         await turn.Writer.ToolCompletedAsync(tool.Id, tool.Name, text, isError, tool.ArgumentsJson, details);
         // 工具结果关闭了草稿：其后的文本 / 思考块已失效，重新开始
         turn.Blocks.Clear();
@@ -719,6 +802,13 @@ internal sealed class CodexSession : IRuntimeSession
         {
             turn.Writer.SetUsage(usage);
         }
+        if (turn.Child is { } child)
+        {
+            child.Turn = null;
+            await child.Transcript!.EndRunAsync(reason, message);
+            turn.Completed.TrySetResult();
+            return;
+        }
         await turn.Writer.CompleteAsync(reason, message);
         _turn = null;
         turn.Completed.TrySetResult();
@@ -741,6 +831,125 @@ internal sealed class CodexSession : IRuntimeSession
         turn.StartTotal ??= baseline;
         turn.Usage = (total - turn.StartTotal.Value).ToUsage();
         _baseline = total;
+    }
+
+    // ---------------- 子 Agent 线程（docs/design/subagent-view.md §5.6） ----------------
+
+    private const string SpawnToolName = "spawn_agent";
+
+    private static bool IsSpawn(JsonElement item) => item.Str("type") == "collabAgentToolCall" && item.Str("tool") == "spawnAgent";
+
+    /// <summary>thread/started：parentThreadId 为主线程的是子 Agent，登记它并补上先到的通知。</summary>
+    private async ValueTask OnThreadStartedAsync(JsonElement thread)
+    {
+        if (thread.Str("id") is not { } id || _threadId is null || thread.Str("parentThreadId") != _threadId)
+        {
+            return;
+        }
+        // review / compact 等内部子线程不是子 Agent（source.subAgent 为字符串；thread_spawn 才是）
+        if (thread.Obj("source")?.Prop("subAgent") is { ValueKind: JsonValueKind.String })
+        {
+            return;
+        }
+        var child = ChildOf(id);
+        child.Nickname = thread.Str("agentNickname") ?? child.Nickname;
+        child.Role = thread.Str("agentRole") ?? child.Role;
+        child.Model = thread.Str("model") ?? child.Model;
+        await RegisterAsync(child);
+    }
+
+    /// <summary>主线程中的 spawnAgent：关联到它派生的子线程，并推送 SubagentDetails（卡片的名称与模型）。</summary>
+    private async ValueTask OnSpawnAsync(Turn turn, ToolState tool, JsonElement item)
+    {
+        if (item.Arr("receiverThreadIds").Select(r => r.GetString()).FirstOrDefault(r => r is { Length: > 0 }) is not { } threadId)
+        {
+            return;
+        }
+        var child = ChildOf(threadId);
+        child.Model ??= item.Str("model");
+        await RegisterAsync(child);
+        child.Transcript?.Link(tool.Id);
+        var status = item.Str("status") switch
+        {
+            "failed" => "failed",
+            "interrupted" => "stopped",
+            _ => "running",
+        };
+        tool.Details = SubagentDetailsJson.Create(threadId, child.Name, child.Role ?? "agent", item.Str("prompt") ?? "", status, false,
+            model: child.Model ?? turn.Writer.Model.Name);
+        if (!tool.Done)
+        {
+            await turn.Writer.ToolProgressAsync(tool.Id, tool.Name, "", tool.Details);
+        }
+    }
+
+    /// <summary>subAgentActivity（主线程）：started 时带着子 Agent 解析后的模型。</summary>
+    private async ValueTask OnSubAgentActivityAsync(JsonElement item)
+    {
+        if (item.Str("agentThreadId") is not { } threadId)
+        {
+            return;
+        }
+        var child = ChildOf(threadId);
+        if (item.Str("model") is { } model)
+        {
+            child.Model = model;
+        }
+        await RegisterAsync(child);
+    }
+
+    private ChildThread ChildOf(string threadId)
+    {
+        if (!_children.TryGetValue(threadId, out var child))
+        {
+            child = _children[threadId] = new ChildThread(threadId);
+        }
+        return child;
+    }
+
+    /// <summary>打开（或更新）子线程的转录，补上登记之前到达的通知。</summary>
+    private async ValueTask RegisterAsync(ChildThread child)
+    {
+        if (child.Transcript is { } existing)
+        {
+            existing.Describe(child.Name, child.Model);
+        }
+        else
+        {
+            child.Transcript = _host.OpenSubagent(child.ThreadId, child.Name, child.Model);
+        }
+        if (child.Transcript is not null && _orphans.Remove(child.ThreadId, out var pending))
+        {
+            foreach (var (method, p) in pending)
+            {
+                await OnChildNotificationAsync(child.ThreadId, method, p);
+            }
+        }
+    }
+
+    /// <summary>子线程的通知：轮次与条目复用主线程的映射，写入子 Agent 的转录。</summary>
+    private async ValueTask OnChildNotificationAsync(string threadId, string method, JsonElement p)
+    {
+        if (!_children.TryGetValue(threadId, out var child) || child.Transcript is null)
+        {
+            // 可能是尚未登记的子 Agent（thread/started 稍后到达）；不是子 Agent 的线程最终被丢弃
+            if (!_orphans.TryGetValue(threadId, out var list))
+            {
+                list = _orphans[threadId] = [];
+            }
+            if (list.Count < MaxOrphans)
+            {
+                list.Add((method, p.Clone()));
+            }
+            return;
+        }
+        var turn = child.Turn;
+        if (turn is null && method is "turn/started" or "item/started" or "item/completed" or "item/agentMessage/delta"
+                or "item/reasoning/summaryTextDelta" && _lastTurn is { } last)
+        {
+            turn = child.Turn = new Turn(await child.Transcript.BeginRunAsync(last.Writer.Model), last.Options) { Child = child };
+        }
+        await HandleTurnNotificationAsync(turn, method, p);
     }
 
     // ---------------- 服务端请求 ----------------
@@ -770,7 +979,9 @@ internal sealed class CodexSession : IRuntimeSession
             TaskCreationOptions.RunContinuationsAsynchronously);
         Enqueue(() =>
         {
-            var turn = _turn;
+            // 子 Agent 线程的请求用它自己的轮次，标题前缀为子 Agent 名（§5.6）
+            var child = p.Str("threadId") is { } threadId && threadId != _threadId ? _children.GetValueOrDefault(threadId) : null;
+            var turn = child is not null ? child.Turn : _turn;
             if (turn is null || turn.Done || turn.InterruptPending)
             {
                 prepared.TrySetResult(null);
@@ -778,7 +989,12 @@ internal sealed class CodexSession : IRuntimeSession
             }
             var scope = CancellationTokenSource.CreateLinkedTokenSource(turn.ApprovalScope.Token);
             turn.Approvals[id.GetRawText()] = scope;
-            prepared.TrySetResult((turn, BuildApproval(turn, method, p), scope));
+            var request = BuildApproval(turn, method, p);
+            if (child is not null)
+            {
+                request = request with { Title = $"[{child.Name}] {request.Title ?? request.ToolName}" };
+            }
+            prepared.TrySetResult((turn, request, scope));
             return ValueTask.CompletedTask;
         });
         if (await prepared.Task is not { } ready)
@@ -1061,6 +1277,21 @@ internal sealed class CodexSession : IRuntimeSession
         public Dictionary<string, CancellationTokenSource> Approvals { get; } = new(StringComparer.Ordinal);
         public CancellationTokenSource ApprovalScope { get; } = new();
         public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>子 Agent 线程的轮次（写入它的转录）；主线程为 null。</summary>
+        public ChildThread? Child { get; init; }
+    }
+
+    /// <summary>一个子 Agent 线程：名称取 agentNickname → agentRole，转录在登记时打开。</summary>
+    private sealed class ChildThread(string threadId)
+    {
+        public string ThreadId { get; } = threadId;
+        public string? Nickname { get; set; }
+        public string? Role { get; set; }
+        public string? Model { get; set; }
+        public string Name => Nickname ?? Role ?? "agent";
+        public RuntimeSubagent? Transcript { get; set; }
+        public Turn? Turn { get; set; }
     }
 
     private sealed class Block(int handle)
@@ -1078,6 +1309,9 @@ internal sealed class CodexSession : IRuntimeSession
         public string ArgumentsJson { get; } = argumentsJson;
         public string? Title { get; init; }
         public JsonElement? Changes { get; set; }
+
+        /// <summary>完成时附上的 Details（spawnAgent 的 SubagentDetails）。</summary>
+        public string? Details { get; set; }
         public StringBuilder Output { get; } = new();
         public bool Done { get; set; }
     }

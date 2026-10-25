@@ -294,6 +294,36 @@ public sealed class ComposerEditorTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task ContextMenu_IsArcMenu_WithEditCommands()
+    {
+        await HeadlessApp.Session.Dispatch(() =>
+        {
+            var view = new Views.ComposerView();
+            var window = new AtomUI.Desktop.Controls.Window { Width = 600, Height = 300, Content = view };
+            TKCode.Arc.Motion.ArcMotion.SetLevel(window, TKCode.Arc.Motion.ArcMotionLevel.Off);
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            var editor = view.FindControl<ComposerEditor>("Input")!;
+            editor.Document = new ComposerDocument([new TextSegment("abc")]);
+
+            // 右键打开 Arc 菜单：剪切 / 复制 / 粘贴 / 全选
+            var menu = TKCode.Arc.ContextMenu.GetMenu(editor)!;
+            editor.RaiseEvent(new ContextRequestedEventArgs());
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(menu.IsOpen);
+            var entries = menu.Items.OfType<TKCode.Arc.MenuEntry>().ToArray();
+            Assert.Equal(4, entries.Length);
+            HeadlessApp.Save(window, "composer-context-menu");
+
+            entries[3].PerformClick();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal((0, 3), (editor.SelectionStart, editor.SelectionEnd));
+            window.Close();
+            return true;
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static ComposerEditor Editor(IEnumerable<Segment> segments, int minLines = 1, int maxLines = 10) => new()
     {
         Document = new ComposerDocument(segments),

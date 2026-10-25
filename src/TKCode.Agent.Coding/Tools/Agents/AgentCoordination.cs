@@ -21,7 +21,9 @@ public interface IAgentCoordinator
 /// <param name="AgentType">general-purpose / explore / plan。</param>
 /// <param name="Model">模型引用（厂商/模型）；null 表示与父会话相同。</param>
 /// <param name="Name">可选的名字，之后可用 send_message 按名字寻址。</param>
-public sealed record SubagentRequest(string ParentSessionId, string Description, string Prompt, string AgentType, string? Model, string? Name);
+/// <param name="ToolCallId">父会话中派生它的工具调用；UI 按它打开子 Agent 的转录（docs/design/subagent-view.md §4）。</param>
+public sealed record SubagentRequest(string ParentSessionId, string Description, string Prompt, string AgentType, string? Model, string? Name,
+    string? ToolCallId = null);
 
 /// <param name="Status">completed / failed / stopped。</param>
 /// <param name="Report">子 Agent 最后一条消息的文本（交给父 Agent）。</param>
@@ -32,11 +34,15 @@ public sealed record SubagentOutcome(string Status, string Report, int ToolUses,
 public sealed record AgentPeer(string Name, string Ref, string Kind, string Status, string? Cwd = null, string? Title = null);
 
 /// <summary>运行中的子 Agent。</summary>
-public sealed class SubagentHandle(string agentId, string name, string agentType, Task<SubagentOutcome> completion, Action abort)
+public sealed class SubagentHandle(string agentId, string name, string agentType, Task<SubagentOutcome> completion, Action abort,
+    string? model = null)
 {
     public string AgentId { get; } = agentId;
     public string Name { get; } = name;
     public string AgentType { get; } = agentType;
+
+    /// <summary>子 Agent 使用的模型（显示名）。</summary>
+    public string? Model { get; } = model;
     public Task<SubagentOutcome> Completion { get; } = completion;
 
     /// <summary>进度：已调用的工具数、累计 tokens、当前在做什么。</summary>

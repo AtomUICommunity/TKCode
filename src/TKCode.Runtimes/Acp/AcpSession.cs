@@ -71,7 +71,10 @@ internal sealed class AcpSession : IRuntimeSession
 
     public AcpConfigState Config { get; } = new();
 
-    public JsonElement AgentCapabilities { get; private set; }
+    /// <summary>配置响应与通知在消费者队列中按序应用后触发，供运行时刷新模型列表。</summary>
+    public event Action<AcpConfigState>? ConfigChanged;
+
+    public JsonElement AgentCapabilities { get; internal set; }
 
     /// <summary>客户端版本（clientInfo.version）。</summary>
     public static string ClientVersion { get; set; } =
@@ -148,9 +151,8 @@ internal sealed class AcpSession : IRuntimeSession
                 return;
             }
         }
-        var created = await WithAuthAsync(() => InvokeAsync("session/new", SessionParams(null, cwd), ct), ct);
+        var created = await WithAuthAsync(() => InvokeConfigAsync("session/new", SessionParams(null, cwd), ct), ct);
         var sessionId = created.Str("sessionId") ?? throw new InvalidOperationException("session/new returned no sessionId.");
-        Config.ApplyResponse(created);
         Establish(sessionId);
     }
 
@@ -162,8 +164,7 @@ internal sealed class AcpSession : IRuntimeSession
         {
             // load 期间 _turn 为 null：重放的消息与工具更新被丢弃，状态类更新照常应用（§5.2）。
             Establish(sessionId);
-            var result = await WithAuthAsync(() => InvokeAsync(method, SessionParams(sessionId, cwd), ct), ct);
-            Config.ApplyResponse(result);
+            await WithAuthAsync(() => InvokeConfigAsync(method, SessionParams(sessionId, cwd), ct), ct);
             return true;
         }
         catch (RpcRemoteException)
@@ -179,6 +180,16 @@ internal sealed class AcpSession : IRuntimeSession
     /// <summary>注入的 TKCode MCP 桥接（StartAsync 之前设置）。stdio 是 ACP 的基线能力，不依赖 mcpCapabilities。</summary>
     public McpBridgeLaunch? McpBridge { get; set; }
 
+    /// <summary>
+    /// cwd 以外的工作区目录（docs/design/projects.md §6.8，StartAsync 之前设置）。只在 Agent 声明了
+    /// <c>sessionCapabilities.additionalDirectories</c> 时随 new / load / resume 发送完整列表（规格 §5.1–§5.3）。
+    /// </summary>
+    public IReadOnlyList<string> AdditionalDirectories { get; set; } = [];
+
+    /// <summary>Agent 声明了 <c>sessionCapabilities.additionalDirectories</c>。</summary>
+    public bool SupportsAdditionalDirectories =>
+        AgentCapabilities.ValueKind == JsonValueKind.Object && AgentCapabilities.Obj("sessionCapabilities")?.HasObject("additionalDirectories") == true;
+
     internal JsonElement SessionParams(string? sessionId, string cwd) => JsonBuilder.Object(w =>
     {
         if (sessionId is not null)
@@ -186,6 +197,17 @@ internal sealed class AcpSession : IRuntimeSession
             w.WriteString("sessionId", sessionId);
         }
         w.WriteString("cwd", cwd);
+        // 完整列表：去掉重复项与等于 cwd 的项（规格 §5.1）
+        var directories = AdditionalDirectories.Where(d => !string.Equals(d, cwd, StringComparison.Ordinal)).Distinct(StringComparer.Ordinal).ToArray();
+        if (SupportsAdditionalDirectories && directories.Length > 0)
+        {
+            w.WriteStartArray("additionalDirectories");
+            foreach (var directory in directories)
+            {
+                w.WriteStringValue(directory);
+            }
+            w.WriteEndArray();
+        }
         w.WriteStartArray("mcpServers");
         if (McpBridge is { } bridge)
         {
@@ -299,13 +321,34 @@ internal sealed class AcpSession : IRuntimeSession
 
     private async Task SetConfigAsync(string configId, string value, CancellationToken ct)
     {
-        var result = await InvokeAsync("session/set_config_option", JsonBuilder.Object(w =>
+        await InvokeConfigAsync("session/set_config_option", JsonBuilder.Object(w =>
         {
             w.WriteString("sessionId", _sessionId);
             w.WriteString("configId", configId);
             w.WriteString("value", value);
         }), ct);
+    }
+
+    private async Task<JsonElement> InvokeConfigAsync(string method, JsonElement parameters, CancellationToken ct)
+    {
+        Task applied = Task.CompletedTask;
+        var result = await _rpc.InvokeRawAsync(method, parameters, ct, onResponse: response =>
+        {
+            // 必须在读循环收到响应时入队，而不是 await 之后；后续通知不能被旧响应覆盖。
+            applied = RunOnQueueAsync(() =>
+            {
+                ApplyConfigResponse(response);
+                return ValueTask.CompletedTask;
+            });
+        });
+        await applied;
+        return result;
+    }
+
+    private void ApplyConfigResponse(JsonElement result)
+    {
         Config.ApplyResponse(result);
+        ConfigChanged?.Invoke(Config);
     }
 
     // ---------------- 轮次 ----------------
@@ -650,7 +693,7 @@ internal sealed class AcpSession : IRuntimeSession
                 }
                 break;
             case "config_option_update":
-                Config.ApplyUpdate(update);
+                ApplyConfigResponse(update);
                 break;
             case "available_commands_update":
                 // 整体替换命令列表，用于输入框的 / 补全（§7.8）

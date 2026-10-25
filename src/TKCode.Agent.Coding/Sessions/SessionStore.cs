@@ -23,31 +23,38 @@ public sealed class SessionStore
     /// <summary>文件创建前追加的非消息记录（模型 / 参数变化），随第一条消息一起写入，避免空会话落盘。</summary>
     private readonly StringBuilder _pending = new();
 
-    private SessionStore(string filePath, string sessionId, string cwd)
+    private SessionStore(string filePath, string sessionId, string cwd, string? projectId)
     {
         FilePath = filePath;
         SessionId = sessionId;
         Cwd = cwd;
+        ProjectId = projectId;
     }
 
     public string FilePath { get; }
     public string SessionId { get; }
     public string Cwd { get; }
 
+    /// <summary>会话所属的项目（写在会话头里，之后不变）；null 表示旧会话或不在项目中工作。</summary>
+    public string? ProjectId { get; }
+
+    /// <summary>只给本会话追加的文件夹（docs/design/projects.md §6.4）；随 <see cref="AppendDirectoriesAsync"/> 更新。</summary>
+    public IReadOnlyList<string> SessionDirectories { get; private set; } = [];
+
     public static string DefaultRoot =>
         Path.Combine(TKCodePaths.Home, "sessions");
 
-    public static SessionStore Create(string cwd, string? root = null)
+    public static SessionStore Create(string cwd, string? root = null, string? projectId = null)
     {
         var sessionId = Guid.CreateVersion7().ToString("N");
         var dir = Path.Combine(root ?? DefaultRoot, EncodeCwd(cwd));
         var file = Path.Combine(dir, $"{DateTimeOffset.UtcNow:yyyyMMddTHHmmss}_{sessionId}.jsonl");
-        return new SessionStore(file, sessionId, cwd);
+        return new SessionStore(file, sessionId, cwd, projectId);
     }
 
     /// <summary>在指定文件创建新会话（子 Agent 的转录不放在会话目录下，不出现在会话列表中）。</summary>
-    public static SessionStore CreateAt(string filePath, string cwd) =>
-        new(Path.GetFullPath(filePath), Guid.CreateVersion7().ToString("N"), cwd);
+    public static SessionStore CreateAt(string filePath, string cwd, string? projectId = null) =>
+        new(Path.GetFullPath(filePath), Guid.CreateVersion7().ToString("N"), cwd, projectId);
 
     /// <summary>打开既有会话，返回存储与沿当前分支（根 → 叶）的消息。</summary>
     public static (SessionStore Store, IReadOnlyList<Message> Messages) Open(string filePath)
@@ -60,11 +67,12 @@ public sealed class SessionStore
     public static (SessionStore Store, SessionSnapshot Snapshot) OpenSnapshot(string filePath, SessionSnapshot? snapshot = null)
     {
         snapshot ??= Read(filePath);
-        return (new SessionStore(filePath, snapshot.SessionId, snapshot.Cwd)
+        return (new SessionStore(filePath, snapshot.SessionId, snapshot.Cwd, snapshot.ProjectId)
         {
             _leafId = snapshot.LeafId,
             _created = true,
             _titleChanged = snapshot.CustomTitle is not null,
+            SessionDirectories = snapshot.SessionDirectories,
         }, snapshot);
     }
 
@@ -85,6 +93,7 @@ public sealed class SessionStore
         SessionHeader? header = null;
         string? customTitle = null;
         var pinned = false;
+        IReadOnlyList<string> directories = [];
         var entries = new Dictionary<string, TreeEntry>();
         string? leaf = null;
         using var lines = new Utf8LineReader(filePath);
@@ -109,6 +118,9 @@ public sealed class SessionStore
                 case SessionMetaEntry meta:
                     customTitle = meta.Title is null ? customTitle : meta.Title.Length == 0 ? null : meta.Title;
                     pinned = meta.Pinned ?? pinned;
+                    break;
+                case SessionDirectoriesEntry d:
+                    directories = d.Directories ?? [];
                     break;
                 case TreeEntry t:
                     entries[t.Id] = t;
@@ -184,6 +196,8 @@ public sealed class SessionStore
             SystemPrompt = currentPrompt,
             Tasks = tasks,
             Role = role,
+            ProjectId = header.ProjectId,
+            SessionDirectories = directories,
             EarlierMessages = earlier,
             Compaction = compaction,
         };
@@ -251,6 +265,29 @@ public sealed class SessionStore
         }
     }
 
+    /// <summary>记录只给本会话追加的文件夹（完整列表，最后一条生效）。文件尚未创建时随第一条消息写入。</summary>
+    public async Task AppendDirectoriesAsync(IReadOnlyList<string> directories, CancellationToken ct = default)
+    {
+        await _writeLock.WaitAsync(ct);
+        try
+        {
+            var line = Serialize(new SessionDirectoriesEntry(directories));
+            SessionDirectories = directories;
+            if (!_created)
+            {
+                _pending.AppendLine(line);
+            }
+            else
+            {
+                await File.AppendAllTextAsync(FilePath, line + Environment.NewLine, ct);
+            }
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
     /// <summary>对未在 Host 中打开的会话文件直接追加元数据。</summary>
     public static Task AppendMetaToFileAsync(string filePath, string? title, bool? pinned, CancellationToken ct = default) =>
         File.AppendAllTextAsync(filePath, Serialize(new SessionMetaEntry(title, pinned)) + Environment.NewLine, ct);
@@ -271,7 +308,7 @@ public sealed class SessionStore
             if (!_created)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-                builder.AppendLine(Serialize(new SessionHeader(SessionId, Cwd, CurrentVersion)));
+                builder.AppendLine(Serialize(new SessionHeader(SessionId, Cwd, CurrentVersion, ProjectId)));
                 builder.Append(_pending);
             }
             builder.AppendLine(Serialize(entry));
@@ -323,6 +360,12 @@ public sealed record SessionSnapshot(
 
     /// <summary>会话的 role 名（null 表示 agent）。</summary>
     public string? Role { get; init; }
+
+    /// <summary>会话头里记录的项目（docs/design/projects.md §5.3）。</summary>
+    public string? ProjectId { get; init; }
+
+    /// <summary>只给本会话追加的文件夹（§6.4）。</summary>
+    public IReadOnlyList<string> SessionDirectories { get; init; } = [];
 
     /// <summary>任务清单的最新快照。</summary>
     public IReadOnlyList<TKCode.Agent.Coding.Tools.TaskItem>? Tasks { get; init; }

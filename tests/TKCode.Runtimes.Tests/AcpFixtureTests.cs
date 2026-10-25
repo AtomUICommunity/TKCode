@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using TKCode.Agent;
 using TKCode.Ai.Messages;
+using TKCode.Ai.Models;
 using TKCode.Runtimes.Acp;
 using TKCode.Runtimes.Tests.Fixtures;
 using Xunit;
@@ -192,6 +194,155 @@ public sealed class AcpFixtureTests
     }
 
     [Fact]
+    public async Task EarlyConfigNotification_PublishesFullModelList_AndIgnoresOtherSessions()
+    {
+        var peer = new ScriptedPeer();
+        var session = new AcpSession(peer.ClientInput, peer.ClientOutput, Agent, new RecordingHost());
+        var snapshots = RecordConfig(session);
+        var options = ConfigOptions(TranscriptFixture.Load(Spec, "### A.5 夹具 E")[3]);
+        await using (session)
+        {
+            var start = session.StartAsync(Cwd, null, CancellationToken.None);
+            var lines = TranscriptFixture.Load(Spec, "### A.6 夹具 F");
+            await peer.RunAsync([
+                lines[0],
+                new TranscriptLine(false, """{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":1,"agentCapabilities":{}}}"""),
+                lines[2],
+            ]);
+            // session/new 只返回 modes，没有 models/configOptions；完整列表只能由早期通知重放发布。
+            await SendTogetherAsync(peer,
+                ConfigUpdate("unknown-session", options.Replace("pro-2", "wrong-model", StringComparison.Ordinal)),
+                ConfigUpdate("sess_b20e41", options),
+                ConfigUpdate("another-session", options.Replace("pro-2", "another-wrong-model", StringComparison.Ordinal)),
+                lines[4]);
+            await start.WaitAsync(TimeSpan.FromSeconds(5));
+            // 已建立会话后，其他 session 的通知也不能发布事件或覆盖已有配置。
+            await SendTogetherAsync(peer,
+                ConfigUpdate("unknown-session", options.Replace("pro-2", "wrong-model", StringComparison.Ordinal)));
+        }
+
+        Assert.Collection(snapshots,
+            response =>
+            {
+                Assert.Null(response.CurrentModel);
+                Assert.Empty(response.Models);
+                Assert.Empty(response.ReasoningEfforts);
+            },
+            replay =>
+            {
+                Assert.Equal("pro-2", replay.CurrentModel);
+                Assert.Equal([
+                    ("pro-2", "Pro 2", "Most capable", "recommended"),
+                    ("flash-2", "Flash 2", "Fast and low cost", "recommended"),
+                    ("pro-1", "Pro 1", (string?)null, "legacy"),
+                ], replay.Models.Select(m => (m.Value, m.Name, m.Description, m.Group)));
+                Assert.Equal(["low", "medium", "high"], replay.ReasoningEfforts);
+            });
+        Assert.Equal("pro-2", session.Config.CurrentModel);
+        Assert.Equal(["pro-2", "flash-2", "pro-1"], session.Config.Models.Select(m => m.Value));
+    }
+
+    [Fact]
+    public async Task SetConfigResponse_ThenNotification_PublishesSnapshotsInWireOrder()
+    {
+        var lines = TranscriptFixture.Load(Spec, "### A.5 夹具 E");
+        var peer = new ScriptedPeer();
+        var session = new AcpSession(peer.ClientInput, peer.ClientOutput, Agent, new RecordingHost());
+        using var release = new ManualResetEventSlim();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        ConcurrentQueue<ConfigSnapshot> snapshots;
+        await using (session)
+        {
+            var start = session.StartAsync(Cwd, null, CancellationToken.None);
+            await peer.RunAsync([
+                lines[0],
+                new TranscriptLine(false, """{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":1,"agentCapabilities":{}}}"""),
+                lines[2], lines[3],
+            ]);
+            await start.WaitAsync(TimeSpan.FromSeconds(5));
+            snapshots = RecordConfig(session, state =>
+            {
+                if (state.CurrentModel == "pro-2")
+                {
+                    entered.TrySetResult();
+                    release.Wait();
+                }
+            });
+
+            var model = RuntimeModels.Create(new FixtureRuntime(peer), "flash-2");
+            List<Message> messages = [];
+            var writer = new TurnWriter(model, _ => ValueTask.CompletedTask, messages.Add);
+            var run = session.RunTurnAsync(UserMessage.FromText("hi"),
+                new TurnOptions(model, ThinkingLevel.Medium, false, PermissionMode.Ask), writer, CancellationToken.None);
+            try
+            {
+                await peer.RunAsync([lines[4], ConfigUpdate("sess_7f3a9c", ConfigOptions(lines[3]))]);
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                // 阻塞消费者但不阻塞 RPC 读循环；响应、更新及读取屏障在同一次 input write 中到达。
+                await SendTogetherAsync(peer, lines[5], UpdatedConfig("sess_7f3a9c", lines[5]));
+            }
+            finally
+            {
+                release.Set();
+            }
+            await peer.RunAsync([
+                new TranscriptLine(true, """{"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"sess_7f3a9c","prompt":[{"type":"text","text":"hi"}]}}"""),
+                new TranscriptLine(false, """{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}"""),
+            ]);
+            await run.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(writer.IsCompleted);
+            // 此轮只返回 stopReason，没有内容块；完成轮次不必生成 assistant 消息。
+            Assert.Empty(messages);
+        }
+
+        AssertConfigResponseThenNotification(snapshots.ToArray(), session);
+    }
+
+    [Theory]
+    [InlineData("session/load", """{"loadSession":true}""")]
+    [InlineData("session/resume", """{"sessionCapabilities":{"resume":{}}}""")]
+    public async Task OpenConfigResponse_ThenNotification_PublishesSnapshotsInWireOrder(string method, string capabilities)
+    {
+        var lines = TranscriptFixture.Load(Spec, "### A.5 夹具 E");
+        var peer = new ScriptedPeer();
+        var session = new AcpSession(peer.ClientInput, peer.ClientOutput, Agent, new RecordingHost());
+        using var release = new ManualResetEventSlim();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var snapshots = RecordConfig(session, state =>
+        {
+            if (state.CurrentModel == "pro-2")
+            {
+                entered.TrySetResult();
+                release.Wait();
+            }
+        });
+        await using (session)
+        {
+            var start = session.StartAsync(Cwd, "sess_7f3a9c", CancellationToken.None);
+            try
+            {
+                await peer.RunAsync([
+                    lines[0],
+                    new TranscriptLine(false, $$$$"""{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":1,"agentCapabilities":{{{{capabilities}}}}}}"""),
+                    new TranscriptLine(true, $$$$"""{"jsonrpc":"2.0","id":1,"method":"{{{{method}}}}","params":{"sessionId":"sess_7f3a9c","cwd":"/Users/dev/project","mcpServers":[]}}"""),
+                    ConfigUpdate("sess_7f3a9c", ConfigOptions(lines[3])),
+                ]);
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                var response = lines[5] with { Json = lines[5].Json.Replace("\"id\":2", "\"id\":1", StringComparison.Ordinal) };
+                await SendTogetherAsync(peer, response, UpdatedConfig("sess_7f3a9c", response));
+            }
+            finally
+            {
+                release.Set();
+            }
+            await start.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+
+        Assert.Equal("sess_7f3a9c", session.NativeSessionId);
+        AssertConfigResponseThenNotification(snapshots.ToArray(), session);
+    }
+
+    [Fact]
     public async Task EarlyCommandsUpdate_ReachesHostAfterSessionResponse()
     {
         var peer = new ScriptedPeer();
@@ -230,6 +381,71 @@ public sealed class AcpFixtureTests
         Assert.Equal("How should I approach this?", host.Elicitation?.Message);
         Assert.Contains("\"conservative\"", host.Elicitation?.SchemaJson);
         await session.DisposeAsync();
+    }
+
+    private sealed record ConfigSnapshot(string? CurrentModel, AcpConfigValue[] Models, string[] ReasoningEfforts);
+
+    private static ConcurrentQueue<ConfigSnapshot> RecordConfig(AcpSession session, Action<AcpConfigState>? afterSnapshot = null)
+    {
+        var snapshots = new ConcurrentQueue<ConfigSnapshot>();
+        session.ConfigChanged += state =>
+        {
+            // AcpConfigState 是可变对象，必须在事件回调内复制，不能事后读取同一个引用。
+            snapshots.Enqueue(new ConfigSnapshot(state.CurrentModel, state.Models.ToArray(), state.ReasoningEfforts.ToArray()));
+            afterSnapshot?.Invoke(state);
+        };
+        return snapshots;
+    }
+
+    private static string ConfigOptions(TranscriptLine response)
+    {
+        using var json = JsonDocument.Parse(response.Json);
+        return json.RootElement.GetProperty("result").GetProperty("configOptions").GetRawText();
+    }
+
+    private static TranscriptLine ConfigUpdate(string sessionId, string options) => new(false,
+        $$$$"""{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"{{{{sessionId}}}}","update":{"sessionUpdate":"config_option_update","configOptions":{{{{options}}}}}}}""");
+
+    private static TranscriptLine UpdatedConfig(string sessionId, TranscriptLine response) => ConfigUpdate(sessionId,
+        ConfigOptions(response)
+            .Replace("\"name\":\"Flash 2\"", "\"name\":\"Flash 2 Updated\"", StringComparison.Ordinal)
+            .Replace("Fast and low cost", "New metadata from notification", StringComparison.Ordinal)
+            .Replace("[{\"value\":\"low\",\"name\":\"Low\"},{\"value\":\"medium\",\"name\":\"Medium\"}]",
+                "[{\"value\":\"low\",\"name\":\"Low\"},{\"value\":\"medium\",\"name\":\"Medium\"},{\"value\":\"high\",\"name\":\"High\"},{\"value\":\"max\",\"name\":\"Maximum\"}]", StringComparison.Ordinal));
+
+    private static Task SendTogetherAsync(ScriptedPeer peer, params TranscriptLine[] frames) => peer.RunAsync([
+        // ScriptedPeer 每个 TranscriptLine 写入后 flush；把多帧合并，避免响应之间发生人为调度。
+        // 未知请求的响应作为读循环屏障，保证 gate 释放前所有配置帧都已入队。
+        new TranscriptLine(false, string.Join('\n', frames.Select(f => f.Json)) + "\n" +
+            """{"jsonrpc":"2.0","id":"config-barrier","method":"test/config_barrier","params":{}}"""),
+        new TranscriptLine(true, """{"jsonrpc":"2.0","id":"config-barrier","error":{"code":-32601,"message":"Method not found"}}"""),
+    ]);
+
+    private static void AssertConfigResponseThenNotification(ConfigSnapshot[] snapshots, AcpSession session)
+    {
+        Assert.Collection(snapshots,
+            gate => Assert.Equal("pro-2", gate.CurrentModel),
+            response =>
+            {
+                Assert.Equal("flash-2", response.CurrentModel);
+                var model = Assert.Single(response.Models, m => m.Value == "flash-2");
+                Assert.Equal("Flash 2", model.Name);
+                Assert.Equal("Fast and low cost", model.Description);
+                Assert.Equal(["low", "medium"], response.ReasoningEfforts);
+            },
+            notification =>
+            {
+                Assert.Equal("flash-2", notification.CurrentModel);
+                var model = Assert.Single(notification.Models, m => m.Value == "flash-2");
+                Assert.Equal("Flash 2 Updated", model.Name);
+                Assert.Equal("New metadata from notification", model.Description);
+                Assert.Equal(["low", "medium", "high", "max"], notification.ReasoningEfforts);
+            });
+        var finalModel = Assert.Single(session.Config.Models, m => m.Value == "flash-2");
+        Assert.Equal("flash-2", session.Config.CurrentModel);
+        Assert.Equal("Flash 2 Updated", finalModel.Name);
+        Assert.Equal("New metadata from notification", finalModel.Description);
+        Assert.Equal(["low", "medium", "high", "max"], session.Config.ReasoningEfforts);
     }
 
     private static (ExternalAgent Agent, ScriptedPeer Peer) Create(

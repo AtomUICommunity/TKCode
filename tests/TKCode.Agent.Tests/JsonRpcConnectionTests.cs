@@ -1,4 +1,5 @@
 using System.IO.Pipelines;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
@@ -24,6 +25,14 @@ public sealed class JsonRpcConnectionTests
         var a = new JsonRpcConnection(bToA.Reader.AsStream(), aToB.Writer.AsStream());
         var b = new JsonRpcConnection(aToB.Reader.AsStream(), bToA.Writer.AsStream());
         return (a, b);
+    }
+
+    private static ValueTask<FlushResult> WriteMessagesAsync(PipeWriter input, JsonRpcFraming framing, params string[] messages)
+    {
+        var buffer = string.Concat(messages.Select(message => framing == JsonRpcFraming.ContentLength
+            ? $"Content-Length: {Encoding.UTF8.GetByteCount(message)}\r\n\r\n{message}"
+            : message + "\n"));
+        return input.WriteAsync(Encoding.UTF8.GetBytes(buffer));
     }
 
     private static TestRpcContext J => TestRpcContext.Default;
@@ -116,6 +125,99 @@ public sealed class JsonRpcConnectionTests
         await Assert.ThrowsAsync<RpcConnectionLostException>(() => call.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.False(a.IsConnected);
         await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Theory]
+    [InlineData(JsonRpcFraming.ContentLength)]
+    [InlineData(JsonRpcFraming.NewlineDelimited)]
+    public async Task RawResponseCallback_PrecedesFollowingNotificationAndCallCompletion(JsonRpcFraming framing)
+    {
+        var input = new Pipe();
+        await using var connection = new JsonRpcConnection(input.Reader.AsStream(), Stream.Null, new() { Framing = framing });
+        var received = Channel.CreateUnbounded<string>();
+        connection.SetFallbackNotificationHandler((method, parameters) =>
+            received.Writer.TryWrite($"{method}:{parameters!.Value.GetString()}"));
+        Task<JsonElement>? call = null;
+        call = connection.InvokeRawAsync("config", null, onResponse: result =>
+        {
+            Assert.False(call!.IsCompleted);
+            received.Writer.TryWrite($"response:{result.GetString()}");
+        });
+        connection.Start();
+
+        await WriteMessagesAsync(input.Writer, framing,
+            """{"jsonrpc":"2.0","id":1,"result":"old"}""",
+            """{"jsonrpc":"2.0","method":"notification","params":"new"}""");
+
+        Assert.Equal("old", (await call.WaitAsync(TimeSpan.FromSeconds(5))).GetString());
+        Assert.Equal("response:old", await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal("notification:new", await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task RawResponseCallback_IsNotCalledForRemoteErrors()
+    {
+        var (a, b) = Pair();
+        await using var local = a;
+        await using var remote = b;
+        b.AddRequestHandler("boom", _ => throw new RpcRemoteException(JsonRpcConnection.InvalidParams, "bad params"));
+        a.Start();
+        b.Start();
+        var callbackInvoked = false;
+
+        var call = a.InvokeRawAsync("boom", null, onResponse: _ => callbackInvoked = true);
+        var error = await Assert.ThrowsAsync<RpcRemoteException>(() => call.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Equal(JsonRpcConnection.InvalidParams, error.Code);
+        Assert.False(callbackInvoked);
+    }
+
+    [Fact]
+    public async Task RawResponseCallback_ExceptionOnlyFailsItsCall()
+    {
+        var (a, b) = Pair();
+        await using var local = a;
+        await using var remote = b;
+        b.AddRequestHandler("echo", J.EchoResult, _ => Task.FromResult(new EchoResult("ok")));
+        var received = Channel.CreateUnbounded<string>();
+        a.AddNotificationHandler("note", J.EchoParams, p => received.Writer.TryWrite(p.Text));
+        a.Start();
+        b.Start();
+        var failure = new InvalidOperationException("callback failed");
+
+        var call = a.InvokeRawAsync("echo", null, onResponse: _ => throw failure);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => call.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Same(failure, error);
+        Assert.True(a.IsConnected);
+        b.Notify("note", new EchoParams("after failure"), J.EchoParams);
+        Assert.Equal("after failure", await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal("ok", (await a.InvokeAsync("echo", J.EchoResult).WaitAsync(TimeSpan.FromSeconds(5))).Text);
+    }
+
+    [Theory]
+    [InlineData(JsonRpcFraming.ContentLength)]
+    [InlineData(JsonRpcFraming.NewlineDelimited)]
+    public async Task RawResponseCallback_IsNotCalledForLateResponseAfterCancellation(JsonRpcFraming framing)
+    {
+        var input = new Pipe();
+        await using var connection = new JsonRpcConnection(input.Reader.AsStream(), Stream.Null, new() { Framing = framing });
+        var notificationReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.SetFallbackNotificationHandler((_, _) => notificationReceived.TrySetResult());
+        using var cts = new CancellationTokenSource();
+        var callbackInvoked = false;
+        var call = connection.InvokeRawAsync("config", null, cts.Token, _ => callbackInvoked = true);
+        connection.Start();
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call.WaitAsync(TimeSpan.FromSeconds(5)));
+        await WriteMessagesAsync(input.Writer, framing,
+            """{"jsonrpc":"2.0","id":1,"result":"late"}""",
+            """{"jsonrpc":"2.0","method":"notification"}""");
+        await notificationReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(callbackInvoked);
+        Assert.True(connection.IsConnected);
     }
 
     [Fact]

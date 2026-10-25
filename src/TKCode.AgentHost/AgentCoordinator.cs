@@ -82,12 +82,17 @@ public sealed class AgentCoordinator(SessionManager sessions, PeerDirectory peer
         {
             logger.LogWarning("Subagent {Name} abort requested by its parent's task controls", name);
             session.Agent.Abort();
-        });
+        }, model.Name);
         if (session.Agent is Agent.Agent builtin)
         {
             builtin.BeforeToolCall = (ctx, ct) => sessions.ApproveAsync(request.ParentSessionId, session, ctx, ct, name);
         }
-        child.Subscription = session.Agent.Subscribe((e, _) => OnChildEvent(child, handle, e));
+        var transcript = sessions.Subagents.AttachBuiltin(request.ParentSessionId, request.ToolCallId, session, name, model.Name);
+        child.Subscription = session.Agent.Subscribe(async (e, _) =>
+        {
+            await OnChildEvent(child, handle, e);
+            await sessions.Subagents.OnEventAsync(transcript, e);
+        });
         _children[child.Id] = child;
         logger.LogInformation("Subagent {Name} ({Type}) started for session {Parent}", name, request.AgentType, request.ParentSessionId);
 

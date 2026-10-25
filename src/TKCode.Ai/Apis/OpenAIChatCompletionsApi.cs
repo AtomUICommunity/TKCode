@@ -449,10 +449,10 @@ public sealed class OpenAIChatCompletionsApi(HttpClient http) : HttpWireApi(http
         {
             if (_thinkingBlock is null)
             {
+                EndOpenText();
                 _thinkingBlock = Builder.BeginThinking();
                 _firstThinkingBlock ??= _thinkingBlock;
                 Builder.SetSignature(_thinkingBlock.Value, field);
-                _textBlock = null;
             }
             Builder.AppendDelta(_thinkingBlock.Value, text);
         }
@@ -461,10 +461,32 @@ public sealed class OpenAIChatCompletionsApi(HttpClient http) : HttpWireApi(http
         {
             if (_textBlock is null)
             {
+                EndOpenThinking();
                 _textBlock = Builder.BeginText();
-                _thinkingBlock = null;
             }
             Builder.AppendDelta(_textBlock.Value, text);
+        }
+
+        /// <summary>
+        /// Chat Completions 没有块结束事件：切换到另一类内容时，前一段思考 / 正文即已结束，立即发出结束事件，
+        /// 否则界面会把思考一直显示为进行中，直到整条消息结束。
+        /// </summary>
+        private void EndOpenThinking()
+        {
+            if (_thinkingBlock is { } block)
+            {
+                Builder.EndBlock(block);
+                _thinkingBlock = null;
+            }
+        }
+
+        private void EndOpenText()
+        {
+            if (_textBlock is { } block)
+            {
+                Builder.EndBlock(block);
+                _textBlock = null;
+            }
         }
 
         /// <summary>OpenRouter reasoning_details：同一 index 的片段拼接 text / summary / data，其余字段取最新值。</summary>
@@ -563,9 +585,9 @@ public sealed class OpenAIChatCompletionsApi(HttpClient http) : HttpWireApi(http
             {
                 acc.Id = "call_" + Guid.NewGuid().ToString("N")[..24];
             }
+            EndOpenThinking();
+            EndOpenText();
             acc.Block = Builder.BeginToolCall(acc.Id, acc.Name.Length > 0 ? acc.Name : "unknown");
-            _textBlock = null;
-            _thinkingBlock = null;
             if (acc.PendingArguments.Length > 0)
             {
                 Builder.AppendDelta(acc.Block.Value, acc.PendingArguments.ToString());

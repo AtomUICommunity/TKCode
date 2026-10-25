@@ -221,7 +221,7 @@ public sealed record ToolInvocation(string ToolCallId, JsonElement Arguments, IP
 
 ## 10. 工作区边界与审批
 
-- **工作区根目录**：cwd，加上会话中追加的目录（`session/addDirectory`，后续版本提供 UI 入口），以及 settings 中的 `permissions.additionalDirectories`。
+- **工作区根目录**：cwd（项目的主文件夹），加上项目的其他文件夹、本会话追加的目录（`session/addDirectory`，输入框的 `/add-dir`），以及 settings 中的 `permissions.additionalDirectories`；每批用户输入之前重新计算（docs/design/projects.md §6.2、§6.3）。
 - **路径判定**：先取真实路径（解析符号链接），再判断是否落在某个根目录之内。`~/.tkcode` 下的 `settings.json` 和 `state.json` 一律视为敏感文件：即使在工作区内，读取也要审批。
 
 | 操作 | Ask | AutoApprove | FullAccess |

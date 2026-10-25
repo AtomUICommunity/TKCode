@@ -49,6 +49,15 @@ internal sealed class ClaudeSession : IRuntimeSession
     private Turn? _turn;
     private bool _sawInit;
 
+    /// <summary>主会话里的 Agent / Task 调用（tool_use id → 参数中的名称、模型等），子 Agent 的帧按 parent_tool_use_id 归到它们。</summary>
+    private readonly Dictionary<string, AgentCall> _agentCalls = new(StringComparer.Ordinal);
+
+    /// <summary>子 Agent 的转录（键为主会话中派生它的 tool_use id），会话级：后台子 Agent 在主轮次结束后继续写入。</summary>
+    private readonly Dictionary<string, SubagentRun> _subagents = new(StringComparer.Ordinal);
+
+    /// <summary>最近一轮的模型（子 Agent 的写入器沿用）。</summary>
+    private ModelInfo? _model;
+
     public ClaudeSession(Stream stdout, Stream stdin, IRuntimeHost host, string? sessionId, IAsyncDisposable? process = null,
         Func<string>? describeExit = null, Func<string>? newUuid = null)
     {
@@ -119,6 +128,7 @@ internal sealed class ClaudeSession : IRuntimeSession
         await RunOnQueueAsync(() =>
         {
             _turn = turn;
+            _model = writer.Model;
             return ValueTask.CompletedTask;
         });
         WriteUserMessage(message, priority: null);
@@ -288,12 +298,17 @@ internal sealed class ClaudeSession : IRuntimeSession
         {
             case "system":
                 OnSystem(frame);
+                await OnTaskSystemAsync(frame);
+                break;
+            case "stream_event" or "assistant" or "user" when frame.Str("parent_tool_use_id") is { } parentToolUseId:
+                await OnSubagentFrameAsync(parentToolUseId, frame);
                 break;
             case "stream_event" when turn is not null && frame.Prop("parent_tool_use_id") is null:
                 await OnStreamEventAsync(turn, frame.Obj("event") ?? default);
                 break;
             case "assistant" when turn is not null && frame.Prop("parent_tool_use_id") is null:
                 await OnAssistantAsync(turn, frame);
+                await RegisterAgentCallsAsync(turn, frame);
                 break;
             case "user" when turn is not null && frame.Prop("parent_tool_use_id") is null && !frame.Bool("isReplay"):
                 await OnToolResultsAsync(turn, frame);
@@ -489,8 +504,8 @@ internal sealed class ClaudeSession : IRuntimeSession
         }
     }
 
-    /// <summary>主会话 user 帧中的 tool_result：结束对应工具并保留输出（§8.4）。合成标记与回显不产生事件。</summary>
-    private static async ValueTask OnToolResultsAsync(Turn turn, JsonElement frame)
+    /// <summary>主会话（或子 Agent）user 帧中的 tool_result：结束对应工具并保留输出（§8.4）。合成标记与回显不产生事件。</summary>
+    private async ValueTask OnToolResultsAsync(Turn turn, JsonElement frame)
     {
         foreach (var block in (frame.Obj("message") ?? default).Arr("content"))
         {
@@ -513,11 +528,22 @@ internal sealed class ClaudeSession : IRuntimeSession
             // 提问：转录卡片使用 TKCode 记录的问答（kind = question），而不是 CLI 的结构化结果
             var details = turn.QuestionDetails.Remove(id, out var question) ? question
                 : frame.Prop("tool_use_result") is { } structured ? structured.GetRawText() : null;
+            var isError = block.Bool("is_error");
+            var agent = ReferenceEquals(turn, _turn) && _agentCalls.TryGetValue(id, out var call) ? call : null;
+            if (agent is not null)
+            {
+                details = AgentResultDetails(id, agent, frame.Prop("tool_use_result"), isError);
+            }
             if (tool is not null)
             {
                 tool.Done = true;
             }
-            await turn.Writer.ToolCompletedAsync(id, tool?.Name ?? "tool", text, block.Bool("is_error"), tool?.ArgumentsJson ?? "{}", details);
+            await turn.Writer.ToolCompletedAsync(id, tool?.Name ?? "tool", text, isError, tool?.ArgumentsJson ?? "{}", details);
+            // 前台子 Agent 以父会话里的 tool_result 结束；转到后台的等 task_notification（§8.4、§14）
+            if (agent is not null && (isError || !agent.Background) && _subagents.TryGetValue(id, out var run))
+            {
+                await EndSubagentAsync(run, isError ? StopReason.Error : StopReason.Stop, isError ? text : null);
+            }
             // 工具结果关闭了草稿，之后的流事件块属于新消息
         }
     }
@@ -594,7 +620,206 @@ internal sealed class ClaudeSession : IRuntimeSession
         await turn.Writer.CompleteAsync(reason, message);
         _turn = null;
         turn.Completed.TrySetResult();
+        // 主轮次结束时仍在运行的前台子 Agent（被中断）一并结束；后台的继续
+        foreach (var run in _subagents.Values.Where(r => r.Turn is not null && _agentCalls.GetValueOrDefault(r.ToolUseId) is { Background: false }).ToArray())
+        {
+            await EndSubagentAsync(run, reason == StopReason.Stop ? StopReason.Aborted : reason, null);
+        }
     }
+
+    // ---------------- 子 Agent（docs/design/subagent-view.md §5.5） ----------------
+
+    private static bool IsAgentTool(string name) => name is "Agent" or "Task";
+
+    /// <summary>主会话 assistant 帧里的 Agent / Task 调用：登记，并立即推送一次 SubagentDetails（卡片的名称、模型、后台标记）。</summary>
+    private async ValueTask RegisterAgentCallsAsync(Turn turn, JsonElement frame)
+    {
+        foreach (var block in (frame.Obj("message") ?? default).Arr("content"))
+        {
+            if (block.Str("type") != "tool_use" || block.Str("id") is not { } id || block.Str("name") is not { } name || !IsAgentTool(name) ||
+                _agentCalls.ContainsKey(id))
+            {
+                continue;
+            }
+            var input = block.Obj("input") ?? default;
+            var agentType = input.Str("subagent_type") ?? "general-purpose";
+            var call = new AgentCall(input.Str("name") ?? agentType, agentType, input.Str("description") ?? "", input.Str("model") ?? turn.Writer.Model.Name)
+            {
+                Background = input.Bool("run_in_background"),
+            };
+            _agentCalls[id] = call;
+            await turn.Writer.ToolProgressAsync(id, name, "",
+                SubagentDetailsJson.Create(id, call.Name, call.AgentType, call.Description, "running", call.Background, model: call.Model));
+            // 转录立即建立并开始运行：子 Agent 的第一帧到达之前打开标签也能看到它在运行
+            if (SubagentFor(id) is { } run)
+            {
+                await SubagentTurnAsync(run);
+            }
+        }
+    }
+
+    /// <summary>Agent 工具的 tool_use_result（AgentOutput，按 status 区分）规范化为 SubagentDetails。</summary>
+    private string AgentResultDetails(string toolUseId, AgentCall call, JsonElement? result, bool isError)
+    {
+        var output = result is { ValueKind: JsonValueKind.Object } o ? o : default;
+        var status = output.ValueKind == JsonValueKind.Object ? output.Str("status") : null;
+        if (status is "async_launched" or "remote_launched" || (output.ValueKind == JsonValueKind.Object && output.Bool("detachedToolCall")))
+        {
+            call.Background = true;
+        }
+        var model = output.ValueKind == JsonValueKind.Object ? output.Str("resolvedModel") : null;
+        if (_subagents.TryGetValue(toolUseId, out var run))
+        {
+            run.Transcript.Describe(null, model);
+            run.AgentId ??= output.ValueKind == JsonValueKind.Object ? output.Str("agentId") : null;
+        }
+        var state = isError ? "failed" : call.Background ? "running" : "completed";
+        return SubagentDetailsJson.Create(output.ValueKind == JsonValueKind.Object ? output.Str("agentId") ?? toolUseId : toolUseId,
+            call.Name, output.ValueKind == JsonValueKind.Object ? output.Str("agentType") ?? call.AgentType : call.AgentType, call.Description, state,
+            call.Background, output.ValueKind == JsonValueKind.Object ? output.Long("totalToolUseCount") ?? 0 : 0,
+            output.ValueKind == JsonValueKind.Object ? output.Long("totalTokens") ?? 0 : 0, model ?? call.Model);
+    }
+
+    /// <summary>
+    /// parent_tool_use_id 指向的子 Agent：主会话的 Agent 调用直接对应；指向子 Agent 内部的调用（嵌套）时归入外层子 Agent。
+    /// 宿主不支持子 Agent 转录时为 null（照旧丢弃）。
+    /// </summary>
+    private SubagentRun? SubagentFor(string parentToolUseId)
+    {
+        if (_subagents.TryGetValue(parentToolUseId, out var run))
+        {
+            return run;
+        }
+        if (!_agentCalls.TryGetValue(parentToolUseId, out var call))
+        {
+            // 主会话的 assistant 帧还没到（只有流事件）：从流式的工具块登记
+            if (_turn?.Tools.GetValueOrDefault(parentToolUseId) is { } tool && IsAgentTool(tool.Name))
+            {
+                using var doc = JsonDocument.Parse(tool.ArgumentsJson);
+                var input = doc.RootElement;
+                var agentType = input.Str("subagent_type") ?? "general-purpose";
+                call = _agentCalls[parentToolUseId] = new AgentCall(input.Str("name") ?? agentType, agentType, input.Str("description") ?? "",
+                    input.Str("model") ?? _turn.Writer.Model.Name) { Background = input.Bool("run_in_background") };
+            }
+            else
+            {
+                return _subagents.Values.FirstOrDefault(r => r.Turn?.Tools.ContainsKey(parentToolUseId) == true);
+            }
+        }
+        if (_host.OpenSubagent(parentToolUseId, call.Name, call.Model) is not { } transcript)
+        {
+            return null;
+        }
+        transcript.Link(parentToolUseId);
+        return _subagents[parentToolUseId] = new SubagentRun(parentToolUseId, call.Name, transcript);
+    }
+
+    private async ValueTask<Turn?> SubagentTurnAsync(SubagentRun run)
+    {
+        if (run.Turn is { } turn)
+        {
+            return turn;
+        }
+        if ((_model ?? _turn?.Writer.Model) is not { } model)
+        {
+            return null;
+        }
+        return run.Turn = new Turn(await run.Transcript.BeginRunAsync(model));
+    }
+
+    /// <summary>子 Agent 的帧：复用主会话的处理（流事件、完整 assistant 帧、tool_result），第一条 user 帧是它的 prompt。</summary>
+    private async ValueTask OnSubagentFrameAsync(string parentToolUseId, JsonElement frame)
+    {
+        if (SubagentFor(parentToolUseId) is not { } run || await SubagentTurnAsync(run) is not { } turn)
+        {
+            return;
+        }
+        run.AgentId ??= frame.Str("agent_id");
+        switch (frame.Str("type"))
+        {
+            case "stream_event":
+                await OnStreamEventAsync(turn, frame.Obj("event") ?? default);
+                break;
+            case "assistant":
+                await OnAssistantAsync(turn, frame);
+                break;
+            case "user" when !frame.Bool("isReplay"):
+                var message = frame.Obj("message") ?? default;
+                var prompt = message.Prop("content") switch
+                {
+                    { ValueKind: JsonValueKind.String } s => s.GetString(),
+                    { ValueKind: JsonValueKind.Array } a when a.EnumerateArray().All(c => c.Str("type") == "text") =>
+                        string.Join("\n", a.EnumerateArray().Select(c => c.Str("text")).OfType<string>()),
+                    _ => null,
+                };
+                if (prompt is { Length: > 0 })
+                {
+                    await turn.Writer.UserMessageAsync(UserMessage.FromText(prompt));
+                }
+                else
+                {
+                    await OnToolResultsAsync(turn, frame);
+                }
+                break;
+        }
+    }
+
+    /// <summary>后台子 Agent 的开始与结束：task_started / task_notification / task_updated（§8.1、§14）。只处理已知的 Agent 调用。</summary>
+    private async ValueTask OnTaskSystemAsync(JsonElement frame)
+    {
+        if (frame.Str("tool_use_id") is not { } toolUseId || !_agentCalls.ContainsKey(toolUseId))
+        {
+            return;
+        }
+        switch (frame.Str("subtype"))
+        {
+            case "task_started" when SubagentFor(toolUseId) is { } started:
+                started.AgentId ??= frame.Str("task_id");
+                await SubagentTurnAsync(started);
+                break;
+            case "task_notification" when _subagents.TryGetValue(toolUseId, out var run):
+                var status = frame.Str("status");
+                await EndSubagentAsync(run, status switch
+                {
+                    "completed" => StopReason.Stop,
+                    "failed" => StopReason.Error,
+                    _ => StopReason.Aborted,
+                }, status == "failed" ? frame.Str("summary") : null);
+                break;
+            case "task_updated" when _subagents.TryGetValue(toolUseId, out var updated) &&
+                                     (frame.Obj("patch") ?? default).Str("status") is "killed" or "failed" or "completed" or "stopped":
+                var patched = (frame.Obj("patch") ?? default).Str("status");
+                await EndSubagentAsync(updated, patched == "completed" ? StopReason.Stop : patched == "failed" ? StopReason.Error : StopReason.Aborted,
+                    (frame.Obj("patch") ?? default).Str("error"));
+                break;
+        }
+    }
+
+    private static async ValueTask EndSubagentAsync(SubagentRun run, StopReason reason, string? error)
+    {
+        if (run.Turn is not { } turn)
+        {
+            return;
+        }
+        run.Turn = null;
+        turn.Done = true;
+        turn.ApprovalScope.Cancel();
+        foreach (var open in turn.Blocks.Values.Where(b => !b.Ended).ToArray())
+        {
+            await EndStreamBlockAsync(turn, open, null);
+        }
+        foreach (var tool in turn.Tools.Values.Where(t => !t.Done && turn.Writer.IsToolCallDeclared(t.Id)))
+        {
+            tool.Done = true;
+            await turn.Writer.ToolCompletedAsync(tool.Id, tool.Name, "Operation aborted.", true, tool.ArgumentsJson);
+        }
+        await run.Transcript.EndRunAsync(reason, reason == StopReason.Stop ? null : error ?? (reason == StopReason.Aborted ? "Request aborted" : null));
+    }
+
+    /// <summary>审批请求属于哪个子 Agent：agent_id 对应，或工具调用出现在某个子 Agent 的当前轮次里。</summary>
+    private SubagentRun? SubagentOfApproval(string? agentId, string toolUseId) =>
+        _subagents.Values.FirstOrDefault(r => r.Turn is not null && agentId is not null && r.AgentId == agentId)
+        ?? _subagents.Values.FirstOrDefault(r => r.Turn?.Tools.ContainsKey(toolUseId) == true);
 
     // ---------------- CLI 的控制请求 ----------------
 
@@ -628,7 +853,9 @@ internal sealed class ClaudeSession : IRuntimeSession
         var toolName = request.Str("tool_name") ?? "tool";
         var toolUseId = request.Str("tool_use_id") ?? "";
         var input = request.Obj("input") ?? JsonBuilder.Parse("{}");
-        var turn = _turn;
+        // 子 Agent 的请求（带 agent_id，或工具属于某个子 Agent）：用它自己的轮次，标题前缀为子 Agent 名
+        var subagent = SubagentOfApproval(request.Str("agent_id"), toolUseId);
+        var turn = subagent?.Turn ?? _turn;
         if (turn is null || turn.Done || turn.Stopping)
         {
             RespondDeny(requestId, toolUseId, "The turn has ended.");
@@ -651,6 +878,10 @@ internal sealed class ClaudeSession : IRuntimeSession
         var suggestions = request.Prop("permission_suggestions") is { ValueKind: JsonValueKind.Array } s ? s.Clone() : (JsonElement?)null;
         var canRemember = !request.Bool("suppress_always_allow_rule");
         var title = request.Str("description") ?? request.Str("title") ?? request.Str("display_name");
+        if (subagent is not null)
+        {
+            title = $"[{subagent.Name}] {title ?? toolName}";
+        }
         var approval = new RuntimeApprovalRequest(toolUseId, toolName, input.GetRawText(), KindOf(toolName), title,
             StripAnsi(request.Str("decision_reason")), canRemember);
         _ = DecideAsync(turn, requestId, toolUseId, input, suggestions, approval, scope);
@@ -1236,6 +1467,22 @@ internal sealed class ClaudeSession : IRuntimeSession
         public bool Stopping { get; set; }
         public bool Done { get; set; }
         public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    /// <param name="Background">参数要求后台运行，或结果表明已转到后台（async_launched / detachedToolCall）。</param>
+    private sealed record AgentCall(string Name, string AgentType, string Description, string? Model)
+    {
+        public bool Background { get; set; }
+    }
+
+    /// <summary>一个子 Agent：转录与当前运行的轮次（复用主会话的帧处理）。</summary>
+    private sealed class SubagentRun(string toolUseId, string name, RuntimeSubagent transcript)
+    {
+        public string ToolUseId { get; } = toolUseId;
+        public string Name { get; } = name;
+        public RuntimeSubagent Transcript { get; } = transcript;
+        public string? AgentId { get; set; }
+        public Turn? Turn { get; set; }
     }
 
     private sealed class Block(BlockKind kind, int handle)

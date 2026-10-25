@@ -20,7 +20,7 @@ public sealed class GlobTool(ToolContext context) : IAgentTool
     public string ParametersSchemaJson => """
         {"type":"object","properties":{
           "pattern":{"type":"string","description":"Glob pattern to match files, e.g. '*.ts', '**/*.json' or 'src/**/*.spec.ts'."},
-          "path":{"type":"string","description":"Directory to search in (defaults to the workspace root)."},
+          "path":{"type":"string","description":"Directory to search in (defaults to the primary working directory; pass an absolute path to search an additional working directory)."},
           "limit":{"type":"integer","minimum":1,"description":"Maximum number of results (default 100)."}},
          "required":["pattern"],"additionalProperties":false}
         """;

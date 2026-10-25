@@ -67,8 +67,9 @@ public sealed record BackgroundTaskDetails(string TaskId, string Type, string De
     : ToolDetails;
 
 /// <param name="Status">running / completed / failed / stopped。</param>
+/// <param name="Model">子 Agent 使用的模型（显示名）；外部运行时不知道时为 null。</param>
 public sealed record SubagentDetails(string AgentId, string Name, string AgentType, string Description, string Status,
-    bool Background, int ToolUses, long Tokens, string? CurrentActivity = null) : ToolDetails;
+    bool Background, int ToolUses, long Tokens, string? CurrentActivity = null, string? Model = null) : ToolDetails;
 
 public sealed record WebFetchDetails(string Url, int StatusCode, string? Title, string ContentType, int TotalChars) : ToolDetails;
 

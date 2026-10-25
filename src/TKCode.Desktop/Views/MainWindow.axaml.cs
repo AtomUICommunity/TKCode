@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using StreamMark.Avalonia.Extensions;
 using StreamMark.Avalonia.Rendering;
+using TKCode.Config;
 using TKCode.Desktop.Controls;
 using TKCode.Desktop.Localization;
 using TKCode.Desktop.Services;
@@ -37,6 +38,97 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
     private Point _markdownPress;
     private bool _markdownArmed;
     private static readonly Cursor CodePathCursor = new(StandardCursorType.Hand);
+    private ExplorerContextMenu? _explorerMenu;
+    private FileExplorerViewModel? _explorerModel;
+
+    private void AttachExplorer(FileExplorerViewModel? explorer)
+    {
+        _explorerMenu?.Dispose();
+        _explorerMenu = null;
+        if (_explorerModel is { } previous)
+        {
+            previous.FileDialogRequested = null;
+            previous.CopyTextAsync = null;
+        }
+        _explorerModel = explorer;
+        if (explorer is not null)
+        {
+            explorer.FileDialogRequested = request => ExplorerFileDialog.ShowAsync(this, request);
+            explorer.CopyTextAsync = text => Clipboard?.SetTextAsync(text)
+                ?? Task.FromException(new InvalidOperationException("The system clipboard is unavailable."));
+            _explorerMenu = new ExplorerContextMenu(explorer, this, error => ExplorerFileDialog.ShowErrorAsync(this, error));
+        }
+    }
+
+    private void ShowExplorerContext(FileNodeViewModel? node, bool isSearch, Control placement, Point position, Control focus)
+    {
+        if (_explorerModel is not { } explorer || explorer.CaptureContext(node, isSearch) is not { } target)
+        {
+            return;
+        }
+        if (node is not null)
+        {
+            explorer.SelectedNode = node;
+        }
+        _explorerMenu?.Show(target, placement, position, focus);
+    }
+
+    private void OnExplorerSearchRowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Avalonia.Controls.Button { CommandParameter: FileNodeViewModel node } row
+            && e.GetCurrentPoint(row).Properties.IsRightButtonPressed)
+        {
+            e.Handled = true;
+            if (IsLiveExplorerSearchRow(row, node))
+            {
+                row.Focus(NavigationMethod.Pointer);
+                ShowExplorerContext(node, true, row, e.GetPosition(row), row);
+            }
+        }
+    }
+
+    private void OnExplorerSearchRowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is Avalonia.Controls.Button { CommandParameter: FileNodeViewModel node } row
+            && (e.Key == Key.Apps || (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift)))
+        {
+            e.Handled = true;
+            if (row.IsFocused && IsLiveExplorerSearchRow(row, node))
+            {
+                ShowExplorerContext(node, true, row, new Point(8, row.Bounds.Height), row);
+            }
+        }
+    }
+
+    private bool IsLiveExplorerSearchRow(Control row, FileNodeViewModel node)
+    {
+        if (node.IsPlaceholder || !row.IsEffectivelyVisible || _explorerModel is not { IsSearching: true } explorer
+            || !explorer.SearchResults.Contains(node))
+        {
+            return false;
+        }
+        var viewport = row.GetVisualAncestors().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>().FirstOrDefault();
+        return viewport is not null && row.TranslatePoint(default, viewport) is { } origin
+            && new Rect(origin, row.Bounds.Size).Intersects(new Rect(viewport.Bounds.Size));
+    }
+
+    private void OnExplorerSearchBlankPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Avalonia.Controls.ScrollViewer scroll || !e.GetCurrentPoint(scroll).Properties.IsRightButtonPressed)
+        {
+            return;
+        }
+        // Only genuine viewport blank space: never reuse selection, a scrollbar, or a recycled/placeholder row.
+        for (var visual = e.Source as Visual; visual is not null && !ReferenceEquals(visual, scroll); visual = visual.GetVisualParent())
+        {
+            if (visual is Avalonia.Controls.Primitives.ScrollBar or Avalonia.Controls.Primitives.Thumb or Avalonia.Controls.Button)
+            {
+                return;
+            }
+        }
+        e.Handled = true;
+        ShowExplorerContext(null, true, scroll, e.GetPosition(scroll), scroll);
+    }
 
     /// <summary>双击会话标题：行内重命名。</summary>
     private void OnSessionDoubleTapped(object? sender, TappedEventArgs e)
@@ -68,13 +160,15 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
     }
 
     /// <summary>
-    /// 会话中的相对图片按会话所在项目解析；本地图片只允许读取已添加的项目目录之下的文件。
+    /// 会话中的相对图片按会话的 cwd 解析；本地图片只允许读取已添加的项目的各个文件夹（以及当前会话追加的文件夹）之下的文件。
     /// </summary>
     private void UpdateImageRoots(MainWindowViewModel vm)
     {
-        var cwd = vm.Conversation.Active?.Cwd ?? vm.Conversation.Workspace?.Path;
+        var cwd = vm.Conversation.Active?.Cwd ?? vm.Conversation.Workspace?.Primary;
         StreamMark.Avalonia.Extensions.MarkdownServices.SetImageBaseUri(Transcript, cwd);
-        MarkdownSetup.SetAllowedFileRoots(vm.Sidebar.Projects.Select(p => p.Path).Append(cwd ?? ""));
+        MarkdownSetup.SetAllowedFileRoots(vm.Sidebar.Projects.SelectMany(p => p.Project.Folders)
+            .Concat(vm.Conversation.Active?.SessionDirectories ?? [])
+            .Append(cwd ?? ""));
     }
 
     /// <summary>滚动到接近顶部时加载更早的一页历史（插入后会话视图自己保持当前阅读位置）。</summary>
@@ -97,14 +191,6 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
         Motion.Presence.SetIsPresent(ScrollToBottomButton, false);
     }
 
-    private void OnMessageImageTapped(object? sender, TappedEventArgs e)
-    {
-        if ((sender as Control)?.DataContext is ImageAttachmentViewModel image)
-        {
-            ImageOpener.Open(this, image);
-        }
-    }
-
     private void OnMarkdownLinkClicked(object? sender, StreamMark.Avalonia.Rendering.LinkClickedEventArgs e)
     {
         if (Uri.TryCreate(e.Url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" or "mailto")
@@ -117,7 +203,7 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
         {
             // 会话继承工作目录，Markdown 文件预览则继承文件所在目录。
             var directory = e.Source is AvaloniaObject source ? MarkdownServices.GetImageBaseUri(source) : null;
-            directory ??= vm.Conversation.Active?.Cwd ?? vm.Conversation.Workspace?.Path;
+            directory ??= vm.Conversation.Active?.Cwd ?? vm.Conversation.Workspace?.Primary;
             if (MarkdownLinks.ResolveFile(e.Url, directory) is { } path)
             {
                 e.Handled = true;
@@ -210,6 +296,8 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
     public MainWindow()
     {
         InitializeComponent();
+        ExplorerTree.ContextRequested += (_, e) => ShowExplorerContext(e.Node, false, ExplorerTree, e.Position, e.FocusTarget);
+        Closed += (_, _) => AttachExplorer(null);
         // 任务球里的“更改”入口：打开工作区的变更面板
         TaskOrb.OpenChangesRequested += () => (DataContext as ViewModels.MainWindowViewModel)?.Workbench.OpenChangesCommand.Execute(null);
         ExplorerSplitter.DragCompleted += (_, _) =>
@@ -224,6 +312,7 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
 
         // 会话视图：渲染扩展（公式、代码高亮、图表）对窗口内所有 Markdown 生效
         MarkdownServices.SetServices(this, MarkdownSetup.Services);
+        Transcript.DataTemplates.AddRange(new TranscriptTemplates());
         _transcript = new TranscriptAdapter(Transcript.Entries);
         // 发送新消息时回到底部并恢复贴底跟随（流式中的贴底由会话视图自己处理）
         _transcript.UserMessageAdded += () => Transcript.ScrollToEnd();
@@ -262,6 +351,7 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
         AddHandler(PointerReleasedEvent, OnMarkdownPointerReleased, RoutingStrategies.Bubble);
         DataContextChanged += (_, _) =>
         {
+            AttachExplorer((DataContext as MainWindowViewModel)?.Explorer);
             if (DataContext is MainWindowViewModel vm)
             {
                 vm.Conversation.ConfirmDangerAsync = ConfirmDangerAsync;
@@ -309,8 +399,14 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
                     }
                 };
                 vm.Palette.PropertyChanged += OnPalettePropertyChanged;
-                vm.Explorer.CollapseAnimation = AnimateTreeCollapse;
-                vm.Palette.NewProjectFolderRequested += () => OnAddProjectClick(null, new RoutedEventArgs());
+                vm.Palette.NewProjectRequested += () => _ = CreateProjectAsync();
+                vm.Sidebar.CreateProjectRequested += () => _ = CreateProjectAsync();
+                vm.Sidebar.EditProjectRequested += project => _ = EditProjectAsync(project);
+                vm.Sidebar.RemoveProjectRequested += project => _ = RemoveProjectAsync(project);
+                vm.Sidebar.RevealProjectRequested += project => vm.RevealFolder(project.Primary);
+                vm.Sidebar.CopyPathRequested += path => _ = Clipboard?.SetTextAsync(path);
+                vm.Conversation.AddDirectoryRequested += () => _ = AddSessionDirectoriesAsync(vm);
+                vm.Conversation.WorkspaceRootsChanged += () => UpdateImageRoots(vm);
                 UpdateHeaderInsets(vm);
                 UpdateColumns(vm, animate: false);
             }
@@ -510,51 +606,6 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
         _frozen.Clear();
     }
 
-    /// <summary>文件树收起目录：子节点一起收起高度并淡出，播完再移除；中途再次展开时恢复原样。</summary>
-    private Task AnimateTreeCollapse(FileNodeViewModel folder, IReadOnlyList<FileNodeViewModel> nodes)
-    {
-        var rows = nodes.Select(n => ExplorerList.ContainerFromItem(n)).OfType<Control>().Select(c => (Row: c, Height: c.Bounds.Height)).ToList();
-        if (!Motion.MotionSettings.IsEnabled || rows.Count == 0 || !ExplorerList.IsEffectivelyVisible)
-        {
-            return Task.CompletedTask;
-        }
-        var done = new TaskCompletionSource();
-        void Restore()
-        {
-            foreach (var (row, _) in rows)
-            {
-                row.ClearValue(OpacityProperty);
-                row.ClearValue(MaxHeightProperty);
-            }
-        }
-        var progress = new Motion.MotionValue(ExplorerList, 1, p =>
-        {
-            var q = Math.Clamp(p, 0, 1);
-            foreach (var (row, height) in rows)
-            {
-                row.Opacity = q;
-                row.MaxHeight = height * q;
-            }
-        });
-        void OnFolderChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(FileNodeViewModel.IsExpanded) && folder.IsExpanded)
-            {
-                progress.AnimateTo(1, Motion.MotionTokens.Standard, Finish);
-            }
-        }
-        void Finish()
-        {
-            folder.PropertyChanged -= OnFolderChanged;
-            // 先让视图模型移除行（同步续体），再清掉本地值，回收的容器不会带着折叠状态
-            done.TrySetResult();
-            Restore();
-        }
-        folder.PropertyChanged += OnFolderChanged;
-        progress.AnimateTo(0, Motion.MotionTokens.Exit, Finish);
-        return done.Task;
-    }
-
     private void OnAddPanelClick(object? sender, RoutedEventArgs e) => AddPanelPopup.IsOpen = !AddPanelPopup.IsOpen;
 
     private void OnAddPanelChosen(object? sender, RoutedEventArgs e) => AddPanelPopup.IsOpen = false;
@@ -687,25 +738,60 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
         }
     }
 
-    /// <summary>侧栏“…”：添加项目文件夹。</summary>
-    private async void OnAddProjectClick(object? sender, RoutedEventArgs e)
+    /// <summary>/add-dir：选择要只给本会话追加的文件夹（docs/design/projects.md §10.4）。</summary>
+    private async Task AddSessionDirectoriesAsync(MainWindowViewModel vm)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = Strings.Get(TKCodeLangResourceKind.SelectFolderTitle),
-            AllowMultiple = false,
+            Title = Strings.Get(TKCodeLangResourceKind.AddDirCommandDescription),
+            AllowMultiple = true,
         });
-        if (folders.FirstOrDefault()?.TryGetLocalPath() is { } path && DataContext is MainWindowViewModel vm)
+        foreach (var path in folders.Select(f => f.TryGetLocalPath()).OfType<string>())
         {
-            vm.Sidebar.AddProject(path);
+            await vm.Conversation.AddSessionDirectoryAsync(path);
         }
     }
 
-    private async void OnCopyMessageClick(object? sender, RoutedEventArgs e)
+    /// <summary>创建项目弹窗（侧栏 +、项目选择器的「新建项目…」、命令面板、⇧⌘N，docs/design/projects.md §8.4）。</summary>
+    private async Task CreateProjectAsync()
     {
-        if ((sender as Control)?.DataContext is AssistantMessageItemViewModel message && Clipboard is { } clipboard)
+        if (DataContext is not MainWindowViewModel vm)
         {
-            await clipboard.SetTextAsync(message.CopyText);
+            return;
+        }
+        vm.Palette.Close();
+        await ProjectDialog.ShowAsync(this, null, dialog =>
+        {
+            vm.Sidebar.CreateProject(dialog.ResultName, dialog.ResultFolders);
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task EditProjectAsync(Project project)
+    {
+        if (DataContext is not MainWindowViewModel vm)
+        {
+            return;
+        }
+        var outcome = await ProjectDialog.ShowAsync(this, project, dialog =>
+        {
+            vm.Sidebar.UpdateProject(project, dialog.ResultName, dialog.ResultFolders);
+            return Task.CompletedTask;
+        });
+        if (outcome == ProjectDialogOutcome.RemoveRequested)
+        {
+            await RemoveProjectAsync(project);
+        }
+    }
+
+    /// <summary>移除项目：确认后只从项目表移除，文件与会话都保留。</summary>
+    private async Task RemoveProjectAsync(Project project)
+    {
+        if (DataContext is MainWindowViewModel vm &&
+            await ConfirmDialog.ShowAsync(this, Strings.Format(TKCodeLangResourceKind.ProjectRemoveTitleFormat, project.Name),
+                Strings.Get(TKCodeLangResourceKind.ProjectRemoveText), Strings.Get(TKCodeLangResourceKind.ProjectRemoveAction), danger: true))
+        {
+            vm.Sidebar.RemoveProject(project);
         }
     }
 

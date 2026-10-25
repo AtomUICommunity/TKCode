@@ -60,7 +60,36 @@ SessionSubtitleFormat	{0} @ {1}	{0} @ {1}
 ToggleWorkbench	Toggle workbench	切换工作台
 Pondering	Pondering…	思考中…
 ThoughtProcess	Thought process	思考过程
-Thinking	Thinking…	正在思考…
+Thinking	Thinking	Thinking
+ExplorerOpen	Open	打开
+ExplorerReveal	Reveal in file tree	在文件树中定位
+ExplorerNewFile	New file…	新建文件…
+ExplorerNewFolder	New folder…	新建文件夹…
+ExplorerExpand	Expand	展开
+ExplorerCollapse	Collapse	收起
+ExplorerShowInFileManager	Show in file manager	在文件管理器中显示
+ExplorerShowInFinder	Show in Finder	在 Finder 中显示
+ExplorerShowInExplorer	Show in File Explorer	在资源管理器中显示
+ExplorerOpenTerminal	Open in terminal	在此目录打开终端
+ExplorerCopyFullPath	Copy full path	复制完整路径
+ExplorerCopyRelativePath	Copy relative path	复制相对路径
+ExplorerRename	Rename…	重命名…
+ExplorerTrash	Move to Trash…	移到废纸篓…
+ExplorerRecycle	Move to Recycle Bin…	移到回收站…
+ExplorerOpenRoot	Open workspace directory	打开工作目录
+ExplorerCopyRootPath	Copy workspace path	复制工作目录路径
+ExplorerRefresh	Refresh	刷新
+ExplorerCollapseAll	Collapse all	全部收起
+ExplorerShowHidden	Show hidden files	显示隐藏文件
+ExplorerHideHidden	Hide hidden files	隐藏文件
+ExplorerFileName	Name	名称
+ExplorerCreateAction	Create	创建
+ExplorerRenameAction	Rename	重命名
+ExplorerTrashAction	Move to Trash	移到废纸篓
+ExplorerRecycleAction	Move to Recycle Bin	移到回收站
+ExplorerTrashConfirm	This item will be moved to the system Trash. It will not be permanently deleted.	该项目将移到系统废纸篓，不会被永久删除。
+ExplorerRecycleConfirm	This item will be moved to the system Recycle Bin. It will not be permanently deleted.	该项目将移到系统回收站，不会被永久删除。
+ExplorerOperationFailed	File operation failed	文件操作失败
 CopyMessage	Copy	复制
 ToolPreparing	Preparing	准备中
 ToolRunning	Running	执行中
@@ -210,6 +239,7 @@ PriceTip	Input / output price per million tokens	输入 / 输出价格（每百�
 PriceFree	Free	免费
 TemplatePickerTitle	Add a provider	添加厂商
 SearchTemplates	Search providers and templates…	搜索厂商或模板…
+ClearSearch	Clear	清除
 TemplatePopular	Popular	常用
 TemplateLocal	Local	本地
 TemplateCustom	Custom	自定义
@@ -355,8 +385,8 @@ ImageMissing	Image file was deleted	图片文件已删除
 ImageFileTypeName	Images	图片
 CodeExpandFormat	Show all {0} lines	展开全部 {0} 行
 CodeCollapse	Show less	收起
-UserMessageExpand	Show more	展开
-UserMessageCollapse	Show less	收起
+TextExpandMore	Show more	展开
+TextExpandLess	Show less	收起
 LinkConfirmTitle	Open this link?	打开这个链接？
 LinkConfirmMessageFormat	The link text points somewhere else. It will actually open {0}	链接文字和实际地址不一致，实际将打开 {0}
 LinkOpen	Open	打开
@@ -395,6 +425,13 @@ TasksHeaderFormat	Tasks {0}/{1}	任务 {0}/{1}
 SessionMessageFromFormat	Message from {0}	来自 {0} 的消息
 TaskNotificationFormat	Background task {0}: {1}	后台任务 {0}：{1}
 SubagentStatsFormat	{0} · {1} tool uses · {2} tokens	{0} · {1} 次工具调用 · {2} tokens
+SubagentDefaultName	Agent	子 Agent
+SubagentBackground	Background	后台
+SubagentOpenTip	Show this subagent's messages	查看子 Agent 的消息
+SubagentGroupSingle	Started a subagent	启动了 1 个子 Agent
+SubagentGroupFormat	Started {0} subagents	启动了 {0} 个子 Agent
+SubagentLoadFailedFormat	Could not load the subagent's messages: {0}	无法加载子 Agent 的消息：{0}
+SubagentEmpty	No messages yet	还没有消息
 ApprovalRead	Read outside workspace	读取工作区外的文件
 ApprovalNetwork	Network access	访问网络
 SettingsMcp	MCP Servers	MCP 服务器
@@ -753,3 +790,47 @@ ToolExitPlanMode	Request plan approval	请求批准计划
 ToolEnterPlanMode	Ask to enter Plan mode	申请进入 Plan 模式
 ApprovalReadOnlyCommand	Plan mode: this command may change the workspace	Plan 模式：此命令可能修改工作区
 CompactionPlanHandoff	Context cleared — continuing from the plan	已清空上下文，按计划执行
+# 项目：侧栏项目列表、创建 / 编辑项目弹窗、多文件夹（docs/design/projects.md §12）
+ProjectsSection	Projects	项目
+CreateProject	Create project	创建项目
+EditProject	Edit project	编辑项目
+EditProjectMenu	Edit project…	编辑项目…
+ProjectDialogDescription	A project can include several folders; the agent can read and edit all of them.	项目可以包含多个文件夹，Agent 可以读写其中的所有文件。
+ProjectName	Project name	项目名称
+ProjectNamePlaceholder	New project	新项目
+ProjectDevice	Device	设备
+ThisComputer	This computer	此电脑
+SourceFolders	Source folders	源文件夹
+AddFolder	Add folder	添加文件夹
+PrimaryFolder	Primary	主要
+MakePrimary	Make primary	设为主要
+MakePrimaryFormat	Make {0} primary	将 {0} 设为主要
+RemoveFolderFormat	Remove {0}	移除 {0}
+SourceFoldersEmpty	Add folders the agent can read and edit	添加 Agent 可以读取和编辑的文件夹
+PrimaryFolderTip	TKCode looks for AGENTS.md, .agents and .mcp.json in the primary folder, and new sessions start there.	TKCode 在主文件夹中查找 AGENTS.md、.agents 和 .mcp.json，新会话也从这里启动。
+ProjectCreateAction	Create project	创建项目
+ProjectSaveAction	Save	保存
+ProjectSaveFailedFormat	Couldn't save the project: {0}	项目保存失败：{0}
+ProjectRemove	Remove project…	移除项目…
+ProjectRemoveAction	Remove project	移除项目
+ProjectRemoveTitleFormat	Remove {0}?	移除 {0}？
+ProjectRemoveText	This only removes the project from TKCode. Files on your computer and existing sessions are kept.	这只会从 TKCode 中移除该项目，电脑上的文件和已有会话不会被删除。
+ProjectPin	Pin project	置顶项目
+ProjectUnpin	Unpin project	取消置顶
+ProjectNewSessionFormat	New session in {0}	在 {0} 中新建会话
+ProjectMoreActionsFormat	More actions for {0}	{0} 的更多操作
+NoProjects	No projects yet	还没有项目
+SessionsInProjectFormat	Sessions · {0}	会话 · {0}
+SessionsNoProject	Sessions · No project	会话 · 无项目
+ClearProjectFilter	Show all sessions	显示全部会话
+ShowMoreProjectsFormat	Show more ({0})	展开更多（{0}）
+Collapse	Show less	收起
+FolderMissing	Not found	不存在
+PrimaryFolderMissing	The primary folder doesn't exist	主文件夹不存在
+NestedFolderWarningFormat	{0} is inside {1}	{0} 位于 {1} 之内
+PrimaryChangedNote	Existing sessions keep running in the previous primary folder; new sessions start in the new one.	已有会话仍在原来的主文件夹中运行，新会话从新的主文件夹开始。
+SessionFolderSuffix	This session	本会话
+RemoveSessionFolder	Remove from this session	从本会话移除
+AddDirCommandDescription	Add a folder to this session	为本会话添加文件夹
+AddDirFailedFormat	Couldn't add the folder: {0}	无法添加文件夹：{0}
+AgentNoAdditionalDirectories	This agent can't access additional folders	此 Agent 不支持附加文件夹

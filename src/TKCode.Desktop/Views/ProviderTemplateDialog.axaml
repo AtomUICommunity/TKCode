@@ -1,0 +1,64 @@
+<!--
+  添加厂商：选择内置厂商或自定义模板（设置 › 模型与厂商）。
+  经 ScaledModal 显示，跟随界面缩放；Esc、点遮罩、关闭按钮都会关闭，选中模板后由视图模型关闭。
+-->
+<arc:DialogSurface xmlns="https://github.com/avaloniaui"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+                   xmlns:vm="using:TKCode.Desktop.ViewModels"
+                   xmlns:icons="using:TKCode.Desktop.Icons"
+                   xmlns:loc="using:TKCode.Desktop.Localization"
+                   x:Class="TKCode.Desktop.Views.ProviderTemplateDialog"
+                   x:DataType="vm:SettingsViewModel"
+                   Size="Large" ShowCloseButton="True" ContentTemplate="{x:Null}"
+                   Title="{loc:TKCodeLangResource TemplatePickerTitle}">
+    <arc:DialogSurface.Styles>
+        <Style Selector="TextBlock.groupLabel">
+            <Setter Property="Foreground" Value="{DynamicResource TKCode.TextTertiary}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Margin" Value="4,10,0,4" />
+        </Style>
+    </arc:DialogSurface.Styles>
+    <StackPanel Spacing="8">
+        <arc:SearchField x:Name="SearchBox" Size="Small"
+                         Label="{loc:TKCodeLangResource SearchTemplates}" IsLabelVisible="False"
+                         Placeholder="{loc:TKCodeLangResource SearchTemplates}" ClearText="{loc:TKCodeLangResource ClearSearch}"
+                         Text="{Binding TemplateSearch, Mode=TwoWay}" />
+        <!-- Arc 浮动滚动条：右侧留出 10px，悬停时它不会盖住模板项 -->
+        <arc:ScrollArea MaxHeight="420">
+            <ItemsControl ItemsSource="{Binding TemplateGroups}" Margin="0,0,10,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProviderTemplateGroupViewModel">
+                        <StackPanel>
+                            <TextBlock Classes="groupLabel" Text="{Binding Title}" />
+                            <ItemsControl ItemsSource="{Binding Items}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ProviderTemplateViewModel">
+                                        <Button Theme="{StaticResource TKCode.MenuItem}" MinHeight="44" Margin="2" Padding="10,6"
+                                                Command="{Binding $parent[arc:DialogSurface].((vm:SettingsViewModel)DataContext).PickTemplateCommand}"
+                                                CommandParameter="{Binding}">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <Panel Width="22" Height="22" VerticalAlignment="Center">
+                                                    <icons:ProviderLogo Key="{Binding LogoKey}" Width="18" Height="18" PreferColor="{Binding !IsCustom}" />
+                                                </Panel>
+                                                <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                    <TextBlock Classes="strong" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Classes="tertiary" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis"
+                                                               IsVisible="{Binding Subtitle, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </arc:ScrollArea>
+    </StackPanel>
+</arc:DialogSurface>

@@ -22,7 +22,7 @@ public sealed class ClaudeFixtureTests
     {
         var peer = new ScriptedPeer();
         var uuids = new Queue<string>();
-        var runtime = new FixtureRuntime(peer, uuids, SessionId);
+        var runtime = new ClaudeFixtureRuntime(peer, uuids, SessionId);
         Func<RuntimeApprovalRequest, CancellationToken, ValueTask<ApprovalDecision>> approve = (_, _) => ValueTask.FromResult(ApprovalDecision.AllowOnce);
         var agent = new ExternalAgent(runtime, RuntimeModels.Create(runtime, ClaudeRuntime.DefaultModelId), "/Users/dev/proj")
         {
@@ -120,7 +120,7 @@ public sealed class ClaudeFixtureTests
     {
         var peer = new ScriptedPeer();
         var uuids = new Queue<string>();
-        var runtime = new FixtureRuntime(peer, uuids, SessionId);
+        var runtime = new ClaudeFixtureRuntime(peer, uuids, SessionId);
         var agent = new ExternalAgent(runtime, RuntimeModels.Create(runtime, ClaudeRuntime.DefaultModelId), "/Users/dev/proj");
         var e1 = Load("#### (e1)");
         uuids.Enqueue(UuidOf(e1));
@@ -152,7 +152,7 @@ public sealed class ClaudeFixtureTests
     {
         var peer = new ScriptedPeer();
         var uuids = new Queue<string>();
-        var runtime = new FixtureRuntime(peer, uuids, SessionId);
+        var runtime = new ClaudeFixtureRuntime(peer, uuids, SessionId);
         var agent = new ExternalAgent(runtime, RuntimeModels.Create(runtime, ClaudeRuntime.DefaultModelId), "/Users/dev/proj")
         {
             PermissionMode = TKCode.Agent.PermissionMode.FullAccess,
@@ -220,7 +220,7 @@ public sealed class ClaudeFixtureTests
         var input = $$"""{"plan":"# Plan","planFilePath":{{JsonSerializer.Serialize(planFile)}}}""";
         var peer = new ScriptedPeer();
         var uuids = new Queue<string>();
-        var runtime = new FixtureRuntime(peer, uuids, SessionId);
+        var runtime = new ClaudeFixtureRuntime(peer, uuids, SessionId);
         RuntimePlanReviewRequest? reviewed = null;
         ExternalAgent agent = null!;
         agent = new ExternalAgent(runtime, RuntimeModels.Create(runtime, ClaudeRuntime.DefaultModelId), "/Users/dev/proj")
@@ -259,7 +259,7 @@ public sealed class ClaudeFixtureTests
         const string input = """{"plan":"# Plan"}""";
         var peer = new ScriptedPeer();
         var uuids = new Queue<string>();
-        var runtime = new FixtureRuntime(peer, uuids, SessionId);
+        var runtime = new ClaudeFixtureRuntime(peer, uuids, SessionId);
         var agent = new ExternalAgent(runtime, RuntimeModels.Create(runtime, ClaudeRuntime.DefaultModelId), "/Users/dev/proj")
         {
             PlanReviewHandler = (_, _) => Task.FromResult(new TKCode.Agent.Plans.PlanReviewResult(TKCode.Agent.Plans.PlanReviewOutcome.Revise,
@@ -281,7 +281,7 @@ public sealed class ClaudeFixtureTests
         const string input = """{"plan":"# Plan"}""";
         var peer = new ScriptedPeer();
         var uuids = new Queue<string>();
-        var runtime = new FixtureRuntime(peer, uuids, SessionId);
+        var runtime = new ClaudeFixtureRuntime(peer, uuids, SessionId);
         var changes = new List<bool>();
         var agent = new ExternalAgent(runtime, RuntimeModels.Create(runtime, ClaudeRuntime.DefaultModelId), "/Users/dev/proj")
         {
@@ -306,7 +306,7 @@ public sealed class ClaudeFixtureTests
     {
         var peer = new ScriptedPeer();
         var uuids = new Queue<string>();
-        var runtime = new FixtureRuntime(peer, uuids, SessionId);
+        var runtime = new ClaudeFixtureRuntime(peer, uuids, SessionId);
         RuntimeInputRequest? asked = null;
         var agent = new ExternalAgent(runtime, RuntimeModels.Create(runtime, ClaudeRuntime.DefaultModelId), "/Users/dev/proj")
         {
@@ -348,7 +348,7 @@ public sealed class ClaudeFixtureTests
     {
         var peer = new ScriptedPeer();
         var uuids = new Queue<string>();
-        var runtime = new FixtureRuntime(peer, uuids, SessionId);
+        var runtime = new ClaudeFixtureRuntime(peer, uuids, SessionId);
         var agent = new ExternalAgent(runtime, RuntimeModels.Create(runtime, ClaudeRuntime.DefaultModelId), "/Users/dev/proj")
         {
             InputHandler = (_, _) => Task.FromResult(TKCode.Agent.Questions.UserInputResult.Declined),
@@ -393,26 +393,6 @@ public sealed class ClaudeFixtureTests
             return ValueTask.CompletedTask;
         });
         return events;
-    }
-
-    private sealed class FixtureRuntime(ScriptedPeer peer, Queue<string> uuids, string sessionId) : IAgentRuntime
-    {
-        public string Id => ClaudeRuntime.RuntimeId;
-        public string DisplayName => "Claude Agent";
-        public RuntimeDescriptor Descriptor { get; } = new(ClaudeRuntime.RuntimeId, "Claude Agent", RuntimeStatus.Ready)
-        {
-            Capabilities = new() { SupportsSteering = true },
-        };
-        public event Action? DescriptorChanged { add { } remove { } }
-        public Task<RuntimeDescriptor> ProbeAsync(CancellationToken cancellationToken) => Task.FromResult(Descriptor);
-
-        public async Task<IRuntimeSession> StartSessionAsync(RuntimeSessionRequest request, CancellationToken cancellationToken)
-        {
-            var session = new ClaudeSession(peer.ClientInput, peer.ClientOutput, request.Host, sessionId, newUuid: () => uuids.Dequeue());
-            session.SetInitialOptions(request.Options.Model.Id, null, "default");
-            await session.StartAsync(cancellationToken);
-            return session;
-        }
     }
 
     [Fact]

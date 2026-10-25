@@ -5,6 +5,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:icons="using:TKCode.Desktop.Icons"
              xmlns:controls="using:TKCode.Desktop.Controls"
@@ -22,64 +23,63 @@
                         <TextBlock FontSize="11" Foreground="{DynamicResource TKCode.AccentText}" Text="{loc:TKCodeLangResource UpdatePreviewTag}" />
                     </Border>
                 </StackPanel>
-                <atom:Button Grid.Column="2" Color="Default" Variant="Text" SizeType="Small" Command="{Binding LaterCommand}"
-                             ToolTip.Tip="{loc:TKCodeLangResource UpdateClose}" VerticalAlignment="Top" Margin="0,-4,-6,0">
-                    <atom:Button.Icon><icons:LucideIcon Kind="X" /></atom:Button.Icon>
-                </atom:Button>
+                <arc:Button Classes="icon" Variant="Ghost" Grid.Column="2" Size="Small" Command="{Binding LaterCommand}"
+                            arc:Tooltip.Tip="{loc:TKCodeLangResource UpdateClose}" VerticalAlignment="Top" Margin="0,-4,-6,0" AutomationProperties.Name="{loc:TKCodeLangResource UpdateClose}">
+                    <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="X" />
+                </arc:Button>
             </Grid>
 
             <TextBlock Classes="secondary" FontSize="12" TextWrapping="Wrap" Text="{Binding CardBody}" IsVisible="{Binding HasCardBody}" />
-            <controls:ThinProgressBar Value="{Binding Service.Progress}" IsVisible="{Binding IsDownloadingCard}"
-                                      TrackBrush="{DynamicResource TKCode.Divider}" FillBrush="{DynamicResource TKCode.Accent}" />
+            <arc:Progress Maximum="1" Value="{Binding Service.Progress}" IsValueVisible="False" IsVisible="{Binding IsDownloadingCard}" />
 
             <!-- 发现新版本 -->
             <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsAvailableCard}">
                 <Panel Margin="-6,0,0,0">
-                    <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding ShowNotesCommand}"
-                                 Content="{loc:TKCodeLangResource UpdateViewNotes}" IsVisible="{Binding HasNotes}" />
-                    <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding OpenReleasePageCommand}"
-                                 Content="{loc:TKCodeLangResource UpdateViewNotes}" IsVisible="{Binding !HasNotes}" />
+                    <arc:Button Variant="Ghost" Size="Small" Command="{Binding ShowNotesCommand}"
+                                Content="{loc:TKCodeLangResource UpdateViewNotes}" IsVisible="{Binding HasNotes}" />
+                    <arc:Button Variant="Ghost" Size="Small" Command="{Binding OpenReleasePageCommand}"
+                                Content="{loc:TKCodeLangResource UpdateViewNotes}" IsVisible="{Binding !HasNotes}" />
                 </Panel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
-                    <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding SkipCommand}" Content="{loc:TKCodeLangResource UpdateSkip}" />
-                    <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding DownloadCommand}" Content="{loc:TKCodeLangResource UpdateAction}"
-                                 IsVisible="{Binding CanInstallInApp}" />
-                    <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding OpenReleasePageCommand}" Content="{loc:TKCodeLangResource UpdateOpenPage}"
-                                 IsVisible="{Binding !CanInstallInApp}" />
+                    <arc:Button Variant="Ghost" Size="Small" Command="{Binding SkipCommand}" Content="{loc:TKCodeLangResource UpdateSkip}" />
+                    <arc:Button Variant="Primary" Size="Small" Command="{Binding DownloadCommand}" Content="{loc:TKCodeLangResource UpdateAction}"
+                                IsVisible="{Binding CanInstallInApp}" />
+                    <arc:Button Variant="Primary" Size="Small" Command="{Binding OpenReleasePageCommand}" Content="{loc:TKCodeLangResource UpdateOpenPage}"
+                                IsVisible="{Binding !CanInstallInApp}" />
                 </StackPanel>
             </Grid>
 
             <!-- 已就绪 / 上次更新未完成 -->
             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" IsVisible="{Binding IsReadyCard}">
-                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding LaterCommand}" Content="{loc:TKCodeLangResource UpdateLater}" />
-                <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding InstallCommand}" Content="{loc:TKCodeLangResource UpdateInstallRestart}" />
+                <arc:Button Variant="Ghost" Size="Small" Command="{Binding LaterCommand}" Content="{loc:TKCodeLangResource UpdateLater}" />
+                <arc:Button Variant="Primary" Size="Small" Command="{Binding InstallCommand}" Content="{loc:TKCodeLangResource UpdateInstallRestart}" />
             </StackPanel>
 
             <!-- 失败 -->
             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" IsVisible="{Binding IsFailedCard}">
-                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding LaterCommand}" Content="{loc:TKCodeLangResource UpdateClose}" />
-                <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding RetryCommand}" Content="{loc:TKCodeLangResource UpdateRetry}" />
+                <arc:Button Variant="Ghost" Size="Small" Command="{Binding LaterCommand}" Content="{loc:TKCodeLangResource UpdateClose}" />
+                <arc:Button Variant="Primary" Size="Small" Command="{Binding RetryCommand}" Content="{loc:TKCodeLangResource UpdateRetry}" />
             </StackPanel>
 
             <!-- 安装前确认运行中的会话 -->
             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" IsVisible="{Binding IsConfirmCard}">
-                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding CancelInstallCommand}" Content="{loc:TKCodeLangResource UpdateCancel}" />
-                <atom:Button Color="Default" Variant="Outlined" SizeType="Small" Command="{Binding InstallNowCommand}" Content="{loc:TKCodeLangResource UpdateInstallNow}" />
-                <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding InstallWhenIdleCommand}" Content="{loc:TKCodeLangResource UpdateInstallWhenIdle}" />
+                <arc:Button Variant="Ghost" Size="Small" Command="{Binding CancelInstallCommand}" Content="{loc:TKCodeLangResource UpdateCancel}" />
+                <arc:Button Variant="Secondary" Size="Small" Command="{Binding InstallNowCommand}" Content="{loc:TKCodeLangResource UpdateInstallNow}" />
+                <arc:Button Variant="Primary" Size="Small" Command="{Binding InstallWhenIdleCommand}" Content="{loc:TKCodeLangResource UpdateInstallWhenIdle}" />
             </StackPanel>
 
             <!-- 等待会话结束 -->
             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" IsVisible="{Binding IsWaitingCard}">
-                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding CancelInstallCommand}" Content="{loc:TKCodeLangResource UpdateCancel}" />
+                <arc:Button Variant="Ghost" Size="Small" Command="{Binding CancelInstallCommand}" Content="{loc:TKCodeLangResource UpdateCancel}" />
             </StackPanel>
 
             <!-- 已更新 -->
             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" IsVisible="{Binding IsUpdatedCard}">
-                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding ShowNotesCommand}" Content="{loc:TKCodeLangResource UpdateViewNotes}"
-                             IsVisible="{Binding HasNotes}" />
-                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding OpenReleasePageCommand}" Content="{loc:TKCodeLangResource UpdateViewNotes}"
-                             IsVisible="{Binding !HasNotes}" />
-                <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding LaterCommand}" Content="{loc:TKCodeLangResource UpdateClose}" />
+                <arc:Button Variant="Ghost" Size="Small" Command="{Binding ShowNotesCommand}" Content="{loc:TKCodeLangResource UpdateViewNotes}"
+                            IsVisible="{Binding HasNotes}" />
+                <arc:Button Variant="Ghost" Size="Small" Command="{Binding OpenReleasePageCommand}" Content="{loc:TKCodeLangResource UpdateViewNotes}"
+                            IsVisible="{Binding !HasNotes}" />
+                <arc:Button Variant="Primary" Size="Small" Command="{Binding LaterCommand}" Content="{loc:TKCodeLangResource UpdateClose}" />
             </StackPanel>
         </StackPanel>
     </Border>

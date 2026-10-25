@@ -116,6 +116,10 @@ public sealed class AnthropicMessagesApi(HttpClient http) : HttpWireApi(http)
         {
             request.Headers.TryAddWithoutValidation("anthropic-beta", string.Join(",", betas.Distinct()));
         }
+        if (CompatResolver.ResolveSessionHeader(model) is { } affinity && !string.IsNullOrEmpty(options.SessionId))
+        {
+            request.Headers.TryAddWithoutValidation(affinity, PromptCache.Key(options.SessionId));
+        }
         ApplyHeaders(request, model);
         return request;
     }

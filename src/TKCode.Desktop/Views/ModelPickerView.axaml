@@ -4,6 +4,7 @@
 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:atom="https://atomui.net"
              xmlns:motion="using:TKCode.Desktop.Motion"
              xmlns:controls="using:TKCode.Desktop.Controls"
@@ -64,14 +65,15 @@
                         <!-- 搜索 -->
                         <Grid ColumnDefinitions="Auto,*" Margin="10,2">
                             <icons:LucideIcon Kind="Search" Width="14" Height="14" Margin="0,0,2,0" StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
-                            <atom:LineEdit x:Name="SearchBox" Grid.Column="1" StyleVariant="Borderless" Background="Transparent"
-                                           PlaceholderText="{loc:TKCodeLangResource SearchModels}" Text="{Binding Search, Mode=TwoWay}" />
+                            <arc:Input x:Name="SearchBox" Grid.Column="1" Classes="bare"
+                                           Placeholder="{loc:TKCodeLangResource SearchModels}" Text="{Binding Search, Mode=TwoWay}" />
                         </Grid>
                         <Border Classes="menuDivider" />
 
                         <!-- 模型列表 -->
-                        <ScrollViewer MaxHeight="204" atom:ScrollViewer.IsLiteMode="True">
-                            <!-- 右侧留出滚动条的位置，滚动条浮在内容上会盖住收藏按钮 -->
+                        <!-- Arc 浮动滚动条：滚动或悬停时出现，静止时隐藏；内容延续的一侧边缘淡出 -->
+                        <arc:ScrollArea MaxHeight="204">
+                            <!-- 右侧留出滚动条（11px 的命中区）的位置，悬停时它浮在内容上会盖住收藏按钮 -->
                             <ItemsControl ItemsSource="{Binding VisibleModels}" Margin="4,4,12,4">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:ModelOptionViewModel">
@@ -101,7 +103,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </ScrollViewer>
+                        </arc:ScrollArea>
                         <TextBlock Classes="secondary" Margin="12,10" FontSize="12" IsVisible="{Binding IsEmpty}"
                                    Text="{loc:TKCodeLangResource NoModels}" />
                         <Border Classes="menuDivider" />

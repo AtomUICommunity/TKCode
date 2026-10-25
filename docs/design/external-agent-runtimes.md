@@ -145,7 +145,7 @@ public interface IRuntimeHost   // 会话 → TKCode
 | 子 Agent | 非空的 `parent_tool_use_id` | `collabAgentToolCall` 及其子 thread | 草案中的 subagent 能力 |
 
 - **流式增量与完整消息去重**：Claude 的 `stream_event` 增量和完整的 `assistant` 消息会描述同一个块，以 `message.id` 加块序号、或 `tool_use.id` 对账，避免重复渲染。
-- **子 Agent**：`AgentEvent` 和 `SessionEvent` 增加可选的 `ParentToolCallId`，不把子 Agent 的事件混进父轮次。
+- **子 Agent**：子 Agent 的帧不混进父轮次，写入各自的转录（`IRuntimeHost.OpenSubagent` → `RuntimeSubagent`），UI 在右侧标签中查看。见 [subagent-view.md](subagent-view.md) §5.5、§5.6（2026-10-21 实现，取代原先"`AgentEvent` 加 `ParentToolCallId`"的设想）。
 - **轮次结束**：只以 CLI 的终止帧为准（`result`、`turn/completed`、`session/prompt` 的响应），**不用静默计时器之类的启发式判断**。zeron 已经因为这个问题废弃了这种做法。
 
 ## 6. 审批
@@ -191,7 +191,7 @@ public interface IRuntimeHost   // 会话 → TKCode
   - Claude：`--resume=<id>`；创建会话时用 `--session-id <uuid>` 指定 ID。
   - Codex：`thread/resume {threadId}`，失败时退回 `thread/start` 并在界面上提示。
   - ACP：有 `session/resume` 时用它，否则用 `session/load` 重放历史。
-- **只在同一个 cwd 下恢复**，因为 Claude 是按项目目录存放会话的。
+- **只在同一个 cwd 下恢复**，因为 Claude 是按项目目录存放会话的。会话的 cwd 是创建时项目的主文件夹，之后不变；项目的其他文件夹与本会话追加的文件夹通过 Claude `--add-dir`、Codex 每轮的 `writableRoots`、ACP 的 `additionalDirectories` 传给运行时，变化后在下一轮之前生效（Claude / ACP 用原生会话 id 重启会话，docs/design/projects.md §6.8）。
 - 不把 TKCode 的历史回放给外部 Agent，也不解析它们的存储文件（`~/.claude/projects`、Codex rollout）。
 
 ## 8. 风险与对策
@@ -263,7 +263,7 @@ public interface IRuntimeHost   // 会话 → TKCode
 已知限制：
 - 尚未用真实 CLI 跑过模型轮次，需要用户确认后再进行。
 - 提问已经接入问答面板（2026-10-18，[ask-user.md](ask-user.md)）。Codex 的 requestUserInput 只有在用户自己打开 `default_mode_request_user_input` 特性时才会出现；TKCode 不开启 Codex 的实验接口（Plan 协作模式）。
-- 子 Agent 帧、后台唤醒轮次、计划 / 命令列表 / 上下文用量等状态类更新暂不展示。
+- 子 Agent 帧已接入（Claude、Codex，[subagent-view.md](subagent-view.md)）。后台唤醒轮次、计划 / 命令列表 / 上下文用量等状态类更新暂不展示。
 - 工具执行中的输出增量（`ToolExecutionUpdateEvent`）还没有映射到 SessionEvent。
 
 ## 10. 参考

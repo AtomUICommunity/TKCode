@@ -80,6 +80,9 @@ public sealed partial class McpImportItemViewModel : ObservableObject
         Overwrites = overwrites;
     }
 
+    /// <summary>界面语言变了：类型、备注等文字重新取值。</summary>
+    internal void RefreshLanguage() => OnPropertyChanged(string.Empty);
+
     internal JsonObject Resolve() =>
         Candidate.Resolve(Inputs.Where(i => i.Value.Length > 0).ToDictionary(i => i.Id, i => i.Value), ImportAutoApprove);
 }
@@ -118,7 +121,12 @@ public sealed partial class McpImportViewModel : ObservableObject
     public McpImportViewModel(McpSettingsViewModel owner)
     {
         _owner = owner;
+        FillChoices();
     }
+
+    /// <summary>入口（粘贴 / 本机扫描）与写入位置（全局 / 项目）的分段选择：选中项跟随 <see cref="IsScanMode"/> / <see cref="IsProjectTarget"/>。</summary>
+    public ObservableCollection<SettingsChoiceViewModel> ModeChoices { get; } = [];
+    public ObservableCollection<SettingsChoiceViewModel> TargetChoices { get; } = [];
 
     public ObservableCollection<McpImportItemViewModel> Items { get; } = [];
     public ObservableCollection<McpImportSourceViewModel> Sources { get; } = [];
@@ -156,12 +164,17 @@ public sealed partial class McpImportViewModel : ObservableObject
     public string ImportButtonText => Strings.Format(TKCodeLangResourceKind.McpImportButtonFormat, SelectedCount);
 
     partial void OnTextChanged(string value) => ParseText();
-    partial void OnIsProjectTargetChanged(bool value) => Revalidate();
+    partial void OnIsProjectTargetChanged(bool value)
+    {
+        FillChoices();
+        Revalidate();
+    }
     partial void OnParseErrorChanged(string? value) => OnPropertyChanged(nameof(HasParseError));
     partial void OnErrorChanged(string? value) => OnPropertyChanged(nameof(HasError));
 
     partial void OnIsScanModeChanged(bool value)
     {
+        FillChoices();
         Items.Clear();
         ParseError = null;
         FormatText = null;
@@ -177,16 +190,31 @@ public sealed partial class McpImportViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ChoosePaste() => IsScanMode = false;
+    private void ChooseMode(SettingsChoiceViewModel choice) => IsScanMode = choice.Value == "scan";
 
     [RelayCommand]
-    private void ChooseScan() => IsScanMode = true;
+    private void ChooseTarget(SettingsChoiceViewModel choice) => IsProjectTarget = choice.Value == "project";
 
-    [RelayCommand]
-    private void ChooseGlobalTarget() => IsProjectTarget = false;
+    private void FillChoices()
+    {
+        SettingsChoiceViewModel.Fill(ModeChoices,
+            [("paste", Strings.Get(TKCodeLangResourceKind.McpImportPaste)), ("scan", Strings.Get(TKCodeLangResourceKind.McpImportScan))],
+            IsScanMode ? "scan" : "paste");
+        SettingsChoiceViewModel.Fill(TargetChoices,
+            [("global", Strings.Get(TKCodeLangResourceKind.McpScopeGlobal)), ("project", Strings.Get(TKCodeLangResourceKind.McpScopeProject))],
+            IsProjectTarget ? "project" : "global");
+    }
 
-    [RelayCommand]
-    private void ChooseProjectTarget() => IsProjectTarget = true;
+    /// <summary>界面语言变了：重建分段选项，预览行与按钮文字重新取值。</summary>
+    internal void RefreshLanguage()
+    {
+        FillChoices();
+        OnPropertyChanged(string.Empty);
+        foreach (var item in Items)
+        {
+            item.RefreshLanguage();
+        }
+    }
 
     /// <summary>从文件读入（视图层负责弹出文件选择框）。</summary>
     public void LoadFile(string path, string text)

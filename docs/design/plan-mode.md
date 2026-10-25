@@ -115,12 +115,12 @@
 
 - **Plan 模式的工具**：`["readonly", "write", "edit", "agent", "send_message", "list_agents", "exit_plan_mode"]`。`readonly` 已经包含 ask_user、task_*、web_*、skill 等；write / edit 由 §6 的路径规则限制到计划文件。
 - **模式专属工具**：`SessionRole.Allows` 特殊处理两个工具名：`exit_plan_mode` 只在 Plan 模式下允许，`enter_plan_mode` 只在 Agent 模式（包括 `AgentResumed`）下允许，与 `Tools` 列表无关。自定义模式两个都没有。
-- **只读命令规则**（修复 §4 问题 2）：执行上下文是"只读"时（主会话处于只读模式，或者是 explore / plan 子 Agent），`PermissionPolicy.Evaluate` 对 `Execute` 做如下处理：
+- **只读命令规则**（修复 §4 问题 2）：执行上下文是"只读"时（主会话处于只读模式），`PermissionPolicy.Evaluate` 对 `Execute` 做如下处理：
   - 只有 `ReadOnlyCommands.IsReadOnly(command) && StaysInWorkspace(...)` 才免审批；
   - 其他命令**在所有档位（包括完全授权）都要询问**，审批卡标题加上"Plan 模式：此命令可能修改工作区"；
   - 只能"允许一次"，不提供也不采用"本会话允许"（防止 Agent 模式下允许过的 `git commit` 在 Plan 模式下直接执行）。
 
-  实现方式是给 `Evaluate` 加一个 `readOnly` 参数，由 `SessionManager.ApproveAsync` 根据会话模式或子 Agent 类型传入。
+  实现方式是给 `Evaluate` 加一个 `readOnly` 参数，由 `SessionManager.ApproveAsync` 根据会话模式传入。子 Agent（包括 explore / plan）不适用这条规则，一律跟随父会话的权限档位（2026-10-21 用户决定，见 [subagent-view.md](subagent-view.md) §5.7）；它们的工具集仍然没有 write / edit。
 - **MCP 工具**：Plan 模式下仍然去掉，不变。
 - **用户手动切换**（Shift+Tab、下拉框）仍然可用，和现在一样在下一批用户输入前生效。从 Plan 手动切回 Agent 时，模式节换成 `AgentResumed`，其中带上计划文件路径（§12.5）。
 
@@ -365,7 +365,7 @@ record PlanReviewResponse(string Outcome /* approved | revise | dismissed */, st
   - "已退回"，下面引用反馈；
   - "未批准"；
   - "已中止"。
-- 正文默认折叠，显示前 8 行，点击展开为完整的渲染计划（来自 Details 快照），附"在编辑器中打开"。
+- 正文默认折叠，显示前 8 行，点击展开为完整的渲染计划（来自 Details 快照），附"在编辑器中打开"——在右侧工作区打开计划文件（与 read 工具同一条 `OpenFileRequested` 通路），不交给系统默认程序；审批面板里的同名按钮才用系统默认程序，因为那里要回读外部编辑。
 - 等待审批期间，卡片显示"等待批准…"。
 - `enter_plan_mode` 沿用问答卡片显示。
 

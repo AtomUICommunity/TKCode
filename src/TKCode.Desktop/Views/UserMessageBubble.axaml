@@ -2,22 +2,24 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:composer="using:TKCode.Desktop.Controls.Composer"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+             xmlns:loc="using:TKCode.Desktop.Localization"
              x:Class="TKCode.Desktop.Views.UserMessageBubble"
-             x:Name="Root"
              x:DataType="vm:UserMessageItemViewModel">
     <Border Background="{DynamicResource TKCode.UserBubble}" CornerRadius="14" Padding="14,9" HorizontalAlignment="Right">
-        <StackPanel Spacing="2">
-            <!-- 纯文本：收起时最多 8 行，末尾省略号 -->
-            <SelectableTextBlock x:Name="PlainText" Text="{Binding DisplayText}" TextWrapping="Wrap"
-                                 IsVisible="{Binding !HasSegments}" />
-            <!-- 带 tag 的消息：与输入框相同的样子（只读，可选择复制）；收起时裁到 8 行 -->
-            <composer:ComposerEditor x:Name="RichText" IsReadOnly="True" ClipLines="True" Cursor="Arrow"
-                                     IsVisible="{Binding HasSegments}" Padding="0"
-                                     Document="{Binding Segments, FallbackValue={x:Null}}" />
-            <Button Theme="{StaticResource TKCode.TextButton}" HorizontalAlignment="Left"
-                    Padding="0,2" MinHeight="0" FontSize="12"
-                    Command="{Binding ToggleCommand}" Content="{Binding ToggleText}"
-                    IsVisible="{Binding #Root.ShowToggle}" />
-        </StackPanel>
+        <!-- 超过 8 行默认收起（Arc 的收起 / 展开：按实际排版的行边界裁切，末行淡出，收起时只排到第 9 行） -->
+        <arc:ExpandableContent x:Name="Clamp" Lines="{x:Static vm:UserMessageItemViewModel.CollapsedLineLimit}"
+                               IsExpanded="{Binding IsExpanded}"
+                               MoreLabel="{loc:TKCodeLangResource TextExpandMore}"
+                               LessLabel="{loc:TKCodeLangResource TextExpandLess}">
+            <Panel>
+                <!-- 纯文本 -->
+                <SelectableTextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" IsVisible="{Binding !HasSegments}" />
+                <!-- 带 tag 的消息：与输入框相同的样子（只读，可选择复制）；行高跟随 Arc 正文 -->
+                <composer:ComposerEditor IsReadOnly="True" Cursor="Arrow" IsVisible="{Binding HasSegments}" Padding="0"
+                                         LineHeight="{Binding $self.(TextBlock.LineHeight)}"
+                                         Document="{Binding Segments, FallbackValue={x:Null}}" />
+            </Panel>
+        </arc:ExpandableContent>
     </Border>
 </UserControl>

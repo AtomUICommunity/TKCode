@@ -60,7 +60,14 @@ public sealed class OpenAIResponsesApi(HttpClient http) : HttpWireApi(http)
         {
             // 选择模型支持的 effort；Off 在不支持 none 的模型上取最低档（例如 GPT-6.1 Sol）。
             var effort = ThinkingLevels.ChooseEffort(options.ThinkingLevel, model.Compat?.ReasoningEfforts);
-            body["reasoning"] = new JsonObject { ["effort"] = effort, ["summary"] = "auto" };
+            var reasoning = new JsonObject { ["effort"] = effort };
+            // 只为 GPT 请求推理摘要；其它 Responses 服务可能拒绝 summary 字段。
+            var modelId = model.Id.AsSpan(model.Id.LastIndexOf('/') + 1);
+            if (modelId.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase))
+            {
+                reasoning["summary"] = "auto";
+            }
+            body["reasoning"] = reasoning;
             body["include"] = new JsonArray((JsonNode)"reasoning.encrypted_content");
         }
         if (options.FastMode && model.SupportsFastMode)
@@ -78,6 +85,10 @@ public sealed class OpenAIResponsesApi(HttpClient http) : HttpWireApi(http)
         if (!string.IsNullOrEmpty(options.ApiKey))
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
+        }
+        if (CompatResolver.ResolveSessionHeader(model) is { } affinity && !string.IsNullOrEmpty(options.SessionId))
+        {
+            request.Headers.TryAddWithoutValidation(affinity, PromptCache.Key(options.SessionId));
         }
         ApplyHeaders(request, model);
         return request;

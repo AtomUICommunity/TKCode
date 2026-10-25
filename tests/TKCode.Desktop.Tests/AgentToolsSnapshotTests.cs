@@ -89,10 +89,12 @@ public sealed class AgentToolsSnapshotTests
             edit.ToggleCommand.Execute(null);
             var bash = group.Steps.OfType<ToolCallBlockViewModel>().Single(s => s.ToolName == "bash");
             Assert.Contains("Running 12 tests", bash.Result);
-            bash.ToggleCommand.Execute(null);
-            var agent = group.Steps.OfType<ToolCallBlockViewModel>().Single(s => s.ToolName == "agent");
-            Assert.Equal("reviewer · 7 次工具调用 · 34.6k tokens", agent.SubagentStats);
-            agent.ToggleCommand.Execute(null);
+            // 运行中的命令自动展开，显示实时输出
+            Assert.True(bash.IsExpanded);
+            // 子 Agent 是独立卡片（不进活动组），只显示名称、模型与后台标记（docs/design/subagent-view.md §6.2）
+            Assert.DoesNotContain(group.Steps.OfType<ToolCallBlockViewModel>(), s => s.ToolName == "agent");
+            var agent = Assert.Single(window.GetVisualDescendants().OfType<SubagentCardView>()).DataContext as SubagentCardViewModel;
+            Assert.Equal(("reviewer", false), (agent!.DisplayName, agent.IsBackground));
             session.Items.OfType<NotificationItemViewModel>().Last().ToggleCommand.Execute(null);
             await Settle();
             HeadlessApp.Save(window, "agent-tools");

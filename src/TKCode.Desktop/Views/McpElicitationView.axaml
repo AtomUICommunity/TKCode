@@ -5,6 +5,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:icons="using:TKCode.Desktop.Icons"
              xmlns:loc="using:TKCode.Desktop.Localization"
@@ -42,9 +43,9 @@
                     <DataTemplate x:DataType="vm:McpFieldViewModel">
                         <StackPanel Spacing="4">
                             <TextBlock Classes="secondary" Text="{Binding Label}" FontSize="12" IsVisible="{Binding !IsBoolean}" />
-                            <atom:LineEdit SizeType="Small" Text="{Binding TextValue, Mode=TwoWay}" IsVisible="{Binding IsText}" />
-                            <atom:LineEdit SizeType="Small" Text="{Binding TextValue, Mode=TwoWay}" IsVisible="{Binding IsNumber}" Width="200" HorizontalAlignment="Left" />
-                            <atom:CheckBox IsChecked="{Binding BoolValue, Mode=TwoWay}" Content="{Binding Label}" IsVisible="{Binding IsBoolean}" />
+                            <arc:Input Size="Small" Text="{Binding TextValue, Mode=TwoWay}" IsVisible="{Binding IsText}" />
+                            <arc:Input Size="Small" Text="{Binding TextValue, Mode=TwoWay}" IsVisible="{Binding IsNumber}" Width="200" HorizontalAlignment="Left" />
+                            <arc:Checkbox IsChecked="{Binding BoolValue, Mode=TwoWay}" Content="{Binding Label}" IsVisible="{Binding IsBoolean}" />
                             <ItemsControl ItemsSource="{Binding Options}" IsVisible="{Binding IsChoice}">
                                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
@@ -63,7 +64,7 @@
                                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:McpFieldOptionViewModel">
-                                        <atom:CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" Content="{Binding Label}" Margin="0,0,12,4" />
+                                        <arc:Checkbox IsChecked="{Binding IsSelected, Mode=TwoWay}" Content="{Binding Label}" Margin="0,0,12,4" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -83,14 +84,17 @@
             <TextBlock Text="{Binding Error}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" IsVisible="{Binding HasError}" />
 
             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                <atom:Button SizeType="Small" Color="Default" Variant="Text" Command="{Binding CancelCommand}" Content="{loc:TKCodeLangResource Cancel}" />
-                <atom:Button SizeType="Small" Color="Default" Variant="Outlined" Command="{Binding DeclineCommand}" Content="{loc:TKCodeLangResource McpElicitDecline}" />
-                <atom:Button SizeType="Small" Color="Default" Variant="Solid" Command="{Binding SubmitCommand}" IsVisible="{Binding IsForm}"
-                             IsEnabled="{Binding CanSubmit}" Content="{loc:TKCodeLangResource McpElicitSubmit}" />
-                <atom:Button SizeType="Small" Color="Default" Variant="Solid" Command="{Binding SubmitCommand}" IsVisible="{Binding IsUrl}"
-                             IsEnabled="{Binding CanSubmit}" Content="{loc:TKCodeLangResource McpElicitOpenUrl}">
-                    <atom:Button.Icon><icons:LucideIcon Kind="ExternalLink" /></atom:Button.Icon>
-                </atom:Button>
+                <arc:Button Variant="Ghost" Size="Small" Command="{Binding CancelCommand}" Content="{loc:TKCodeLangResource Cancel}" />
+                <arc:Button Variant="Secondary" Size="Small" Command="{Binding DeclineCommand}" Content="{loc:TKCodeLangResource McpElicitDecline}" />
+                <arc:Button Variant="Primary" Size="Small" Command="{Binding SubmitCommand}" IsVisible="{Binding IsForm}"
+                            IsEnabled="{Binding CanSubmit}" Content="{loc:TKCodeLangResource McpElicitSubmit}" />
+                <arc:Button Variant="Primary" Size="Small" Command="{Binding SubmitCommand}" IsVisible="{Binding IsUrl}"
+                            IsEnabled="{Binding CanSubmit}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="ExternalLink" />
+                        <TextBlock Text="{loc:TKCodeLangResource McpElicitOpenUrl}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </arc:Button>
             </StackPanel>
         </StackPanel>
     </Border>

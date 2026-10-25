@@ -57,11 +57,23 @@ public sealed class ExternalAgent : IExternalAgentLoop, IRuntimeHost
     /// <summary>计划审批（Claude ExitPlanMode → TKCode 审批面板，docs/design/plan-mode.md §15）；批准时宿主切换模式与权限。</summary>
     public Func<RuntimePlanReviewRequest, CancellationToken, Task<PlanReviewResult>>? PlanReviewHandler { get; set; }
 
+    /// <summary>子 Agent 的转录（由 Host 设置，docs/design/subagent-view.md §5.1）。</summary>
+    public Func<string, string, string?, RuntimeSubagent?>? SubagentHandler { get; set; }
+
     /// <summary>运行时自己进入（true）或离开（false）了 plan 模式。</summary>
     public event Action<bool>? PlanModeChanged;
 
     /// <summary>启动 CLI 时注入的 TKCode MCP 桥接（返回 null 表示不注入）。</summary>
     public Func<McpBridgeLaunch?>? McpBridge { get; set; }
+
+    /// <summary>主文件夹以外的工作区目录，每轮开始前取一次（docs/design/projects.md §6.8）；null 表示没有。</summary>
+    public Func<IReadOnlyList<string>>? AdditionalDirectories { get; set; }
+
+    /// <summary>当前会话启动时使用的目录；变化后（且会话不能每轮更新目录时）下一轮之前重启会话。</summary>
+    private IReadOnlyList<string> _sessionDirectories = [];
+
+    /// <summary>重启不会丢掉上下文：还没有原生会话，或运行时能按原生会话 id 恢复。</summary>
+    private bool CanRestart => _nativeSessionId is null || _runtime.Descriptor.Capabilities.SupportsResume;
 
     // ---------------- 模式与命令（docs/design/composer.md §11） ----------------
 
@@ -280,6 +292,7 @@ public sealed class ExternalAgent : IExternalAgentLoop, IRuntimeHost
         {
             options = new TurnOptions(Model, ThinkingLevel, FastMode, PermissionMode) { Mode = _mode };
         }
+        options = options with { AdditionalDirectories = AdditionalDirectories?.Invoke() ?? [] };
         var outgoing = WithModeReminder(message, out var reminder);
         var writer = new TurnWriter(Model, e => EmitAsync(e), m =>
         {
@@ -322,13 +335,19 @@ public sealed class ExternalAgent : IExternalAgentLoop, IRuntimeHost
         {
             if (_session is { } existing)
             {
-                return existing;
+                if (existing.AppliesDirectoriesPerTurn || _sessionDirectories.SequenceEqual(options.AdditionalDirectories) || !CanRestart)
+                {
+                    return existing;
+                }
+                // 项目的文件夹或本会话的文件夹变了：用原生会话 id 重启，新的目录在这一轮生效（docs/design/projects.md §6.8）
+                await ResetSessionAsync().ConfigureAwait(false);
             }
             var session = await _runtime.StartSessionAsync(new RuntimeSessionRequest(_cwd, options, _nativeSessionId, this, McpBridge?.Invoke()), ct)
                 .ConfigureAwait(false);
             lock (_gate)
             {
                 _session = session;
+                _sessionDirectories = options.AdditionalDirectories;
             }
             if (session.NativeSessionId is { } id)
             {
@@ -467,6 +486,8 @@ public sealed class ExternalAgent : IExternalAgentLoop, IRuntimeHost
     }
 
     void IRuntimeHost.OnPlanModeChanged(bool planMode) => PlanModeChanged?.Invoke(planMode);
+
+    RuntimeSubagent? IRuntimeHost.OpenSubagent(string key, string name, string? model) => SubagentHandler?.Invoke(key, name, model);
 
     async ValueTask<RuntimeElicitationResult> IRuntimeHost.RequestElicitationAsync(RuntimeElicitationRequest request,
         CancellationToken cancellationToken)

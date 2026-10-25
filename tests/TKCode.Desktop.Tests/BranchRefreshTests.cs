@@ -14,11 +14,10 @@ public sealed class BranchRefreshTests
     public void Picker_Reloads_When_Opened()
     {
         var project = NewRepository();
-        var workspace = new WorkspaceInfo(project, "demo");
         BranchPickerViewModel? picker = null;
         picker = new BranchPickerViewModel(_ => Task.FromResult<string?>(null), () => false,
-            () => picker!.Load(workspace.ReadBranch(), workspace.ReadBranches()));
-        picker.Load(workspace.ReadBranch(), workspace.ReadBranches());
+            () => picker!.Load(GitRepository.ReadBranch(project), GitRepository.ReadBranches(project)));
+        picker.Load(GitRepository.ReadBranch(project), GitRepository.ReadBranches(project));
         Assert.Equal("main", picker.Current);
         Assert.DoesNotContain(picker.Items, b => b.Name == "topic");
 
@@ -38,12 +37,11 @@ public sealed class BranchRefreshTests
     public void Picker_Load_Keeps_Items_When_Nothing_Changed()
     {
         var project = NewRepository();
-        var workspace = new WorkspaceInfo(project, "demo");
         var picker = new BranchPickerViewModel(_ => Task.FromResult<string?>(null), () => false, () => { });
-        picker.Load(workspace.ReadBranch(), workspace.ReadBranches());
+        picker.Load(GitRepository.ReadBranch(project), GitRepository.ReadBranches(project));
         var first = picker.Items.ToArray();
 
-        picker.Load(workspace.ReadBranch(), workspace.ReadBranches());
+        picker.Load(GitRepository.ReadBranch(project), GitRepository.ReadBranches(project));
 
         Assert.Equal(first, picker.Items);
     }
@@ -57,7 +55,7 @@ public sealed class BranchRefreshTests
 
         Git(project, "switch", "-q", "-c", "topic");
         Assert.True(await changed.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken), "switch -c 后应收到通知");
-        Assert.Equal("topic", new WorkspaceInfo(project, "demo").ReadBranch());
+        Assert.Equal("topic", GitRepository.ReadBranch(project));
 
         while (changed.CurrentCount > 0)
         {
@@ -65,7 +63,7 @@ public sealed class BranchRefreshTests
         }
         Git(project, "branch", "another");
         Assert.True(await changed.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken), "branch 后应收到通知");
-        Assert.Contains("another", new WorkspaceInfo(project, "demo").ReadBranches());
+        Assert.Contains("another", GitRepository.ReadBranches(project));
     }
 
     [Fact]
@@ -77,16 +75,14 @@ public sealed class BranchRefreshTests
         Git(main, "worktree", "add", "-q", "-b", "wt-branch", worktree);
         Assert.True(File.Exists(Path.Combine(worktree, ".git")), "worktree 的 .git 应是文件");
 
-        var info = new WorkspaceInfo(worktree, "wt");
-
         // HEAD 来自 worktree 自己的 git 目录，分支列表来自主仓库
-        Assert.Equal("wt-branch", info.ReadBranch());
-        Assert.Equal(["feature", "main", "wt-branch"], info.ReadBranches());
+        Assert.Equal("wt-branch", GitRepository.ReadBranch(worktree));
+        Assert.Equal(["feature", "main", "wt-branch"], GitRepository.ReadBranches(worktree));
 
         Git(worktree, "switch", "-q", "-c", "topic");
-        Assert.Equal("topic", info.ReadBranch());
-        Assert.Contains("topic", info.ReadBranches());
-        Assert.Equal("main", new WorkspaceInfo(main, "main").ReadBranch());
+        Assert.Equal("topic", GitRepository.ReadBranch(worktree));
+        Assert.Contains("topic", GitRepository.ReadBranches(worktree));
+        Assert.Equal("main", GitRepository.ReadBranch(main));
     }
 
     [Fact]
@@ -100,10 +96,8 @@ public sealed class BranchRefreshTests
         Git(work, "branch", "feature");
         Assert.True(File.Exists(Path.Combine(work, ".git")));
 
-        var info = new WorkspaceInfo(work, "work");
-
-        Assert.Equal("main", info.ReadBranch());
-        Assert.Equal(["feature", "main"], info.ReadBranches());
+        Assert.Equal("main", GitRepository.ReadBranch(work));
+        Assert.Equal(["feature", "main"], GitRepository.ReadBranches(work));
     }
 
     [Fact]
@@ -124,7 +118,7 @@ public sealed class BranchRefreshTests
         }
         Git(main, "branch", "from-main");
         Assert.True(await changed.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken), "主仓库里新建分支后应收到通知");
-        Assert.Contains("from-main", new WorkspaceInfo(worktree, "wt").ReadBranches());
+        Assert.Contains("from-main", GitRepository.ReadBranches(worktree));
     }
 
     [Fact]

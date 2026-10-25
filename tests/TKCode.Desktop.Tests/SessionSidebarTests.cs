@@ -107,11 +107,16 @@ public sealed class SessionSidebarTests
             HeadlessApp.Save(window, "sidebar-pinned");
 
             // 右键菜单与行内重命名的外观
-            var row = window.GetVisualDescendants().OfType<Button>().First(b => b.DataContext == conversation.Sessions[1]);
-            row.ContextMenu!.Open(row);
+            var menu = window.GetVisualDescendants().OfType<TKCode.Arc.ContextMenu>().First(m => m.DataContext == conversation.Sessions[1]);
+            menu.Open(null, TKCode.Arc.MenuOpenFocus.Surface);
             await Settle();
+            Assert.True(menu.IsOpen);
+            var entries = menu.Items.OfType<TKCode.Arc.MenuEntry>().ToList();
+            Assert.Equal(6, entries.Count);
+            Assert.Same(conversation.Sessions[1].TogglePinCommand, entries.Single(e => Equals(e.Header, conversation.Sessions[1].PinMenuText)).Command);
+            Assert.Same(conversation.Sessions[1].DeleteCommand, entries[^1].Command);
             HeadlessApp.Save(window, "sidebar-context-menu");
-            row.ContextMenu.Close();
+            menu.Close();
             conversation.Sessions[1].BeginRenameCommand.Execute(null);
             await Settle();
             HeadlessApp.Save(window, "sidebar-renaming");

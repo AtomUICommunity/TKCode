@@ -19,6 +19,7 @@ public sealed class TranscriptAdapter
     private readonly HashSet<AssistantMessageItemViewModel> _watched = [];
     private readonly Dictionary<AssistantBlockViewModel, ActivityGroupViewModel> _groups = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<ToolCallBlockViewModel, TranscriptItemViewModel> _cards = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<ToolCallBlockViewModel, SubagentGroupViewModel> _subagentGroups = new(ReferenceEqualityComparer.Instance);
     private SessionViewModel? _session;
     private bool _attaching;
 
@@ -42,6 +43,10 @@ public sealed class TranscriptAdapter
                         plan.RefreshLanguage();
                         break;
                 }
+            }
+            foreach (var group in _subagentGroups.Values)
+            {
+                group.RefreshLanguage();
             }
         };
     }
@@ -69,6 +74,7 @@ public sealed class TranscriptAdapter
         _cache.Clear();
         _groups.Clear();
         _cards.Clear();
+        _subagentGroups.Clear();
         _session = session;
         if (session is not null)
         {
@@ -126,19 +132,43 @@ public sealed class TranscriptAdapter
                 _ => new ContentEntry(item),
             };
 
+    // 任务清单由任务球展示；仅在转录投影中隐藏 bookkeeping 调用，原始块与结果仍留给会话处理。
+    private static bool IsHidden(AssistantBlockViewModel block) =>
+        block is ToolCallBlockViewModel { Category: ToolCategory.Plan };
+
     /// <summary>
-    /// 提问、进入 Plan 模式的确认与计划审批：显示为独立的卡片，不并入活动组
-    /// （docs/design/ask-user.md §7.4、docs/design/plan-mode.md §14.2）。
+    /// 提问、进入 Plan 模式的确认、计划审批与子 Agent：显示为独立的卡片，不并入活动组
+    /// （docs/design/ask-user.md §7.4、docs/design/plan-mode.md §14.2、docs/design/subagent-view.md §6.2）。
     /// </summary>
     private static bool IsCard(AssistantBlockViewModel block) =>
-        block is ToolCallBlockViewModel { Category: ToolCategory.Question or ToolCategory.EnterPlan or ToolCategory.PlanReview };
+        block is ToolCallBlockViewModel { Category: ToolCategory.Question or ToolCategory.EnterPlan or ToolCategory.PlanReview or ToolCategory.Task };
+
+    private static bool IsSubagent(AssistantBlockViewModel block) =>
+        block is ToolCallBlockViewModel { Category: ToolCategory.Task };
+
+    /// <summary>连续的子 Agent 合为一组（按组内第一个工具调用缓存）。</summary>
+    private SubagentGroupViewModel SubagentGroupFor(List<AssistantBlockViewModel> calls)
+    {
+        var first = (ToolCallBlockViewModel)calls[0];
+        if (!_subagentGroups.TryGetValue(first, out var group))
+        {
+            group = _subagentGroups[first] = new SubagentGroupViewModel();
+        }
+        group.SetAgents(calls.Select(c => (SubagentCardViewModel)CardFor(c)).ToList());
+        return group;
+    }
 
     private TranscriptItemViewModel CardFor(AssistantBlockViewModel block)
     {
         var call = (ToolCallBlockViewModel)block;
         if (!_cards.TryGetValue(call, out var card))
         {
-            card = _cards[call] = call.Category == ToolCategory.PlanReview ? new PlanCardViewModel(call) : new QuestionCardViewModel(call);
+            card = _cards[call] = call.Category switch
+            {
+                ToolCategory.PlanReview => new PlanCardViewModel(call),
+                ToolCategory.Task => new SubagentCardViewModel(call),
+                _ => new QuestionCardViewModel(call),
+            };
         }
         return card;
     }
@@ -184,10 +214,22 @@ public sealed class TranscriptAdapter
     private void EmitLiveTurn(SessionViewModel session, IList<TranscriptItemViewModel> items, int start, List<TranscriptEntry> desired)
     {
         var pending = new List<AssistantBlockViewModel>();
+        var agents = new List<AssistantBlockViewModel>();
+
+        // 收集到的连续子 Agent：遇到其他任何条目时结束一组
+        void FlushAgents()
+        {
+            if (agents.Count > 0)
+            {
+                desired.Add(EntryFor(SubagentGroupFor(agents)));
+                agents.Clear();
+            }
+        }
 
         // 收集到的思考 / 工具步骤：遇到正文、消息底栏或下一条用户消息时结束一个组
         void Flush(bool trailing)
         {
+            FlushAgents();
             if (pending.Count == 0)
             {
                 return;
@@ -217,10 +259,23 @@ public sealed class TranscriptAdapter
                 Watch(message);
                 foreach (var block in message.Blocks)
                 {
+                    if (IsHidden(block))
+                    {
+                        continue;
+                    }
                     if (block is TextBlockViewModel)
                     {
                         Flush(trailing: false);
                         desired.Add(EntryFor(block));
+                    }
+                    else if (IsSubagent(block))
+                    {
+                        // 子 Agent 之间没有其他条目时合为一组（此时 pending 为空，Flush 不会提前结束这一组）
+                        if (pending.Count > 0)
+                        {
+                            Flush(trailing: false);
+                        }
+                        agents.Add(block);
                     }
                     else if (IsCard(block))
                     {
@@ -229,6 +284,7 @@ public sealed class TranscriptAdapter
                     }
                     else
                     {
+                        FlushAgents();
                         pending.Add(block);
                     }
                 }
@@ -283,7 +339,7 @@ public sealed class TranscriptAdapter
                 case AssistantMessageItemViewModel message:
                     Watch(message);
                     messages.Add(message);
-                    blocks.AddRange(message.Blocks);
+                    blocks.AddRange(message.Blocks.Where(block => !IsHidden(block)));
                     break;
                 default:
                     others.Add(items[i]);
@@ -300,17 +356,30 @@ public sealed class TranscriptAdapter
         var fold = last < 0 ? blocks : blocks.Where((_, index) => index != last).ToList();
         if (fold.Count > 0)
         {
-            if (!_groups.TryGetValue(fold[0], out var group))
-            {
-                group = _groups[fold[0]] = new ActivityGroupViewModel();
-            }
-            group.SetSteps(fold);
+            var group = WorkGroupFor(fold);
+            // 先收起再换内容：收起期间组内保持原样（展开时才同步步骤），就地收起的动画不会跳动
             group.SetWorked(Elapsed(messages));
+            group.SetSteps(fold);
             desired.Add(EntryFor(group));
         }
+        var agents = new List<AssistantBlockViewModel>();
         foreach (var card in cards)
         {
+            if (IsSubagent(card))
+            {
+                agents.Add(card);
+                continue;
+            }
+            if (agents.Count > 0)
+            {
+                desired.Add(EntryFor(SubagentGroupFor(agents)));
+                agents.Clear();
+            }
             desired.Add(EntryFor(CardFor(card)));
+        }
+        if (agents.Count > 0)
+        {
+            desired.Add(EntryFor(SubagentGroupFor(agents)));
         }
         if (last >= 0)
         {
@@ -328,6 +397,28 @@ public sealed class TranscriptAdapter
         {
             desired.Add(EntryFor(other));
         }
+    }
+
+    /// <summary>
+    /// 已结束一段的工作空间组（按第一个块缓存）。刚结束的一轮沿用这段里最后一个活动组：同一行就地收起成“已工作 …”，
+    /// 有收起动画（组外并入的正文、单独的思考直接消失）；都没有时新建（加载历史）。
+    /// 沿用时把组的键移到 fold[0]，每个组只有一个键：否则一轮结束后又无用户消息地继续运行（后台任务通知）时，
+    /// 进行中的多个活动组会按不同的键取到同一个组，条目重复。
+    /// </summary>
+    private ActivityGroupViewModel WorkGroupFor(List<AssistantBlockViewModel> fold)
+    {
+        if (_groups.TryGetValue(fold[0], out var group) && group.IsTurnWork)
+        {
+            return group;
+        }
+        for (var i = fold.Count - 1; i >= 0; i--)
+        {
+            if (_groups.Remove(fold[i], out var live))
+            {
+                return _groups[fold[0]] = live;
+            }
+        }
+        return _groups[fold[0]] = new ActivityGroupViewModel();
     }
 
     private static TimeSpan Elapsed(IReadOnlyList<AssistantMessageItemViewModel> messages)
@@ -350,8 +441,9 @@ public sealed class TranscriptAdapter
         }
     }
 
-    // 增量同步：保留共同前缀与共同后缀，只替换中间部分。流式输出时通常只是在末尾追加，
-    // 加载更早的历史时只是在开头插入，已有条目（及其行与视图）都不会被重建。
+    // 增量同步：保留共同前缀与共同后缀；中间部分只删去不再需要的条目、插入新条目，两边都有的条目原地保留
+    // （一轮结束时进行中的活动组就地变成工作空间组，行与视图不重建，收起动画照常播放）。
+    // 流式输出时通常只是在末尾追加，加载更早的历史时只是在开头插入，已有条目（及其行与视图）都不会被重建。
     private void Sync(List<TranscriptEntry> desired)
     {
         var prefix = 0;
@@ -365,20 +457,52 @@ public sealed class TranscriptAdapter
         {
             suffix++;
         }
-        var removeEnd = _target.Count - suffix;
-        for (var i = removeEnd - 1; i >= prefix; i--)
+        var end = desired.Count - suffix;
+        var keep = new HashSet<TranscriptEntry>(ReferenceEqualityComparer.Instance);
+        for (var i = prefix; i < end; i++)
         {
-            _target.RemoveAt(i);
+            keep.Add(desired[i]);
+        }
+        for (var i = _target.Count - suffix - 1; i >= prefix; i--)
+        {
+            if (!keep.Contains(_target[i]))
+            {
+                _target.RemoveAt(i);
+            }
         }
         // 会话进行中追加的条目播入场动画；初次挂载与加载更早的历史不播
         var animate = !_attaching && _session is { IsLoadingEarlier: false };
-        for (var i = prefix; i < desired.Count - suffix; i++)
+        for (var i = prefix; i < end; i++)
         {
-            if (animate && desired[i] is ContentEntry { Content: { } content })
+            var entry = desired[i];
+            if (i < _target.Count && ReferenceEquals(_target[i], entry))
+            {
+                continue;
+            }
+            // 保留的条目顺序变了：移动（不删除，行与视图保留）
+            var at = IndexOf(entry, i + 1, _target.Count - suffix);
+            if (at >= 0)
+            {
+                _target.Move(at, i);
+                continue;
+            }
+            if (animate && entry is ContentEntry { Content: { } content })
             {
                 Motion.Entrance.Mark(content);
             }
-            _target.Insert(i, desired[i]);
+            _target.Insert(i, entry);
         }
+    }
+
+    private int IndexOf(TranscriptEntry entry, int start, int end)
+    {
+        for (var i = start; i < end; i++)
+        {
+            if (ReferenceEquals(_target[i], entry))
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 }

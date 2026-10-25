@@ -228,7 +228,7 @@ record CompletionItem(string Id, string Title, string? Subtitle, string Icon, st
 
 ### 8.3 发送
 
-- 文件 tag 序列化为 `@相对路径`（相对于 cwd；路径含空白时为 `@"相对路径"`）；文件夹在末尾加 `/`。**不读取文件内容**。
+- 文件 tag 序列化为 `@相对路径`（相对于 cwd；路径含空白时为 `@"相对路径"`）；文件夹在末尾加 `/`。**不读取文件内容**。多文件夹项目中其他文件夹里的文件序列化为绝对路径，补全列表里显示为「文件夹名/相对路径」（docs/design/projects.md §10.2）。
 - 内置 Agent 的系统提示里加一句：用户消息中的 `@path` 是指向工作区文件的引用，需要时用 read、list 等工具读取。
 - 外部运行时同样只发文本。Codex 的 `turn/start` 输入支持 `mention {name, path}` 条目，可以额外附上（只是提示信息，不包含文件内容）。
 
@@ -526,7 +526,8 @@ Load a skill's instructions. Returns the content of its SKILL.md and the absolut
 ### 18.7 `@` 引用与 command
 
 - 在 `rules` 节加一条通用规则（这一条是 §8.3 原本就计划要加的）：
-  `In user messages, @path refers to a file or directory in the workspace, relative to the working directory. Read it with your tools when you need its contents; the message only carries the path.`
+  `In user messages, @path refers to a file or directory in the workspace: a relative path is relative to the primary working directory, an absolute path is used as is. Read it with your tools when you need its contents; the message only carries the path.`
+  （多文件夹项目引入后的版本，见 docs/design/projects.md §7.2。）
 - command 的 `.md` 正文是用户自己写的提示词，原样放在用户文字之前，不加任何包装。
 
 ### 18.8 外部运行时的模式说明

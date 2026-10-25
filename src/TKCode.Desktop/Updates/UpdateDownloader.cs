@@ -72,6 +72,8 @@ public sealed class UpdateDownloader(HttpClient http)
                 var buffer = new byte[BufferSize];
                 var written = offset;
                 progress?.Report(asset.Size == 0 ? 0 : (double)written / asset.Size);
+                // 每读一块（80KB）都上报的话，快网速下每秒几百次，每次都在 UI 线程刷新卡片文字：只在千分比变化时上报
+                var reported = asset.Size == 0 ? 0 : written * 1000 / asset.Size;
                 int read;
                 try
                 {
@@ -83,7 +85,12 @@ public sealed class UpdateDownloader(HttpClient http)
                         {
                             break;
                         }
-                        progress?.Report((double)written / asset.Size);
+                        var permille = written * 1000 / asset.Size;
+                        if (permille != reported || written == asset.Size)
+                        {
+                            reported = permille;
+                            progress?.Report((double)written / asset.Size);
+                        }
                     }
                 }
                 catch (Exception ex) when (ex is HttpRequestException or IOException && !cancellationToken.IsCancellationRequested)

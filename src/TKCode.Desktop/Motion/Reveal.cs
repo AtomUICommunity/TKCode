@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 
 namespace TKCode.Desktop.Motion;
@@ -8,11 +9,16 @@ namespace TKCode.Desktop.Motion;
 /// 展开 / 收起容器：替代 IsVisible="{Binding IsExpanded}"。
 /// 占用的尺寸随进度从 0 变到内容尺寸（周围布局跟着平滑重排），内容同时淡入并从 Offset 处滑到原位；收起播完才隐藏内容。
 /// Orientation=Horizontal 时按宽度展开（侧栏）。
+/// 设置 ContentTemplate 时内容按需创建：展开时才创建，收起播完后释放。
 /// </summary>
 public class Reveal : Decorator, IMotionGated
 {
     public static readonly StyledProperty<bool> IsOpenProperty =
         AvaloniaProperty.Register<Reveal, bool>(nameof(IsOpen), defaultValue: true);
+
+    /// <summary>按需创建的内容（DataContext 继承自 Reveal）：长列表里大量收起的行不占视图内存，收起动画期间内容仍在。</summary>
+    public static readonly StyledProperty<IDataTemplate?> ContentTemplateProperty =
+        AvaloniaProperty.Register<Reveal, IDataTemplate?>(nameof(ContentTemplate));
 
     public static readonly StyledProperty<Orientation> OrientationProperty =
         AvaloniaProperty.Register<Reveal, Orientation>(nameof(Orientation), Orientation.Vertical);
@@ -61,6 +67,12 @@ public class Reveal : Decorator, IMotionGated
         set => SetValue(FadeProperty, value);
     }
 
+    public IDataTemplate? ContentTemplate
+    {
+        get => GetValue(ContentTemplateProperty);
+        set => SetValue(ContentTemplateProperty, value);
+    }
+
     /// <summary>当前进度（0 收起 … 1 展开，弹簧可能略微越界）。</summary>
     public double Progress => _progress.Value;
 
@@ -75,6 +87,7 @@ public class Reveal : Decorator, IMotionGated
             if (!_gate.ShouldAnimate())
             {
                 _progress.Snap(open ? 1 : 0);
+                ReleaseIfClosed();
                 return;
             }
             if (open && Child is { IsVisible: false } child)
@@ -82,11 +95,38 @@ public class Reveal : Decorator, IMotionGated
                 child.IsVisible = true;
             }
             AnimatingChanged?.Invoke(this, true);
-            _progress.AnimateTo(open ? 1 : 0, open ? MotionTokens.Standard : MotionTokens.Exit, () => AnimatingChanged?.Invoke(this, false));
+            _progress.AnimateTo(open ? 1 : 0, open ? MotionTokens.Standard : MotionTokens.Exit, () =>
+            {
+                AnimatingChanged?.Invoke(this, false);
+                ReleaseIfClosed();
+            });
         }
         else if (change.Property == ChildProperty)
         {
             OnProgress();
+        }
+        else if (change.Property == ContentTemplateProperty && change.OldValue is not null)
+        {
+            // 换模板：旧内容丢弃，需要时按新模板重新创建
+            Child = null;
+            InvalidateMeasure();
+        }
+    }
+
+    // 按需创建：展开（或收起动画还在播）时才有内容
+    private void Materialize()
+    {
+        if (Child is null && ContentTemplate is { } template && (IsOpen || _progress.IsAnimating))
+        {
+            Child = template.Build(DataContext);
+        }
+    }
+
+    private void ReleaseIfClosed()
+    {
+        if (ContentTemplate is not null && !IsOpen && !_progress.IsAnimating)
+        {
+            Child = null;
         }
     }
 
@@ -104,6 +144,7 @@ public class Reveal : Decorator, IMotionGated
 
     protected override Size MeasureOverride(Size availableSize)
     {
+        Materialize();
         if (Child is not { IsVisible: true } child)
         {
             return default;

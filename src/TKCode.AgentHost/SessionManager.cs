@@ -59,6 +59,7 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
         this.runtimes = runtimes;
         this.logger = logger;
         _titles = new SessionTitleGenerator(apis, runtimes, catalog.GetApiKey, CacheTtl);
+        Subagents = new SubagentHub(() => _client, logger);
         Coordinator = new AgentCoordinator(this, peers, logger);
         _sweeper = new Timer(_ => _ = SweepAsync(), null, SweepInterval, SweepInterval);
     }
@@ -79,14 +80,19 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
     /// <summary>外部运行时的 MCP 桥接。</summary>
     public McpBridgeServer Bridge { get; }
 
-    private ExternalAgent WithBridge(ExternalAgent agent, Func<string> sessionId, string cwd)
+    /// <summary>外部运行时的会话：注入 MCP 桥接，以及每轮重新计算的附加目录（docs/design/projects.md §6.8）。</summary>
+    private ExternalAgent WithBridge(ExternalAgent agent, SessionStore store)
     {
-        agent.McpBridge = () => Bridge.LaunchFor(sessionId(), cwd);
+        agent.McpBridge = () => Bridge.LaunchFor(store.SessionId, store.Cwd);
+        agent.AdditionalDirectories = () => DirectoriesFor(store.Cwd, store.ProjectId, store.SessionDirectories).All;
         return agent;
     }
 
     /// <summary>子 Agent 与跨会话消息。</summary>
     public AgentCoordinator Coordinator { get; }
+
+    /// <summary>子 Agent 的转录（三种运行时共用）。</summary>
+    public SubagentHub Subagents { get; }
 
     public WireApiRegistry Apis => apis;
 
@@ -143,12 +149,41 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
         }
     }
 
-    private BuiltinOptions OptionsFor(string cwd)
+    /// <summary>项目表（docs/design/projects.md §5）：Desktop 写，Host 按需读取。</summary>
+    public ProjectCatalog Projects { get; } = new();
+
+    /// <summary>
+    /// 会话工作区的附加目录（docs/design/projects.md §6.2）：所属项目的其他文件夹（每次重读项目表，跳过不存在的）、
+    /// 只给本会话追加的文件夹、settings 的全局目录；以及其中只属于本会话的那些。
+    /// </summary>
+    public (IReadOnlyList<string> All, IReadOnlyList<string> SessionOnly) DirectoriesFor(string cwd, string? projectId,
+        IReadOnlyList<string> sessionDirectories)
+    {
+        var all = new List<string>();
+        var project = Projects.Resolve(projectId, cwd);
+        if (project is not null)
+        {
+            all.AddRange(project.Folders.Where(f => !PathRules.SamePath(f, cwd) && Directory.Exists(f)));
+        }
+        all.AddRange(sessionDirectories);
+        all.AddRange(catalog.AdditionalDirectories);
+        IReadOnlyList<string> sessionOnly = project is null ? sessionDirectories : sessionDirectories.Where(d => !project.HasFolder(d)).ToArray();
+        return (all, sessionOnly);
+    }
+
+    private BuiltinOptions OptionsFor(SessionStore store) => OptionsFor(store.Cwd, store.ProjectId, store.SessionDirectories);
+
+    private BuiltinOptions OptionsFor(string cwd, string? projectId, IReadOnlyList<string> sessionDirectories)
     {
         var settings = SettingsFile.Load().Settings;
+        var workspace = new WorkspaceRoots(cwd);
+        var (all, sessionOnly) = DirectoriesFor(cwd, projectId, sessionDirectories);
+        workspace.Sync(all, sessionOnly);
         return new BuiltinOptions
         {
-            Workspace = new WorkspaceRoots(cwd, settings?.Permissions?.AdditionalDirectories),
+            Workspace = workspace,
+            // 每批用户输入之前重新计算：项目的文件夹与本会话追加的文件夹可能已经变化（§6.3）
+            AdditionalDirectories = s => DirectoriesFor(s.Cwd, s.ProjectId, s.SessionDirectories),
             Services = ServicesFor(cwd),
             AutoCompact = settings?.AutoCompact ?? true,
             CacheTtl = CacheTtl,
@@ -177,7 +212,7 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
     {
         _client = client;
         catalog.Changed += OnCatalogChanged;
-        runtimes.Changed += NotifyModelsChanged;
+        runtimes.Changed += OnRuntimesChanged;
         Mcp.Changed += OnMcpChanged;
         Assets.Changed += root =>
         {
@@ -281,6 +316,27 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
         NotifyModelsChanged();
     }
 
+    /// <summary>运行时报告的新能力也用于已打开的同模型会话，避免 options/set 仍按首次探测的旧元数据校验。</summary>
+    private void OnRuntimesChanged()
+    {
+        foreach (var entry in _sessions.Values)
+        {
+            if (entry.Session.Agent is not ExternalAgent external)
+            {
+                continue;
+            }
+            var current = external.Model;
+            if (runtimes.FindModel(external.RuntimeId, current.Id) is { } updated && !ReferenceEquals(updated.Model, current))
+            {
+                // 只替换同运行时、同 ID 的不可变元数据，不切换原生会话或重置用户参数。
+                // 活动回合已持有 TurnOptions / TurnWriter 的模型快照；新能力供后续参数校验与回合使用。
+                external.Model = updated.Model;
+            }
+        }
+        // 必须先同步会话再推送：UI 收到通知后可能立即提交新增的思考档位。
+        NotifyModelsChanged();
+    }
+
     /// <summary>模型列表变化（settings.json、目录同步、外部运行时探测完成）后推送给 UI。</summary>
     private void NotifyModelsChanged()
     {
@@ -294,12 +350,78 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
         }
     }
 
-    public AgentSession Create(string cwd, ModelInfo model) =>
-        Register(AgentSession.Create(apis, model, cwd, getApiKey: catalog.GetApiKey, options: OptionsFor(cwd)));
+    public AgentSession Create(string cwd, ModelInfo model) => CreateBuiltin(SessionStore.Create(cwd), model);
 
     /// <summary>由外部运行时承载的新会话；CLI 进程在第一次提问时启动。</summary>
-    public AgentSession CreateExternal(string cwd, IAgentRuntime runtime, ModelInfo model) =>
-        Register(AgentSession.Create(cwd, store => WithBridge(new ExternalAgent(runtime, model, cwd), () => store.SessionId, cwd)));
+    public AgentSession CreateExternal(string cwd, IAgentRuntime runtime, ModelInfo model) => CreateExternal(SessionStore.Create(cwd), runtime, model);
+
+    /// <summary>
+    /// 新会话（docs/design/projects.md §5.3、§6.4）：会话头记录所属项目，<paramref name="directories"/> 是只给本会话追加的文件夹。
+    /// <paramref name="runtime"/> 为 null 时由内置 Agent 承载。
+    /// </summary>
+    public async Task<AgentSession> CreateAsync(string cwd, ModelInfo model, IAgentRuntime? runtime, string? projectId,
+        IReadOnlyList<string>? directories, CancellationToken cancellationToken = default)
+    {
+        var store = SessionStore.Create(cwd, projectId: projectId);
+        var normalized = NormalizeDirectories(cwd, directories ?? []);
+        if (normalized.Count > 0)
+        {
+            await store.AppendDirectoriesAsync(normalized, cancellationToken);
+        }
+        return runtime is null ? CreateBuiltin(store, model) : CreateExternal(store, runtime, model);
+    }
+
+    private AgentSession CreateBuiltin(SessionStore store, ModelInfo model) =>
+        Register(AgentSession.CreateBuiltin(apis, model, store, catalog.GetApiKey, OptionsFor(store)));
+
+    private AgentSession CreateExternal(SessionStore store, IAgentRuntime runtime, ModelInfo model) =>
+        Register(AgentSession.Rebind(store, WithBridge(new ExternalAgent(runtime, model, store.Cwd), store)));
+
+    /// <summary>只给本会话追加一个文件夹（§6.4）：支持 ~ 与相对路径（基于 cwd），必须是存在的目录；已在列表中或等于 cwd 时不变。</summary>
+    public async Task<AgentSession> AddSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default)
+    {
+        var session = Get(sessionId);
+        var full = PathRules.Normalize(PathUtil.Resolve(session.Cwd, path));
+        if (!Directory.Exists(full))
+        {
+            throw new InvalidOperationException($"'{path}' is not a directory.");
+        }
+        var current = session.Store.SessionDirectories;
+        if (!PathRules.SamePath(full, session.Cwd) && !current.Any(d => PathRules.SamePath(d, full)))
+        {
+            await session.Store.AppendDirectoriesAsync([.. current, full], cancellationToken);
+        }
+        return session;
+    }
+
+    public async Task<AgentSession> RemoveSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default)
+    {
+        var session = Get(sessionId);
+        var current = session.Store.SessionDirectories;
+        if (current.Any(d => PathRules.SamePath(d, path)))
+        {
+            await session.Store.AppendDirectoriesAsync(current.Where(d => !PathRules.SamePath(d, path)).ToArray(), cancellationToken);
+        }
+        return session;
+    }
+
+    private static IReadOnlyList<string> NormalizeDirectories(string cwd, IReadOnlyList<string> directories)
+    {
+        var list = new List<string>();
+        foreach (var directory in directories)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                continue;
+            }
+            var full = PathRules.Normalize(PathUtil.Resolve(cwd, directory));
+            if (!PathRules.SamePath(full, cwd) && !list.Any(d => PathRules.SamePath(d, full)))
+            {
+                list.Add(full);
+            }
+        }
+        return list;
+    }
 
     /// <summary>打开会话文件（已打开时直接返回）。会话文件只解析一次。</summary>
     public AgentSession OpenFile(string filePath)
@@ -321,13 +443,13 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
                             ?? RuntimeModels.Placeholder(runtime, snapshot.ModelId);
                 // 第一次提问时用记录的原生会话 id 恢复
                 session = Register(AgentSession.Open(filePath, (store, s) =>
-                    WithBridge(new ExternalAgent(runtime, model, store.Cwd, s.NativeSessionId), () => store.SessionId, store.Cwd), snapshot));
+                    WithBridge(new ExternalAgent(runtime, model, store.Cwd, s.NativeSessionId), store), snapshot));
             }
             else
             {
                 // 会话记录的模型不在当前目录中（例如未配置 API Key）时退回第一个可用模型。
                 var model = catalog.Find(snapshot.ModelProvider, snapshot.ModelId) ?? catalog.Find(catalog.DefaultModelRef) ?? catalog.Models[0];
-                var options = OptionsFor(snapshot.Cwd);
+                var options = OptionsFor(snapshot.Cwd, snapshot.ProjectId, snapshot.SessionDirectories);
                 if (evicted is not null)
                 {
                     options = options with { Approvals = evicted.Approvals };
@@ -367,8 +489,8 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
         }
         logger.LogInformation("Session {SessionId} switched to {Runtime}", sessionId, runtime?.Id ?? "builtin");
         return Register(runtime is null
-            ? AgentSession.CreateBuiltin(apis, model, old.Store, catalog.GetApiKey, OptionsFor(old.Cwd))
-            : AgentSession.Rebind(old.Store, WithBridge(new ExternalAgent(runtime, model, old.Cwd), () => old.Store.SessionId, old.Cwd)));
+            ? AgentSession.CreateBuiltin(apis, model, old.Store, catalog.GetApiKey, OptionsFor(old.Store))
+            : AgentSession.Rebind(old.Store, WithBridge(new ExternalAgent(runtime, model, old.Cwd), old.Store)));
     }
 
     /// <summary>按会话文件查找已打开的会话（同一文件只允许一个 Agent 写入）。</summary>
@@ -396,6 +518,7 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
             external.PlanReviewHandler = (request, ct) =>
                 ReviewPlanAsync(session.Id, external.RuntimeId, request.ToolCallId, request.PlanPath ?? "", request.Plan, ct, allowClear: false);
             external.PlanModeChanged += planMode => _ = SyncRuntimePlanModeAsync(session.Id, planMode);
+            external.SubagentHandler = (key, name, model) => Subagents.OpenExternal(session.Id, key, session.Cwd, name, model);
             external.CommandsChanged += commands => Publish(entry,
                 new CommandsChanged(commands.Select(c => new RuntimeCommandDto(c.Name, c.Description, c.ArgumentHint)).ToList()));
         }
@@ -501,6 +624,7 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
     {
         logger.LogInformation("Closing session {SessionId}", sessionId);
         await Coordinator.CloseChildrenAsync(sessionId);
+        Subagents.Release(sessionId);
         if (_sessions.TryRemove(sessionId, out var entry))
         {
             await DisposeEntryAsync(entry);
@@ -537,12 +661,14 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
     /// <summary>
     /// 内置 Agent 的审批：按 <see cref="PermissionPolicy"/> 判定，需要询问时转给 UI；没有 UI 连接时拒绝。
     /// 子 Agent 以父会话（<paramref name="sessionId"/>）的名义请求，权限档位跟随父会话，标题前缀为子 Agent 名。
+    /// 只读命令规则只用于处于只读模式的主会话；子 Agent（包括 explore / plan）一律按父会话的档位判定（docs/design/subagent-view.md §5.7）。
     /// </summary>
     public async ValueTask<ToolCallDecision> ApproveAsync(string sessionId, AgentSession session, BeforeToolCallContext ctx, CancellationToken ct,
         string? agentName = null)
     {
         var mode = TryGet(sessionId)?.Agent.PermissionMode ?? session.Agent.PermissionMode;
-        var verdict = PermissionPolicy.Evaluate(ctx.Permission, mode, session.Workspace, session.Approvals, session.Tools?.IsReadOnly ?? false);
+        var readOnly = agentName is null && (session.Tools?.IsReadOnly ?? false);
+        var verdict = PermissionPolicy.Evaluate(ctx.Permission, mode, session.Workspace, session.Approvals, readOnly);
         if (verdict.Allowed)
         {
             return ToolCallDecision.Allow;
@@ -844,7 +970,7 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
         }
     }
 
-    private static SessionEvent? Map(AgentEvent e) => e switch
+    internal static SessionEvent? Map(AgentEvent e) => e switch
     {
         AgentStartEvent => new AgentStarted(),
         AgentEndEvent => new AgentEnded(),

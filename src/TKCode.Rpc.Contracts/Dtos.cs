@@ -160,17 +160,25 @@ public sealed record ModelsChangedNotification(IReadOnlyList<ModelDto> Models, I
 public sealed record SessionOptionsDto(string? ThinkingLevel = null, bool? FastMode = null, int? ContextWindow = null,
     string? PermissionMode = null, string? Role = null);
 
-public sealed record CreateSessionRequest(string Cwd, string ModelId, SessionOptionsDto? Options = null);
+/// <param name="Cwd">会话的 cwd：所选项目的主文件夹（docs/design/projects.md §5.3），不使用项目时为用户目录。</param>
+/// <param name="ProjectId">会话所属的项目；写进会话头，之后不变。</param>
+/// <param name="Directories">只给本会话追加的文件夹（§6.4，绝对路径）。</param>
+public sealed record CreateSessionRequest(string Cwd, string ModelId, SessionOptionsDto? Options = null, string? ProjectId = null,
+    IReadOnlyList<string>? Directories = null);
 
 /// <param name="Options">生效后的完整参数（各字段均非 null）。</param>
 /// <param name="Runtime">外部运行时 id；null 表示内置 Agent。会话内只能切换到同一运行时的模型。</param>
-public sealed record SessionDto(string SessionId, string Cwd, string ModelId, string FilePath, SessionOptionsDto Options, string? Runtime = null);
+/// <param name="ProjectId">会话头里记录的项目（旧会话为 null，归属按 §5.3 的回退规则由 UI 计算）。</param>
+/// <param name="SessionDirectories">只给本会话追加的文件夹（§6.4）。</param>
+public sealed record SessionDto(string SessionId, string Cwd, string ModelId, string FilePath, SessionOptionsDto Options, string? Runtime = null,
+    string? ProjectId = null, IReadOnlyList<string>? SessionDirectories = null);
 
 /// <param name="Title">用户重命名的标题；没有时为第一条用户消息（截断），尚无消息时为 null。</param>
 /// <param name="IsPinned">置顶。</param>
 /// <param name="HasCustomTitle">标题由用户重命名。</param>
 /// <param name="NativeSessionId">外部运行时的原生会话 id。</param>
 /// <param name="IsRunning">会话已在 Host 中打开且 Agent 正在运行。</param>
+/// <param name="ProjectId">按 docs/design/projects.md §5.3 解析出的所属项目；不属于任何项目时为 null。</param>
 public sealed record SessionSummaryDto(
     string SessionId,
     string FilePath,
@@ -182,7 +190,8 @@ public sealed record SessionSummaryDto(
     string? Runtime = null,
     bool IsPinned = false,
     bool HasCustomTitle = false,
-    string? NativeSessionId = null);
+    string? NativeSessionId = null,
+    string? ProjectId = null);
 
 /// <summary>一页会话（置顶在前，其余按最近修改倒序）。</summary>
 /// <param name="NextOffset">下一页的起始位置；null 表示没有更多。</param>
@@ -195,6 +204,11 @@ public sealed record OpenSessionResult(SessionDto Session, IReadOnlyList<History
 /// <summary>一页更早的历史（按轮次切分，每页以用户消息开头）。</summary>
 /// <param name="Start">本页第一条消息在完整历史中的位置；0 表示已到开头。</param>
 public sealed record HistoryPageDto(IReadOnlyList<HistoryMessageDto> History, int Start);
+
+/// <summary>子 Agent 的转录：已结束的消息与最近一条消息结束后的事件（按顺序应用在历史之后）。</summary>
+/// <param name="Model">模型显示名；未知时为 null。</param>
+public sealed record SubagentOpenResult(string AgentId, string Name, string? Model, IReadOnlyList<HistoryMessageDto> History,
+    IReadOnlyList<SessionEvent> Replay, bool IsRunning);
 
 /// <param name="Role">user / assistant / toolResult。</param>
 public sealed record HistoryMessageDto(

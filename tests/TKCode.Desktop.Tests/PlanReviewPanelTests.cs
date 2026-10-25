@@ -14,6 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StreamMark.Avalonia.Extensions;
 using StreamMark.Avalonia.Transcript;
+using TKCode.Arc;
+using TKCode.Arc.Motion;
 using TKCode.Desktop.Controls;
 using TKCode.Desktop.Services;
 using TKCode.Desktop.ViewModels;
@@ -208,12 +210,13 @@ public sealed class PlanReviewPanelTests
             Assert.Equal(RolePickerViewModel.Agent, session.Options.Role);
             Assert.Equal(PermissionPickerViewModel.AutoApprove, session.Options.PermissionMode);
             Assert.Equal(PermissionPickerViewModel.AutoApprove, conversation.Permission.Mode);
-            Assert.Equal(PermissionPickerViewModel.AutoApprove, provider.GetRequiredService<StateService>().Current.PermissionModes[project]);
+            Assert.Equal(PermissionPickerViewModel.AutoApprove, provider.GetRequiredService<StateService>().Current.PermissionModes[
+                provider.GetRequiredService<ProjectService>().FindByPath(project)!.Id]);
             var approvedCard = Cards<PlanCardViewModel>(window).Single(c => ReferenceEquals(c.Call, approved));
             Assert.Equal("已批准 · 自动执行", approvedCard.StatusText);
             Assert.True(approvedCard.IsEdited);
-            Assert.True(approvedCard.HasMore);
             await Settle();
+            Assert.True(PlanClamp(window, approvedCard).IsOverflowing);
             HeadlessApp.Save(window, "plan-card-transcript");
 
             // 9. 再次进入 Plan，选“清空上下文”（默认选中）：历史替换，转录里留下“已清空上下文，按计划执行”的分隔线
@@ -346,15 +349,13 @@ public sealed class PlanReviewPanelTests
             var approved = new PlanCardViewModel(approvedCall);
             Assert.Equal("已批准 · 自动执行", approved.StatusText);
             Assert.Equal("20261019T101530_ab12cd.md", approved.FileName);
-            Assert.True(approved.HasMore);
-            Assert.Equal(8, approved.BodyMarkdown.Split('\n').Length);
+            Assert.Equal($"展开全部 {approved.Plan.Split('\n').Length} 行", approved.ExpandText);
             var revised = new PlanCardViewModel(Call("ExitPlanMode", ToolCallStatus.Succeeded,
                 Details("revise", planPath, PlanText, feedback: "Keep the old cache as a fallback")));
             Assert.Equal("已退回", revised.StatusText);
             var pending = new PlanCardViewModel(Call("exit_plan_mode", ToolCallStatus.Running, Details("pending", planPath, "## Context\nShort plan.")));
             Assert.True(pending.IsPending);
             Assert.Equal("等待批准…", pending.StatusText);
-            Assert.False(pending.HasMore);
             // Claude 没有 Details 时按参数显示计划；被停止时是“已中止”
             var claude = new PlanCardViewModel(Call("ExitPlanMode", ToolCallStatus.Failed, null,
                 """{"plan":"## Plan\nDo it.","planFilePath":"/tmp/plan.md"}""", "Operation aborted."));
@@ -375,21 +376,21 @@ public sealed class PlanReviewPanelTests
             stack.Children.Add(new QuestionCardView { DataContext = enter });
             var cards = Host(new ScrollViewer { Content = new Border { Padding = new Thickness(24), Child = stack } }, 780, 900);
             await Settle();
+            // 计划正文由 Arc ExpandableContent 收起：长计划显示「展开全部 N 行」，短计划没有按钮
+            Assert.True(PlanClamp(cards, approved).IsOverflowing);
+            Assert.Equal(approved.ExpandText, PlanClamp(cards, approved).MoreLabel);
+            Assert.False(PlanClamp(cards, pending).IsOverflowing);
             await SaveBothThemesAsync(cards, "plan-card");
-            var openFile = PlanCardViewModel.OpenFile;
-            try
-            {
-                PlanCardViewModel.OpenFile = opened.Add;
-                approved.OpenCommand.Execute(null);
-                Assert.Equal([planPath, planPath], opened);
-            }
-            finally
-            {
-                PlanCardViewModel.OpenFile = openFile;
-            }
-            approved.ToggleCommand.Execute(null);
-            Assert.True(approved.IsExpanded);
-            Assert.Equal("收起", approved.ToggleText);
+            // 卡片的“打开”走工具块的 OpenFileRequested（会话把它接到右侧工作区），不再交给系统默认程序
+            approvedCall.OpenFileRequested = opened.Add;
+            approved.OpenCommand.Execute(null);
+            Assert.Equal([planPath, planPath], opened);
+            var collapsed = PlanClamp(cards, approved).Bounds.Height;
+            approved.IsExpanded = true;
+            await Settle();
+            Assert.True(PlanClamp(cards, approved).IsExpanded);
+            Assert.Equal("收起", PlanClamp(cards, approved).LessLabel);
+            Assert.True(PlanClamp(cards, approved).Bounds.Height > collapsed + 20);
             stack.Children.RemoveRange(1, 3);
             await Settle();
             await SaveBothThemesAsync(cards, "plan-card-expanded");
@@ -450,9 +451,14 @@ public sealed class PlanReviewPanelTests
         return node.ToJsonString();
     }
 
+    private static ExpandableContent PlanClamp(Visual root, PlanCardViewModel card) =>
+        root.GetVisualDescendants().OfType<PlanCardView>().Single(v => ReferenceEquals(v.DataContext, card)).FindDescendantOfType<ExpandableContent>()!;
+
     private static Window Host(Control content, double width, double height)
     {
         var window = new Window { Width = width, Height = height, Content = content };
+        // 单独的测试窗口没有 ZoomHost：和主窗口一样关掉 Arc 动效
+        ArcMotion.SetLevel(window, ArcMotionLevel.Off);
         window[!TemplatedControl.BackgroundProperty] = window.GetResourceObservable("TKCode.WindowBg").ToBinding();
         // 与主窗口一致：正文颜色由窗口的 Foreground 继承
         window[!TemplatedControl.ForegroundProperty] = window.GetResourceObservable("TKCode.TextPrimary").ToBinding();

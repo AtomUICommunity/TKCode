@@ -84,7 +84,9 @@ public sealed class JsonRpcConnection : IAsyncDisposable
     private readonly Dictionary<string, Action<JsonElement?>> _notificationHandlers = new(StringComparer.Ordinal);
     private Func<JsonElement, string, JsonElement?, CancellationToken, Task<JsonElement?>>? _fallbackRequestHandler;
     private Action<string, JsonElement?>? _fallbackNotificationHandler;
-    private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> _pending = new();
+    private sealed record PendingCall(TaskCompletionSource<JsonElement> Completion, Action<JsonElement>? OnResponse);
+
+    private readonly ConcurrentDictionary<long, PendingCall> _pending = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _incoming = new(StringComparer.Ordinal);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -162,9 +164,14 @@ public sealed class JsonRpcConnection : IAsyncDisposable
 
     // ---------------- 发起调用 ----------------
 
-    /// <summary>以原始 JSON 发起调用，返回原始 result（缺省为 Undefined）。</summary>
-    public Task<JsonElement> InvokeRawAsync(string method, JsonElement? parameters, CancellationToken cancellationToken = default) =>
-        InvokeElementAsync(method, parameters is { } p ? w => p.WriteTo(w) : null, cancellationToken);
+    /// <summary>
+    /// 以原始 JSON 发起调用，返回原始 result（缺省为 Undefined）。
+    /// 成功响应的 onResponse 在读循环中、完成调用之前同步执行，必须快速返回，不能阻塞或异步等待。
+    /// 回调异常只使本次调用失败。
+    /// </summary>
+    public Task<JsonElement> InvokeRawAsync(string method, JsonElement? parameters, CancellationToken cancellationToken = default,
+        Action<JsonElement>? onResponse = null) =>
+        InvokeElementAsync(method, parameters is { } p ? w => p.WriteTo(w) : null, cancellationToken, onResponse);
 
     /// <summary>以原始 JSON 发送通知。</summary>
     public void NotifyRaw(string method, JsonElement? parameters) =>
@@ -219,7 +226,8 @@ public sealed class JsonRpcConnection : IAsyncDisposable
             : JsonSerializer.Deserialize(result, resultInfo)!;
     }
 
-    private async Task<JsonElement> InvokeElementAsync(string method, Action<Utf8JsonWriter>? writeParams, CancellationToken cancellationToken)
+    private async Task<JsonElement> InvokeElementAsync(string method, Action<Utf8JsonWriter>? writeParams, CancellationToken cancellationToken,
+        Action<JsonElement>? onResponse = null)
     {
         if (!IsConnected)
         {
@@ -228,7 +236,7 @@ public sealed class JsonRpcConnection : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         var id = Interlocked.Increment(ref _nextId);
         var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pending[id] = tcs;
+        _pending[id] = new PendingCall(tcs, onResponse);
 
         Enqueue(w =>
         {
@@ -257,7 +265,7 @@ public sealed class JsonRpcConnection : IAsyncDisposable
                         w.WriteEndObject();
                     });
                 }
-                pending.TrySetCanceled(cancellationToken);
+                pending.Completion.TrySetCanceled(cancellationToken);
             }
         }).ConfigureAwait(false);
 
@@ -461,7 +469,7 @@ public sealed class JsonRpcConnection : IAsyncDisposable
 
     private void CompleteResponse(long id, JsonElement message)
     {
-        if (!_pending.TryRemove(id, out var tcs))
+        if (!_pending.TryRemove(id, out var pending))
         {
             return;
         }
@@ -472,10 +480,20 @@ public sealed class JsonRpcConnection : IAsyncDisposable
             var type = error.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Object && d.TryGetProperty("type", out var t)
                 ? t.GetString()
                 : null;
-            tcs.TrySetException(new RpcRemoteException(code, text, type));
+            pending.Completion.TrySetException(new RpcRemoteException(code, text, type));
             return;
         }
-        tcs.TrySetResult(message.TryGetProperty("result", out var result) ? result.Clone() : default);
+        var result = message.TryGetProperty("result", out var value) ? value.Clone() : default;
+        try
+        {
+            pending.OnResponse?.Invoke(result);
+        }
+        catch (Exception ex)
+        {
+            pending.Completion.TrySetException(ex);
+            return;
+        }
+        pending.Completion.TrySetResult(result);
     }
 
     private void HandleNotification(string method, JsonElement? parameters)
@@ -626,9 +644,9 @@ public sealed class JsonRpcConnection : IAsyncDisposable
         }
         foreach (var id in _pending.Keys)
         {
-            if (_pending.TryRemove(id, out var tcs))
+            if (_pending.TryRemove(id, out var pending))
             {
-                tcs.TrySetException(new RpcConnectionLostException(reason));
+                pending.Completion.TrySetException(new RpcConnectionLostException(reason));
             }
         }
         foreach (var cts in _incoming.Values)

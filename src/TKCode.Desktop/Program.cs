@@ -6,6 +6,7 @@ using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TKCode.Arc;
 using TKCode.Config;
 using TKCode.Desktop.Services;
 using TKCode.Desktop.Updates;
@@ -118,6 +119,8 @@ internal static class Program
             atom.WithInitialTheme(themes?.ResolveInitialThemeId() ?? ThemeService.DarkThemeId);
             atom.WithDefaultFontFamily("$Default");
             atom.UseDesktopControls();
+            // Arc 组件库（TKCode.Arc）：设置页等处的表单控件；主题令牌随 TKCodeDark / TKCodeLight 的明暗算法生成
+            atom.UseArc();
         });
 
     internal static void ConfigureServices(IServiceCollection services)
@@ -127,8 +130,11 @@ internal static class Program
         services.AddSingleton(_ => new DraftStore());
         services.AddSingleton<ThemeService>();
         services.AddSingleton<AgentHostConnection>();
-        services.AddSingleton<WorkspaceService>();
+        services.AddSingleton<ProjectService>();
         services.AddSingleton<PtyHostService>();
+        services.AddSingleton<ITrashService>(_ => TrashService.Create());
+        services.AddSingleton<IExplorerFileOperations, ExplorerFileOperations>();
+        services.AddSingleton<IExplorerPlatformActions, ExplorerPlatformActions>();
         services.AddSingleton<UpdateService>();
         services.AddSingleton<UpdatesViewModel>();
 

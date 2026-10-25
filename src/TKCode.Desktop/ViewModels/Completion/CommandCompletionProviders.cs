@@ -104,7 +104,7 @@ public sealed class BuiltinCommandProvider(IReadOnlyList<BuiltinCommandProvider.
     public sealed record Command(string Name, TKCodeLangResourceKind Description, LucideKind Icon, Action? Run, Func<bool>? IsAvailable = null);
 
     /// <summary>内置命令的名称：同名的自定义 command 被遮住。</summary>
-    public static readonly HashSet<string> Names = new(StringComparer.OrdinalIgnoreCase) { "new", "model", "fork", "role", "compact", "init", "commit", "agent", "plan", "acp" };
+    public static readonly HashSet<string> Names = new(StringComparer.OrdinalIgnoreCase) { "new", "model", "fork", "role", "compact", "init", "commit", "agent", "plan", "acp", "add-dir" };
 
     public char Trigger => '/';
 

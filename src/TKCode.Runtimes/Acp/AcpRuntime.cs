@@ -6,8 +6,8 @@ namespace TKCode.Runtimes.Acp;
 
 /// <summary>
 /// 一个原生 ACP Agent（规格 docs/protocols/acp-v1.md）。
-/// 模型列表只有建立会话后才能从 config options 得知；为避免探测时在 Agent 历史中留下空会话，
-/// 首次只提供 “Agent 默认模型”，第一个会话启动后更新并缓存到磁盘。
+/// OpenCode 可通过 models 命令提前发现模型；其他 Agent 在真实会话中从 config options 得知模型列表。
+/// 不为探测创建空会话；会话中的配置变化会持续更新模型列表并缓存到磁盘。
 /// </summary>
 public sealed class AcpRuntime(AcpAgentDefinition agent, RuntimeCache? cache = null, ExecutableLocator? locator = null) : IAgentRuntime
 {
@@ -15,6 +15,8 @@ public sealed class AcpRuntime(AcpAgentDefinition agent, RuntimeCache? cache = n
     private static readonly TimeSpan VersionTimeout = TimeSpan.FromSeconds(10);
 
     private readonly ExecutableLocator _locator = locator ?? ExecutableLocator.Default;
+    private readonly Lock _modelsGate = new();
+    private IReadOnlyList<CachedModel> _models = [];
     private RuntimeDescriptor _descriptor = new(agent.RuntimeId, agent.DisplayName, RuntimeStatus.Unknown);
 
     public string Id => agent.RuntimeId;
@@ -45,12 +47,25 @@ public sealed class AcpRuntime(AcpAgentDefinition agent, RuntimeCache? cache = n
             return _descriptor = new RuntimeDescriptor(Id, DisplayName, RuntimeStatus.Error, path, null, null,
                 $"'{Path.GetFileName(path)} --version' failed.") { Capabilities = Capabilities };
         }
-        var cached = cache?.Read(Id, path, version, RuntimeCacheJsonContext.Default.IReadOnlyListCachedModel);
-        return _descriptor = new RuntimeDescriptor(Id, DisplayName, RuntimeStatus.Ready, path, version)
+        var models = cache?.Read(Id, path, version, RuntimeCacheJsonContext.Default.IReadOnlyListCachedModel);
+        if (agent.Id == "opencode" &&
+            await OpenCodeModelDiscovery.DiscoverAsync(path, _locator, cancellationToken) is { } discovered)
         {
-            Capabilities = Capabilities,
-            Models = [DefaultModel(), .. (cached ?? []).Select(ToModel)],
-        };
+            // 每次探测都重新列举：新增 provider / 更换凭据并不会改变 CLI 版本。
+            // CLI 只提供 ID；保留真实 ACP 会话已经提供的名称、说明和推理档位。
+            var previous = (models ?? []).DistinctBy(m => m.Id).ToDictionary(m => m.Id, StringComparer.Ordinal);
+            models = discovered.Select(m => previous.GetValueOrDefault(m.Id) ?? m).ToArray();
+            cache?.Write(Id, path, version, models, RuntimeCacheJsonContext.Default.IReadOnlyListCachedModel);
+        }
+        lock (_modelsGate)
+        {
+            _models = models ?? [];
+            return _descriptor = new RuntimeDescriptor(Id, DisplayName, RuntimeStatus.Ready, path, version)
+            {
+                Capabilities = Capabilities,
+                Models = [DefaultModel(), .. _models.Select(ToModel)],
+            };
+        }
     }
 
     public async Task<IRuntimeSession> StartSessionAsync(RuntimeSessionRequest request, CancellationToken cancellationToken)
@@ -64,7 +79,10 @@ public sealed class AcpRuntime(AcpAgentDefinition agent, RuntimeCache? cache = n
             () => process.DescribeExit(DisplayName))
         {
             McpBridge = request.McpBridge,
+            AdditionalDirectories = request.Options.AdditionalDirectories,
         };
+        // 先订阅，避免漏掉 session/new 响应前后的配置通知。
+        session.ConfigChanged += UpdateModels;
         try
         {
             await session.StartAsync(request.Cwd, request.ResumeSessionId, cancellationToken);
@@ -78,31 +96,34 @@ public sealed class AcpRuntime(AcpAgentDefinition agent, RuntimeCache? cache = n
             }
             throw;
         }
-        UpdateModels(session.Config);
         return session;
     }
 
-    /// <summary>会话报告了可选模型：更新描述并缓存（下次启动即可在选择器中选择）。</summary>
+    /// <summary>真实会话的配置是权威来源：更新选择器并缓存，包括后续名称、说明和推理档位变化。</summary>
     private void UpdateModels(AcpConfigState config)
     {
         var efforts = config.ReasoningEfforts;
         var models = config.Models
             .Select(v => new CachedModel(v.Value, v.Name, v.Description, efforts.Count > 0 ? efforts : null))
             .ToArray();
-        if (models.Length == 0 || _descriptor.ExecutablePath is not { } path)
+        lock (_modelsGate)
         {
-            return;
+            if (models.Length == 0 || _descriptor.ExecutablePath is not { } path || SameModels(_models, models))
+            {
+                return;
+            }
+            cache?.Write(Id, path, _descriptor.Version, models, RuntimeCacheJsonContext.Default.IReadOnlyListCachedModel);
+            _models = models;
+            _descriptor = _descriptor with { Models = [DefaultModel(), .. models.Select(ToModel)] };
         }
-        var current = _descriptor.Models;
-        var next = models.Select(ToModel).Prepend(DefaultModel()).ToArray();
-        if (current.Select(m => (m.Id, m.Name)).SequenceEqual(next.Select(m => (m.Id, m.Name))))
-        {
-            return;
-        }
-        cache?.Write(Id, path, _descriptor.Version, models, RuntimeCacheJsonContext.Default.IReadOnlyListCachedModel);
-        _descriptor = _descriptor with { Models = next };
         DescriptorChanged?.Invoke();
     }
+
+    private static bool SameModels(IReadOnlyList<CachedModel> current, IReadOnlyList<CachedModel> next) =>
+        current.Count == next.Count && current.Zip(next).All(pair =>
+            pair.First.Id == pair.Second.Id && pair.First.Name == pair.Second.Name &&
+            pair.First.Description == pair.Second.Description &&
+            (pair.First.ReasoningEfforts ?? []).SequenceEqual(pair.Second.ReasoningEfforts ?? []));
 
     private ModelInfo DefaultModel() =>
         RuntimeModels.Create(this, DefaultModelId, "Default", $"{DisplayName} chooses the model", reasoning: false,

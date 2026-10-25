@@ -88,7 +88,7 @@ public partial class App : Application
             // 系统托盘；默认关闭窗口只隐藏，进程与会话继续运行
             // 托盘图标、窗口与更新的事件持有它，不需要另存引用
             var tray = new AppTray(this, desktop, window, userSettings, Services.GetRequiredService<UpdatesViewModel>(), mainViewModel,
-                Services.GetRequiredService<WorkspaceService>());
+                Services.GetRequiredService<ProjectService>());
             // 命令行指令（Windows 跳转列表的条目）：首次启动时带的在这里执行；之后再启动的进程把它转发给本进程
             var startup = AppCommand.Parse(desktop.Args ?? []);
             if (startup.Kind != AppCommandKind.Show)

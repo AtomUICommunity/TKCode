@@ -30,7 +30,7 @@ public sealed class GrepTool(ToolContext context) : IAgentTool
     public string ParametersSchemaJson => """
         {"type":"object","properties":{
           "pattern":{"type":"string","description":"Regular expression to search for (Rust/PCRE-like syntax), or a literal string when literal is true."},
-          "path":{"type":"string","description":"File or directory to search (defaults to the workspace root)."},
+          "path":{"type":"string","description":"File or directory to search (defaults to the primary working directory; pass an absolute path to search an additional working directory)."},
           "glob":{"type":"string","description":"Only search files matching this glob, e.g. '*.cs' or 'src/**/*.ts'."},
           "ignoreCase":{"type":"boolean","description":"Case-insensitive search."},
           "literal":{"type":"boolean","description":"Treat pattern as a literal string instead of a regular expression."},

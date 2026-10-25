@@ -45,11 +45,54 @@ public sealed partial class SettingsChoiceViewModel(string value, string label) 
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
+
+    /// <summary>Arc 的分段选择等控件对普通对象显示 ToString()。</summary>
+    public override string ToString() => Label;
+
+    /// <summary>
+    /// 选项（值与文字）没变时只更新选中状态：设置每写一次都会刷新这里，整表重建会把分段控件的容器换掉，选中条不再滑动、焦点也丢了。
+    /// 选项变了（切换语言、模型列表变化）才重建。
+    /// </summary>
+    internal static void Fill(ObservableCollection<SettingsChoiceViewModel> target, IEnumerable<(string Value, string Label)> items, string selected)
+    {
+        var list = items as IReadOnlyList<(string Value, string Label)> ?? items.ToList();
+        var same = target.Count == list.Count;
+        for (var i = 0; same && i < list.Count; i++)
+        {
+            same = target[i].Value == list[i].Value && target[i].Label == list[i].Label;
+        }
+        if (same)
+        {
+            // 先选中新的再取消旧的：中间不会出现“没有选中项”
+            foreach (var choice in target.Where(c => c.Value == selected))
+            {
+                choice.IsSelected = true;
+            }
+            foreach (var choice in target.Where(c => c.Value != selected))
+            {
+                choice.IsSelected = false;
+            }
+            return;
+        }
+        target.Clear();
+        foreach (var (value, label) in list)
+        {
+            target.Add(new SettingsChoiceViewModel(value, label) { IsSelected = value == selected });
+        }
+    }
 }
 
 public sealed partial class ProviderModelItemViewModel(ProviderModelDto model) : ObservableObject
 {
-    public ProviderModelDto Model { get; } = model;
+    public ProviderModelDto Model { get; private set; } = model;
+
+    /// <summary>Host 的新快照：原地更新这一行（行里的开关不重建，正在播放的动画和焦点都还在）。</summary>
+    public void Update(ProviderModelDto dto)
+    {
+        Model = dto;
+        IsEnabled = dto.Enabled;
+        OnPropertyChanged(string.Empty);
+    }
     public string Id => Model.Id;
     public string Name => Model.Name;
     public bool ShowId => Model.Name != Model.Id;
@@ -189,6 +232,19 @@ public sealed partial class ProviderDetailViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     public partial string ProtocolInput { get; set; }
 
+    /// <summary>协议分段选择（自定义厂商可改）：选中项跟随 <see cref="ProtocolInput"/>。</summary>
+    public IReadOnlyList<SettingsChoiceViewModel> ProtocolChoices { get; } =
+        [new("chat", "Chat Completions"), new("responses", "Responses"), new("messages", "Anthropic Messages")];
+
+    partial void OnProtocolInputChanged(string value)
+    {
+        foreach (var choice in ProtocolChoices)
+        {
+            choice.IsSelected = choice.Value == value;
+        }
+    }
+
+    /// <summary>API Key 输入框是否显示明文（Arc 密码框的显示开关，双向绑定）。</summary>
     [ObservableProperty]
     public partial bool IsKeyRevealed { get; set; }
 
@@ -256,10 +312,7 @@ public sealed partial class ProviderDetailViewModel : ObservableObject
     public void RefreshLanguage() => OnPropertyChanged(string.Empty);
 
     [RelayCommand]
-    private void ToggleKeyReveal() => IsKeyRevealed = !IsKeyRevealed;
-
-    [RelayCommand]
-    private void ChooseProtocol(string api) => ProtocolInput = api;
+    private void ChooseProtocol(SettingsChoiceViewModel choice) => ProtocolInput = choice.Value;
 
     /// <summary>尚未写入 settings.json 的厂商（从“添加厂商”选择后）：保存即添加。</summary>
     public bool IsDraft => !Dto.IsConfigured;
@@ -433,27 +486,70 @@ public sealed partial class ProviderDetailViewModel : ObservableObject
         return models;
     }
 
+    /// <summary>
+    /// 每次写设置 Host 都会推来新快照：已有的模型（按 Id）原地更新，列表只做必要的移动、插入和删除。
+    /// 整表重建会把每行的 Arc 开关销毁再创建，用户刚拨的开关动画被打断、焦点丢失。
+    /// </summary>
     private void RebuildModels()
     {
-        Models.Clear();
-        foreach (var m in Dto.Models)
+        var existing = Models.ToDictionary(m => m.Id);
+        var desired = new List<ProviderModelItemViewModel>(Dto.Models.Count);
+        foreach (var dto in Dto.Models)
         {
-            Models.Add(new ProviderModelItemViewModel(m));
+            if (existing.Remove(dto.Id, out var item))
+            {
+                item.Update(dto);
+            }
+            else
+            {
+                item = new ProviderModelItemViewModel(dto);
+            }
+            desired.Add(item);
         }
+        SyncList(Models, desired);
         RefreshVisibleModels();
     }
 
     private void RefreshVisibleModels()
     {
-        VisibleModels.Clear();
-        foreach (var m in Models.Where(m => ModelFilter.Length == 0 ||
-                                            m.Id.Contains(ModelFilter, StringComparison.OrdinalIgnoreCase) ||
-                                            m.Name.Contains(ModelFilter, StringComparison.OrdinalIgnoreCase)))
-        {
-            VisibleModels.Add(m);
-        }
+        SyncList(VisibleModels, Models.Where(m => ModelFilter.Length == 0 ||
+                                                  m.Id.Contains(ModelFilter, StringComparison.OrdinalIgnoreCase) ||
+                                                  m.Name.Contains(ModelFilter, StringComparison.OrdinalIgnoreCase)).ToList());
         OnPropertyChanged(nameof(ModelsSummary));
         OnPropertyChanged(nameof(HasModels));
+    }
+
+    /// <summary>把 <paramref name="target"/> 调整成 <paramref name="desired"/>：只移动、插入、删除变了的项，其余行的容器不动。</summary>
+    private static void SyncList<T>(ObservableCollection<T> target, IReadOnlyList<T> desired) where T : class
+    {
+        for (var i = 0; i < desired.Count; i++)
+        {
+            var at = -1;
+            for (var j = i; j < target.Count; j++)
+            {
+                if (ReferenceEquals(target[j], desired[i]))
+                {
+                    at = j;
+                    break;
+                }
+            }
+            if (at == i)
+            {
+                continue;
+            }
+            if (at > i)
+            {
+                target.Move(at, i);
+            }
+            else
+            {
+                target.Insert(i, desired[i]);
+            }
+        }
+        while (target.Count > desired.Count)
+        {
+            target.RemoveAt(target.Count - 1);
+        }
     }
 }
 
@@ -473,10 +569,11 @@ public sealed partial class ModelOverrideEditorViewModel : ObservableObject
         Images = model.Images;
         // 与默认值相同就视为“跟随”，避免把目录的固定规则（NextCoWork 的 Claude → Messages）当成用户覆盖
         var defaultApi = model.Model.DefaultApi ?? provider.Dto.Api;
+        ProviderApiText = SettingsTexts.ProviderDefault(defaultApi);
+        ApiChoices = [new("", ProviderApiText), new("chat", "Chat"), new("responses", "Responses"), new("messages", "Anthropic")];
         ApiInput = model.Model.Api is { Length: > 0 } effective && effective != defaultApi ? effective : "";
         _original = (NameInput, ContextInput, MaxTokensInput, Reasoning, Images);
         _originalApi = ApiInput;
-        ProviderApiText = SettingsTexts.ProviderDefault(defaultApi);
     }
 
     private readonly string _originalApi;
@@ -488,8 +585,19 @@ public sealed partial class ModelOverrideEditorViewModel : ObservableObject
     /// <summary>“跟随厂商（Chat）”。</summary>
     public string ProviderApiText { get; }
 
+    /// <summary>协议分段选择：第一项跟随厂商，选中项跟随 <see cref="ApiInput"/>。</summary>
+    public IReadOnlyList<SettingsChoiceViewModel> ApiChoices { get; }
+
+    partial void OnApiInputChanged(string value)
+    {
+        foreach (var choice in ApiChoices)
+        {
+            choice.IsSelected = choice.Value == value;
+        }
+    }
+
     [RelayCommand]
-    private void ChooseApi(string api) => ApiInput = api;
+    private void ChooseApi(SettingsChoiceViewModel choice) => ApiInput = choice.Value;
 
     private readonly (string Name, string Context, string MaxTokens, bool Reasoning, bool Images) _original;
 
@@ -721,7 +829,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             () => settings.Current.Agent?.Shell?.Profile, settings.SetAgentShell);
         TerminalShell = new ShellPickerViewModel(ShellUse.Terminal, TKCodeLangResourceKind.TerminalShellLabel, TKCodeLangResourceKind.TerminalShellHint,
             () => settings.Current.Terminal?.DefaultProfile, settings.SetTerminalShell);
-        Mcp = new McpSettingsViewModel(settings, host, () => conversation.Active?.Cwd ?? conversation.Workspace?.Path, logger);
+        Mcp = new McpSettingsViewModel(settings, host, () => conversation.Active?.Cwd ?? conversation.Workspace?.Primary, logger);
         Assets = new AssetsSettingsViewModel(host, settings, () => conversation.CurrentCwd, logger);
         conversation.ModelsChanged += OnModelsChanged;
         Strings.LanguageChanged += (_, _) => RefreshLanguage();
@@ -768,7 +876,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string SettingsPath => _settings.FilePath;
     public string DataDirectory => ConfigPaths.Home;
-    public string VersionText => Strings.Format(TKCodeLangResourceKind.AboutVersionFormat, TKCode.Desktop.Updates.AppVersionInfo.Display);
+    public string VersionDisplay => TKCode.Desktop.Updates.AppVersionInfo.Display;
+    public static string RepositoryUrl => $"https://github.com/{TKCode.Desktop.Updates.GitHubReleaseFeed.Repository}";
     public bool HasErrors => Errors.Count > 0;
 
     [ObservableProperty]
@@ -1124,6 +1233,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [RelayCommand]
     private void RevealSettingsFile() => OpenWithShell(Path.GetDirectoryName(SettingsPath)!);
+
+    [RelayCommand]
+    private void OpenRepository() => OpenWithShell(RepositoryUrl);
 
     private readonly Dictionary<string, ProviderDetailViewModel> _details = new(StringComparer.Ordinal);
     private ProvidersSnapshotDto? _snapshot;
@@ -1499,14 +1611,14 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(CloseToTray));
         OnPropertyChanged(nameof(OriginalImages));
         var language = _settings.Current.Language ?? "zh-CN";
-        Fill(Languages, [("zh-CN", Strings.Get(TKCodeLangResourceKind.LanguageChinese)), ("en-US", Strings.Get(TKCodeLangResourceKind.LanguageEnglish))], language);
-        Fill(Themes,
+        SettingsChoiceViewModel.Fill(Languages, [("zh-CN", Strings.Get(TKCodeLangResourceKind.LanguageChinese)), ("en-US", Strings.Get(TKCodeLangResourceKind.LanguageEnglish))], language);
+        SettingsChoiceViewModel.Fill(Themes,
         [
             (nameof(ThemeMode.System), Strings.Get(TKCodeLangResourceKind.ThemeSystem)),
             (nameof(ThemeMode.Dark), Strings.Get(TKCodeLangResourceKind.ThemeDark)),
             (nameof(ThemeMode.Light), Strings.Get(TKCodeLangResourceKind.ThemeLight)),
         ], _settings.Theme.ToString());
-        Fill(CacheTtls,
+        SettingsChoiceViewModel.Fill(CacheTtls,
         [
             ("5m", Strings.Get(TKCodeLangResourceKind.CacheTtl5m)),
             ("1h", Strings.Get(TKCodeLangResourceKind.CacheTtl1h)),
@@ -1514,9 +1626,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(UiScaleHint));
         var scale = _settings.UiScale;
         var currentStop = UiScaleLevels.Stops.Where(s => UiScaleLevels.Same(s, scale)).Select(ScaleKey).FirstOrDefault() ?? "";
-        Fill(UiScales, UiScaleLevels.Stops.Select(s => (ScaleKey(s), $"{s * 100:0}%")), currentStop);
+        SettingsChoiceViewModel.Fill(UiScales, UiScaleLevels.Stops.Select(s => (ScaleKey(s), $"{s * 100:0}%")), currentStop);
         var protocol = Protocols.FirstOrDefault(p => p.IsSelected)?.Value ?? "chat";
-        Fill(Protocols,
+        SettingsChoiceViewModel.Fill(Protocols,
         [
             ("chat", Strings.Get(TKCodeLangResourceKind.ProtocolChat)),
             ("responses", Strings.Get(TKCodeLangResourceKind.ProtocolResponses)),
@@ -1538,12 +1650,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         var models = _conversation.Picker.AllModels;
         var choices = new List<(string, string)> { ("", Strings.Get(TKCodeLangResourceKind.FirstAvailableModel)) };
         choices.AddRange(models.Select(m => (m.Ref, $"{m.ProviderName} · {m.Name}")));
-        Fill(DefaultModels, choices, _settings.Current.Model ?? "");
+        SettingsChoiceViewModel.Fill(DefaultModels, choices, _settings.Current.Model ?? "");
         DefaultModelLabel = DefaultModels.FirstOrDefault(c => c.IsSelected)?.Label ?? _settings.Current.Model ?? "";
 
         var fastChoices = new List<(string, string)> { ("", Strings.Get(TKCodeLangResourceKind.FollowSessionModel)) };
         fastChoices.AddRange(models.Where(m => m.Runtime is null).Select(m => (m.Ref, $"{m.ProviderName} · {m.Name}")));
-        Fill(FastModels, fastChoices, _settings.Current.FastModel ?? "");
+        SettingsChoiceViewModel.Fill(FastModels, fastChoices, _settings.Current.FastModel ?? "");
         FastModelLabel = FastModels.FirstOrDefault(c => c.IsSelected)?.Label ?? _settings.Current.FastModel ?? "";
     }
 
@@ -1563,21 +1675,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             p.RefreshLanguage();
         }
+        Mcp.RefreshLanguage();
         RefreshGeneral();
-        OnPropertyChanged(nameof(VersionText));
         _ = RefreshProvidersAsync();
     }
 
     private static string ScaleKey(double scale) => scale.ToString("0.##", CultureInfo.InvariantCulture);
-
-    private static void Fill(ObservableCollection<SettingsChoiceViewModel> target, IEnumerable<(string Value, string Label)> items, string selected)
-    {
-        target.Clear();
-        foreach (var (value, label) in items)
-        {
-            target.Add(new SettingsChoiceViewModel(value, label) { IsSelected = value == selected });
-        }
-    }
 
     private void OpenWithShell(string path) => ShellOpen.Open(path, _logger);
 }

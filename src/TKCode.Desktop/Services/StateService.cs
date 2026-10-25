@@ -15,10 +15,16 @@ public enum ThemeMode
 /// <summary>程序自己记录的状态（~/.tkcode/state.json），用户无需手工编辑。用户配置在 settings.json（<see cref="UserSettingsService"/>）。</summary>
 public sealed class AppState
 {
+    /// <summary>旧版的项目路径列表：只在迁移时读取（docs/design/projects.md §5.2），迁移后清空。项目在 projects.json。</summary>
     public List<string> Workspaces { get; set; } = [];
+    /// <summary>旧版：上次选择的项目路径；迁移成 <see cref="LastProjectId"/>。</summary>
     public string? LastWorkspace { get; set; }
-    /// <summary>最近使用的项目路径，最近的在前；托盘、Dock、任务栏跳转列表的项目菜单按它排序。</summary>
+    /// <summary>旧版：最近使用的项目路径；迁移成 <see cref="RecentProjects"/>。</summary>
     public List<string> RecentWorkspaces { get; set; } = [];
+    /// <summary>侧栏上次选中的项目（新会话的默认项目）。</summary>
+    public string? LastProjectId { get; set; }
+    /// <summary>最近使用的项目 id，最近的在前；托盘、Dock、任务栏跳转列表的项目菜单按它排序。</summary>
+    public List<string> RecentProjects { get; set; } = [];
     /// <summary>上次选择的模型（Ref：厂商/模型）。</summary>
     public string? LastModelId { get; set; }
     /// <summary>收藏的模型（Ref）。</summary>
@@ -27,7 +33,7 @@ public sealed class AppState
     public string? LastThinkingLevel { get; set; }
     public bool LastFastMode { get; set; }
     public int? LastContextWindow { get; set; }
-    /// <summary>每个项目（路径）上次选择的权限档位：ask / autoApprove / fullAccess。新会话沿用，包括完全授权。</summary>
+    /// <summary>每个项目（id）上次选择的权限档位：ask / autoApprove / fullAccess。新会话沿用，包括完全授权。</summary>
     public Dictionary<string, string> PermissionModes { get; set; } = [];
     /// <summary>每个工作区最近在输入框里 @ 过的路径（相对路径，目录以 / 结尾，最近的在前）。</summary>
     public Dictionary<string, List<string>> RecentMentions { get; set; } = [];
@@ -35,14 +41,13 @@ public sealed class AppState
     public UpdateRecord Update { get; set; } = new();
 
     /// <summary>把项目移到最近使用的最前面（超出上限的丢弃）。</summary>
-    public void TouchRecentWorkspace(string path)
+    public void TouchRecentProject(string id)
     {
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        RecentWorkspaces.RemoveAll(p => string.Equals(p, path, comparison));
-        RecentWorkspaces.Insert(0, path);
-        if (RecentWorkspaces.Count > 32)
+        RecentProjects.Remove(id);
+        RecentProjects.Insert(0, id);
+        if (RecentProjects.Count > 32)
         {
-            RecentWorkspaces.RemoveRange(32, RecentWorkspaces.Count - 32);
+            RecentProjects.RemoveRange(32, RecentProjects.Count - 32);
         }
     }
 }

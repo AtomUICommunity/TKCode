@@ -190,6 +190,7 @@
 | 共享滑动指示条 | `Motion/IndicatorPanel.cs` | 命令面板高亮、设置页与厂商页的分段选择、模型选择器 Provider 页签（下划线模式）；子元素用 `IndicatorPanel.IsCurrent` 报告当前项，底板弹簧滑过去 |
 | 文件树折叠退出 | `FileExplorerViewModel.CollapseAnimation` + `MainWindow.AnimateTreeCollapse` | 子节点收起高度并淡出后再移除；动画中途再次展开时恢复，不重复插入 |
 | 空状态输入框 → 底部输入框 | `Morph.Fly` | 发送第一条消息时底部输入框从居中输入框的位置落到底部 |
+| 执行中展开、完成后收起 | `ViewModels/TranscriptItems.cs`、`Controls/TranscriptAdapter.cs`、`Reveal.ContentTemplate` | 进行中的活动组只显示正在进行的步骤（`IsLive`：流式输出中的思考、执行中的工具），步骤完成后整行带动画收起、计入摘要，没有进行中的步骤时整组收起（`ShowSteps`）；点击摘要展开全部步骤。步骤行用 `Reveal` 包一层（`IsLive` 或组已展开时打开），内容用 `Reveal.ContentTemplate` 按需创建，收起播完才释放。进行中的思考 / 工具自身也自动展开（read 除外），完成后收起；用户手动展开 / 收起过的不再自动改变。一轮结束时沿用这一段最后一个活动组就地收成“已工作 …”（`Sync` 保留前后都有的条目，不删了重插；组内容不显示时 `Steps` 不同步，显示时才同步），组外并入的正文、单独思考直接消失 |
 
 注意：
 - 透明度绝不能过冲：渲染时按 0–255 换算，1.04 会溢出成接近 0。弹簧缓动只用于缩放 / 位移；AtomUI 弹层动效（`PopoverInMotion`）的透明度过渡单独换成不过冲的缓动。此前“打开下拉闪几下”就是这个原因（真实窗口逐帧取证：透明度 1.04→1.01 的几帧画面几乎全透明）。`PopoverPlacementTests` 断言透明度单调且 ≤ 1。

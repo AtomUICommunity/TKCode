@@ -232,6 +232,24 @@ public sealed class PlanModeTests
     }
 
     [Fact]
+    public async Task ReadOnlySubagents_FollowTheParentsFullAccess()
+    {
+        await using var sessions = CreateManager();
+        var client = new PlanClient(_ => Task.FromResult(PlanReviewResponse.Dismiss)) { Approve = false };
+        sessions.AttachClient(client);
+        var parent = sessions.Create(TempDir(), FakeWireApi.Models[1]);
+        SessionOptions.Apply(parent, new SessionOptionsDto(PermissionMode: "fullAccess"));
+        var handle = await sessions.Coordinator.SpawnAsync(
+            new SubagentRequest(parent.Id, "child", """mcp:bash {"command":"touch created.txt"}""", SubagentTypes.Explore, null, null),
+            CancellationToken.None);
+        var outcome = await handle.Completion.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal("completed", outcome.Status);
+        Assert.Empty(client.Approvals);
+        Assert.True(File.Exists(Path.Combine(parent.Cwd, "created.txt")));
+    }
+
+    [Fact]
     public async Task Subagents_DoNotGetPlanTools()
     {
         await using var sessions = CreateManager();

@@ -4,10 +4,11 @@
 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
-             xmlns:motion="using:TKCode.Desktop.Motion"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+             xmlns:lucide="https://github.com/AIDotNet/TKCode.Arc/lucide"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:icons="using:TKCode.Desktop.Icons"
+             xmlns:controls="using:TKCode.Desktop.Controls"
              xmlns:loc="using:TKCode.Desktop.Localization"
              x:Class="TKCode.Desktop.Views.McpSettingsView"
              x:DataType="vm:McpSettingsViewModel">
@@ -22,40 +23,30 @@
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="Margin" Value="10,12,0,4" />
         </Style>
-        <Style Selector="Border.pill">
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="8,2" />
-            <Setter Property="Background" Value="{DynamicResource TKCode.MenuInputBg}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
+        <!-- 状态徽标：默认中性色，按服务器状态换成成功 / 警告 / 危险色 -->
+        <Style Selector="arc|Badge.ok">
+            <Setter Property="Tone" Value="Success" />
         </Style>
-        <Style Selector="Border.tag">
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="5,0" />
-            <Setter Property="Background" Value="{DynamicResource TKCode.MenuInputBg}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
+        <Style Selector="arc|Badge.warn">
+            <Setter Property="Tone" Value="Warning" />
         </Style>
-        <Style Selector="atom|TextArea.multiline">
-            <Setter Property="AcceptsReturn" Value="True" />
-            <Setter Property="TextWrapping" Value="NoWrap" />
-            <Setter Property="MinLines" Value="2" />
-            <Setter Property="MaxLines" Value="8" />
+        <Style Selector="arc|Badge.bad">
+            <Setter Property="Tone" Value="Danger" />
+        </Style>
+        <Style Selector="arc|Textarea.multiline">
             <Setter Property="FontFamily" Value="{StaticResource TKCode.MonoFont}" />
             <Setter Property="FontSize" Value="12" />
         </Style>
     </UserControl.Styles>
 
-    <Panel>
     <Grid ColumnDefinitions="248,*" Margin="24,0,24,0">
         <!-- ======== 左栏：服务器列表 ======== -->
         <Border Classes="card" Margin="0,0,0,24">
             <DockPanel>
-                <Border DockPanel.Dock="Top" Classes="inputBox" Margin="8,8,8,0">
-                    <Grid ColumnDefinitions="Auto,*" Margin="8,0,0,0">
-                        <icons:LucideIcon Kind="Search" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
-                        <atom:LineEdit Grid.Column="1" StyleVariant="Borderless" Background="Transparent" SizeType="Small"
-                                       PlaceholderText="{loc:TKCodeLangResource SearchMcpServers}" Text="{Binding Search, Mode=TwoWay}" />
-                    </Grid>
-                </Border>
+                <arc:SearchField DockPanel.Dock="Top" Size="Small" Margin="8,8,8,0"
+                                 Label="{loc:TKCodeLangResource SearchMcpServers}" IsLabelVisible="False"
+                                 Placeholder="{loc:TKCodeLangResource SearchMcpServers}" ClearText="{loc:TKCodeLangResource ClearSearch}"
+                                 Text="{Binding Search, Mode=TwoWay}" />
                 <StackPanel DockPanel.Dock="Bottom" Margin="6">
                     <Button Theme="{StaticResource TKCode.RowButton}" Command="{Binding AddCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
@@ -79,15 +70,16 @@
                     </Grid>
                 </StackPanel>
                 <Border DockPanel.Dock="Bottom" Height="1" Background="{DynamicResource TKCode.Divider}" />
-                <ScrollViewer atom:ScrollViewer.IsLiteMode="True">
-                    <StackPanel Margin="6,0,6,6">
+                <!-- Arc 浮动滚动条：右侧留出 10px，悬停时它不会盖住状态点 -->
+                <arc:ScrollArea>
+                    <StackPanel Margin="6,0,10,6">
                         <TextBlock Classes="groupLabel" Text="{loc:TKCodeLangResource McpGlobalGroup}" />
                         <ItemsControl ItemsSource="{Binding GlobalServers}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:McpServerItemViewModel">
                                     <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" MinHeight="32" Margin="0,1"
                                             Command="{Binding $parent[UserControl].((vm:McpSettingsViewModel)DataContext).SelectCommand}"
-                                            CommandParameter="{Binding}" ToolTip.Tip="{Binding StatusText}">
+                                            CommandParameter="{Binding}" arc:Tooltip.Tip="{Binding StatusText}">
                                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                             <icons:LucideIcon Kind="Plug" Width="14" Height="14" StrokeBrush="{DynamicResource TKCode.TextSecondary}" VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="10,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
@@ -104,8 +96,8 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource McpNoServers}" TextWrapping="Wrap" Margin="10,4,10,0"
-                                   IsVisible="{Binding HasNoServers}" />
+                        <arc:EmptyState Icon="{lucide:LucideGeometry Kind=Plug}" Description="{loc:TKCodeLangResource McpNoServers}"
+                                        Margin="0,16,0,0" IsVisible="{Binding HasNoServers}" />
 
                         <StackPanel IsVisible="{Binding HasProjectServers}">
                             <TextBlock Classes="groupLabel" Text="{Binding ProjectGroupTitle}" />
@@ -114,7 +106,7 @@
                                     <DataTemplate x:DataType="vm:McpServerItemViewModel">
                                         <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" MinHeight="32" Margin="0,1"
                                                 Command="{Binding $parent[UserControl].((vm:McpSettingsViewModel)DataContext).SelectCommand}"
-                                                CommandParameter="{Binding}" ToolTip.Tip="{Binding StatusText}">
+                                                CommandParameter="{Binding}" arc:Tooltip.Tip="{Binding StatusText}">
                                             <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                                 <icons:LucideIcon Kind="Folder" Width="14" Height="14" StrokeBrush="{DynamicResource TKCode.TextSecondary}" VerticalAlignment="Center" />
                                                 <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="10,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
@@ -133,24 +125,21 @@
                             </ItemsControl>
                         </StackPanel>
                     </StackPanel>
-                </ScrollViewer>
+                </arc:ScrollArea>
             </DockPanel>
         </Border>
 
         <!-- ======== 右栏 ======== -->
-        <ScrollViewer Grid.Column="1" Margin="16,0,0,0" atom:ScrollViewer.IsLiteMode="True">
+        <arc:ScrollArea Grid.Column="1" Margin="16,0,0,0">
             <StackPanel MaxWidth="820" Spacing="14" Margin="0,0,16,24">
                 <StackPanel Spacing="4">
                     <TextBlock Text="{loc:TKCodeLangResource SettingsMcp}" FontSize="20" FontWeight="SemiBold" />
                     <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpHint}" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasProjectError}">
-                    <icons:LucideIcon Kind="CircleAlert" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.Danger}" />
-                    <TextBlock Text="{Binding ProjectError}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" />
-                </StackPanel>
+                <arc:Alert Tone="Danger" Content="{Binding ProjectError}" IsVisible="{Binding HasProjectError}" />
 
-                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource SelectMcpHint}" Margin="0,40,0,0" HorizontalAlignment="Center"
-                           IsVisible="{Binding ShowEmptyDetail}" />
+                <arc:EmptyState Icon="{lucide:LucideGeometry Kind=Plug}" Title="{loc:TKCodeLangResource SelectMcpHint}" Margin="0,40,0,0"
+                                IsVisible="{Binding ShowEmptyDetail}" />
 
                 <ContentControl Content="{Binding Selected}" IsVisible="{Binding HasSelection}">
                     <ContentControl.ContentTemplate>
@@ -160,57 +149,53 @@
                                 <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto">
                                     <icons:LucideIcon Kind="Plug" Width="20" Height="20" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" Margin="12,0" VerticalAlignment="Center" />
-                                    <Border Grid.Column="2" Classes="pill" IsVisible="{Binding IsExisting}">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource TKCode.Success}" IsVisible="{Binding IsOk}" />
-                                            <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource TKCode.GitModified}" IsVisible="{Binding IsWarn}" />
-                                            <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource TKCode.Danger}" IsVisible="{Binding IsBad}" />
-                                            <TextBlock Classes="secondary" Text="{Binding StatusText}" FontSize="12" />
-                                        </StackPanel>
-                                    </Border>
-                                    <atom:ToggleSwitch Grid.Column="4" SizeType="Small" VerticalAlignment="Center" IsVisible="{Binding IsExisting}"
+                                    <arc:Badge Grid.Column="2" Size="Small" VerticalAlignment="Center" IsVisible="{Binding IsExisting}"
+                                               Classes.ok="{Binding IsOk}" Classes.warn="{Binding IsWarn}" Classes.bad="{Binding IsBad}"
+                                               Content="{Binding StatusText}" />
+                                    <arc:Switch Grid.Column="4" VerticalAlignment="Center" IsVisible="{Binding IsExisting}"
                                                        IsChecked="{Binding IsEnabled, Mode=OneWay}" Command="{Binding ToggleEnabledCommand}"
-                                                       ToolTip.Tip="{loc:TKCodeLangResource McpEnableServer}" />
-                                    <atom:Button Grid.Column="5" Margin="8,0,0,0" Color="Default" Variant="Text" SizeType="Small" IsVisible="{Binding IsExisting}"
-                                                 Command="{Binding RemoveCommand}" ToolTip.Tip="{loc:TKCodeLangResource Remove}">
-                                        <atom:Button.Icon><icons:LucideIcon Kind="Trash" /></atom:Button.Icon>
-                                    </atom:Button>
+                                                       arc:Tooltip.Tip="{loc:TKCodeLangResource McpEnableServer}" />
+                                    <arc:Button Grid.Column="5" Margin="8,0,0,0" Variant="Ghost" Size="Small" IsVisible="{Binding IsExisting}"
+                                                Command="{Binding RemoveCommand}" arc:Tooltip.Tip="{loc:TKCodeLangResource Remove}"
+                                                AutomationProperties.Name="{loc:TKCodeLangResource Remove}">
+                                        <lucide:LucideIcon Kind="Trash2" Size="14" />
+                                    </arc:Button>
                                 </Grid>
 
                                 <!-- 状态与操作 -->
                                 <StackPanel Spacing="6" IsVisible="{Binding IsExisting}">
                                     <TextBlock Classes="tertiary" Text="{Binding ServerInfo}" IsVisible="{Binding HasServerInfo}" />
                                     <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource McpShadowedHint}" IsVisible="{Binding ShadowedGlobal}" />
-                                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasStatusError}">
-                                        <icons:LucideIcon Kind="CircleAlert" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.Danger}" />
-                                        <SelectableTextBlock Text="{Binding StatusError}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasMissingVariables}">
-                                        <icons:LucideIcon Kind="CircleAlert" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.GitModified}" />
-                                        <TextBlock Text="{Binding MissingVariables}" FontSize="12" Foreground="{DynamicResource TKCode.GitModified}" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <Border Classes="card" Padding="14,10" BorderBrush="{DynamicResource TKCode.GitModified}" IsVisible="{Binding IsUntrusted}">
+                                    <arc:Alert Tone="Danger" IsVisible="{Binding HasStatusError}">
+                                        <SelectableTextBlock Text="{Binding StatusError}" FontSize="12" TextWrapping="Wrap" />
+                                    </arc:Alert>
+                                    <arc:Alert Tone="Warning" Content="{Binding MissingVariables}" IsVisible="{Binding HasMissingVariables}" />
+                                    <arc:Alert Tone="Warning" IsVisible="{Binding IsUntrusted}">
                                         <Grid ColumnDefinitions="*,Auto">
                                             <TextBlock Text="{loc:TKCodeLangResource McpUntrustedHint}" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" />
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="12,0,0,0">
-                                                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding IgnoreCommand}"
-                                                             Content="{loc:TKCodeLangResource McpIgnore}" />
-                                                <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding TrustCommand}"
-                                                             Content="{loc:TKCodeLangResource McpTrust}" />
+                                                <arc:Button Variant="Ghost" Size="Small" Command="{Binding IgnoreCommand}"
+                                                            Content="{loc:TKCodeLangResource McpIgnore}" />
+                                                <arc:Button Variant="Primary" Size="Small" Command="{Binding TrustCommand}"
+                                                            Content="{loc:TKCodeLangResource McpTrust}" />
                                             </StackPanel>
                                         </Grid>
-                                    </Border>
+                                    </arc:Alert>
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <atom:Button Color="Default" Variant="Outlined" SizeType="Small" Command="{Binding RestartCommand}" IsVisible="{Binding CanRestart}"
-                                                     Content="{loc:TKCodeLangResource McpRestart}">
-                                            <atom:Button.Icon><icons:LucideIcon Kind="RefreshCw" /></atom:Button.Icon>
-                                        </atom:Button>
-                                        <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding LoginCommand}" IsVisible="{Binding NeedsLogin}"
-                                                     Content="{loc:TKCodeLangResource McpLogin}">
-                                            <atom:Button.Icon><icons:LucideIcon Kind="LogIn" /></atom:Button.Icon>
-                                        </atom:Button>
-                                        <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding LogoutCommand}" IsVisible="{Binding CanLogin}"
-                                                     Content="{loc:TKCodeLangResource McpLogout}" />
+                                        <arc:Button Variant="Secondary" Size="Small" Command="{Binding RestartCommand}" IsVisible="{Binding CanRestart}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <lucide:LucideIcon Kind="RefreshCw" Size="14" VerticalAlignment="Center" />
+                                                <TextBlock Text="{loc:TKCodeLangResource McpRestart}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </arc:Button>
+                                        <arc:Button Variant="Primary" Size="Small" Command="{Binding LoginCommand}" IsVisible="{Binding NeedsLogin}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <lucide:LucideIcon Kind="LogIn" Size="14" VerticalAlignment="Center" />
+                                                <TextBlock Text="{loc:TKCodeLangResource McpLogin}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </arc:Button>
+                                        <arc:Button Variant="Ghost" Size="Small" Command="{Binding LogoutCommand}" IsVisible="{Binding CanLogin}"
+                                                    Content="{loc:TKCodeLangResource McpLogout}" />
                                     </StackPanel>
                                 </StackPanel>
 
@@ -220,84 +205,71 @@
                                         <TextBlock Classes="sectionTitle" Text="{loc:TKCodeLangResource ConnectionLabel}" />
                                         <Grid ColumnDefinitions="100,*">
                                             <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpServerNameLabel}" VerticalAlignment="Center" />
-                                            <atom:LineEdit Grid.Column="1" PlaceholderText="github" Text="{Binding NameInput, Mode=TwoWay}" FontFamily="{StaticResource TKCode.MonoFont}" />
+                                            <arc:Input Grid.Column="1" Placeholder="github" Text="{Binding NameInput, Mode=TwoWay}" FontFamily="{StaticResource TKCode.MonoFont}" />
                                         </Grid>
                                         <Grid ColumnDefinitions="100,*" IsVisible="{Binding CanChooseScope}">
                                             <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpScopeLabel}" VerticalAlignment="Center" />
-                                            <Border Grid.Column="1" Classes="segmented" HorizontalAlignment="Left">
-                                                <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Button Theme="{StaticResource TKCode.RowButton}" Content="{loc:TKCodeLangResource McpScopeGlobal}" Command="{Binding ChooseGlobalScopeCommand}"
-                                                                Classes.selected="{Binding !IsProjectScope}" motion:IndicatorPanel.IsCurrent="{Binding !IsProjectScope}" />
-                                                        <Button Theme="{StaticResource TKCode.RowButton}" Content="{loc:TKCodeLangResource McpScopeProject}" Command="{Binding ChooseProjectScopeCommand}"
-                                                                Classes.selected="{Binding IsProjectScope}" motion:IndicatorPanel.IsCurrent="{Binding IsProjectScope}" />
-                                                    </StackPanel>
-                                                </motion:IndicatorPanel>
-                                            </Border>
+                                            <arc:SegmentedControl Grid.Column="1" HorizontalAlignment="Left" ItemsSource="{Binding ScopeChoices}"
+                                                                  controls:ChoiceSelection.Command="{Binding ChooseScopeCommand}" />
                                         </Grid>
                                         <Grid ColumnDefinitions="100,*">
                                             <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpTransportLabel}" VerticalAlignment="Center" />
-                                            <Border Grid.Column="1" Classes="segmented" HorizontalAlignment="Left">
-                                                <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Button Theme="{StaticResource TKCode.RowButton}" Content="{loc:TKCodeLangResource McpTransportLocal}" Command="{Binding ChooseLocalCommand}"
-                                                                Classes.selected="{Binding IsLocal}" motion:IndicatorPanel.IsCurrent="{Binding IsLocal}" />
-                                                        <Button Theme="{StaticResource TKCode.RowButton}" Content="{loc:TKCodeLangResource McpTransportRemote}" Command="{Binding ChooseRemoteCommand}"
-                                                                Classes.selected="{Binding IsRemote}" motion:IndicatorPanel.IsCurrent="{Binding IsRemote}" />
-                                                    </StackPanel>
-                                                </motion:IndicatorPanel>
-                                            </Border>
+                                            <arc:SegmentedControl Grid.Column="1" HorizontalAlignment="Left" ItemsSource="{Binding TransportChoices}"
+                                                                  controls:ChoiceSelection.Command="{Binding ChooseTransportCommand}" />
                                         </Grid>
                                         <!-- 本地命令 -->
                                         <StackPanel Spacing="12" IsVisible="{Binding IsLocal}">
                                             <Grid ColumnDefinitions="100,*">
                                                 <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpCommandLabel}" VerticalAlignment="Center" />
-                                                <atom:LineEdit Grid.Column="1" PlaceholderText="npx" Text="{Binding CommandInput, Mode=TwoWay}" FontFamily="{StaticResource TKCode.MonoFont}" />
+                                                <arc:Input Grid.Column="1" Placeholder="npx" Text="{Binding CommandInput, Mode=TwoWay}" FontFamily="{StaticResource TKCode.MonoFont}" />
                                             </Grid>
-                                            <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto">
-                                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpArgsLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
-                                                <atom:TextArea Grid.Column="1" Classes="multiline" Text="{Binding ArgsInput, Mode=TwoWay}" PlaceholderText="-y&#x0a;@modelcontextprotocol/server-filesystem" />
-                                                <TextBlock Grid.Row="1" Grid.Column="1" Classes="tertiary" Text="{loc:TKCodeLangResource McpArgsHint}" Margin="2,4,0,0" />
+                                            <Grid ColumnDefinitions="100,*">
+                                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpArgsLabel}" VerticalAlignment="Top" Margin="0,10,0,0" />
+                                                <arc:Textarea Grid.Column="1" Classes="multiline" Label="{loc:TKCodeLangResource McpArgsLabel}" IsLabelVisible="False"
+                                                              Description="{loc:TKCodeLangResource McpArgsHint}" Text="{Binding ArgsInput, Mode=TwoWay}"
+                                                              Placeholder="-y&#x0a;@modelcontextprotocol/server-filesystem" />
                                             </Grid>
                                             <Grid ColumnDefinitions="100,*">
                                                 <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpCwdLabel}" VerticalAlignment="Center" />
-                                                <atom:LineEdit Grid.Column="1" PlaceholderText="{loc:TKCodeLangResource McpCwdPlaceholder}" Text="{Binding CwdInput, Mode=TwoWay}"
+                                                <arc:Input Grid.Column="1" Placeholder="{loc:TKCodeLangResource McpCwdPlaceholder}" Text="{Binding CwdInput, Mode=TwoWay}"
                                                                FontFamily="{StaticResource TKCode.MonoFont}" />
                                             </Grid>
-                                            <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto">
-                                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpEnvLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
-                                                <atom:TextArea Grid.Column="1" Classes="multiline" Text="{Binding EnvInput, Mode=TwoWay}" PlaceholderText="API_KEY={env:MY_API_KEY}" />
-                                                <TextBlock Grid.Row="1" Grid.Column="1" Classes="tertiary" Text="{loc:TKCodeLangResource McpEnvHint}" TextWrapping="Wrap" Margin="2,4,0,0" />
+                                            <Grid ColumnDefinitions="100,*">
+                                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpEnvLabel}" VerticalAlignment="Top" Margin="0,10,0,0" />
+                                                <arc:Textarea Grid.Column="1" Classes="multiline" Label="{loc:TKCodeLangResource McpEnvLabel}" IsLabelVisible="False"
+                                                              Description="{loc:TKCodeLangResource McpEnvHint}" Text="{Binding EnvInput, Mode=TwoWay}"
+                                                              Placeholder="API_KEY={env:MY_API_KEY}" />
                                             </Grid>
                                         </StackPanel>
                                         <!-- 远程 URL -->
                                         <StackPanel Spacing="12" IsVisible="{Binding IsRemote}">
                                             <Grid ColumnDefinitions="100,*">
                                                 <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpUrlLabel}" VerticalAlignment="Center" />
-                                                <atom:LineEdit Grid.Column="1" PlaceholderText="https://example.com/mcp" Text="{Binding UrlInput, Mode=TwoWay}"
+                                                <arc:Input Grid.Column="1" Placeholder="https://example.com/mcp" Text="{Binding UrlInput, Mode=TwoWay}"
                                                                FontFamily="{StaticResource TKCode.MonoFont}" />
                                             </Grid>
-                                            <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto">
-                                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpHeadersLabel}" VerticalAlignment="Top" Margin="0,6,0,0" />
-                                                <atom:TextArea Grid.Column="1" Classes="multiline" Text="{Binding HeadersInput, Mode=TwoWay}" PlaceholderText="Authorization: Bearer {env:TOKEN}" />
-                                                <TextBlock Grid.Row="1" Grid.Column="1" Classes="tertiary" Text="{loc:TKCodeLangResource McpHeadersHint}" TextWrapping="Wrap" Margin="2,4,0,0" />
+                                            <Grid ColumnDefinitions="100,*">
+                                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpHeadersLabel}" VerticalAlignment="Top" Margin="0,10,0,0" />
+                                                <arc:Textarea Grid.Column="1" Classes="multiline" Label="{loc:TKCodeLangResource McpHeadersLabel}" IsLabelVisible="False"
+                                                              Description="{loc:TKCodeLangResource McpHeadersHint}" Text="{Binding HeadersInput, Mode=TwoWay}"
+                                                              Placeholder="Authorization: Bearer {env:TOKEN}" />
                                             </Grid>
                                         </StackPanel>
-                                        <TextBlock Text="{Binding Error}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                                        <arc:Alert Tone="Danger" Content="{Binding Error}" IsVisible="{Binding HasError}" />
                                         <Border Height="1" Background="{DynamicResource TKCode.Divider}" Margin="-16,2" />
                                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                                            <atom:Button Color="Default" Variant="Outlined" SizeType="Small" Command="{Binding TestCommand}" IsLoading="{Binding IsTesting}"
-                                                         Content="{loc:TKCodeLangResource TestConnection}" />
+                                            <arc:Button Variant="Secondary" Size="Small" Command="{Binding TestCommand}" IsLoading="{Binding IsTesting}"
+                                                        Content="{loc:TKCodeLangResource TestConnection}" />
                                             <Panel Grid.Column="1" Margin="12,0" VerticalAlignment="Center" IsVisible="{Binding HasTestResult}">
                                                 <TextBlock Text="{Binding TestResult}" FontSize="12" Foreground="{DynamicResource TKCode.Success}" TextTrimming="CharacterEllipsis"
-                                                           IsVisible="{Binding TestSucceeded}" ToolTip.Tip="{Binding TestResult}" />
+                                                           IsVisible="{Binding TestSucceeded}" arc:Tooltip.Tip="{Binding TestResult}" />
                                                 <TextBlock Text="{Binding TestResult}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextTrimming="CharacterEllipsis"
-                                                           IsVisible="{Binding !TestSucceeded}" ToolTip.Tip="{Binding TestResult}" />
+                                                           IsVisible="{Binding !TestSucceeded}" arc:Tooltip.Tip="{Binding TestResult}" />
                                             </Panel>
                                             <TextBlock Grid.Column="2" Classes="tertiary" Text="{loc:TKCodeLangResource Unsaved}" Margin="0,0,10,0" VerticalAlignment="Center"
                                                        IsVisible="{Binding IsDirty}" />
-                                            <atom:Button Grid.Column="3" Color="Default" Variant="Solid" SizeType="Small" Command="{Binding SaveCommand}"
-                                                         Content="{loc:TKCodeLangResource Save}" />
+                                            <arc:Button Grid.Column="3" Variant="Primary" Size="Small" Command="{Binding SaveCommand}"
+                                                        Content="{loc:TKCodeLangResource Save}" />
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -317,10 +289,11 @@
                                             <TextBlock Classes="sectionTitle" Text="{loc:TKCodeLangResource McpToolsLabel}" VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="1" Classes="tertiary" Text="{Binding ToolsSummary}" Margin="10,0" VerticalAlignment="Center"
                                                        IsVisible="{Binding HasTools}" />
-                                            <atom:Button Grid.Column="2" Color="Default" Variant="Text" SizeType="Small" Command="{Binding LoadToolsCommand}"
-                                                         IsLoading="{Binding IsLoadingTools}" ToolTip.Tip="{loc:TKCodeLangResource McpRestart}">
-                                                <atom:Button.Icon><icons:LucideIcon Kind="RefreshCw" /></atom:Button.Icon>
-                                            </atom:Button>
+                                            <arc:Button Grid.Column="2" Variant="Ghost" Size="Small" Command="{Binding LoadToolsCommand}"
+                                                        IsLoading="{Binding IsLoadingTools}" arc:Tooltip.Tip="{loc:TKCodeLangResource McpRestart}"
+                                                        AutomationProperties.Name="{loc:TKCodeLangResource McpRestart}">
+                                                <lucide:LucideIcon Kind="RefreshCw" Size="14" />
+                                            </arc:Button>
                                         </Grid>
                                         <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource McpAnnotationsHint}" IsVisible="{Binding HasTools}" />
                                         <TextBlock Classes="secondary" FontSize="12" Text="{loc:TKCodeLangResource McpToolsEmpty}" IsVisible="{Binding HasNoTools}" />
@@ -330,25 +303,22 @@
                                                     <Border BorderBrush="{DynamicResource TKCode.Divider}" BorderThickness="0,0,0,1" Padding="0,7">
                                                         <StackPanel Spacing="4">
                                                             <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
-                                                                <atom:ToggleSwitch SizeType="Small" VerticalAlignment="Center" IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                                                                <arc:Switch VerticalAlignment="Center" IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
                                                                 <Button Grid.Column="1" Theme="{StaticResource TKCode.RowButton}" Margin="8,0" Padding="4,2" Command="{Binding ToggleExpandedCommand}"
                                                                         HorizontalContentAlignment="Left">
                                                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                                                         <TextBlock Classes="strong" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
                                                                         <TextBlock Classes="tertiary" Text="{Binding Name}" FontFamily="{StaticResource TKCode.MonoFont}" IsVisible="{Binding ShowName}" />
-                                                                        <Border Classes="tag" IsVisible="{Binding Dto.ReadOnlyHint}">
-                                                                            <TextBlock Text="{loc:TKCodeLangResource McpReadOnlyTag}" FontSize="10" Foreground="{DynamicResource TKCode.TextSecondary}" />
-                                                                        </Border>
-                                                                        <Border Classes="tag" IsVisible="{Binding Dto.DestructiveHint}">
-                                                                            <TextBlock Text="{loc:TKCodeLangResource McpDestructiveTag}" FontSize="10" Foreground="{DynamicResource TKCode.Danger}" />
-                                                                        </Border>
-                                                                        <Border Classes="tag" IsVisible="{Binding Dto.OpenWorldHint}">
-                                                                            <TextBlock Text="{loc:TKCodeLangResource McpOpenWorldTag}" FontSize="10" Foreground="{DynamicResource TKCode.TextSecondary}" />
-                                                                        </Border>
+                                                                        <arc:Badge Size="Small" VerticalAlignment="Center" IsVisible="{Binding Dto.ReadOnlyHint}"
+                                                                                   Content="{loc:TKCodeLangResource McpReadOnlyTag}" />
+                                                                        <arc:Badge Size="Small" VerticalAlignment="Center" Tone="Danger" IsVisible="{Binding Dto.DestructiveHint}"
+                                                                                   Content="{loc:TKCodeLangResource McpDestructiveTag}" />
+                                                                        <arc:Badge Size="Small" VerticalAlignment="Center" IsVisible="{Binding Dto.OpenWorldHint}"
+                                                                                   Content="{loc:TKCodeLangResource McpOpenWorldTag}" />
                                                                     </StackPanel>
                                                                 </Button>
                                                                 <TextBlock Grid.Column="2" Classes="tertiary" Text="{Binding TokensText}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                                                                <atom:CheckBox Grid.Column="3" IsChecked="{Binding AlwaysAllow, Mode=TwoWay}" Content="{loc:TKCodeLangResource McpAlwaysAllow}"
+                                                                <arc:Checkbox Grid.Column="3" IsChecked="{Binding AlwaysAllow, Mode=TwoWay}" Content="{loc:TKCodeLangResource McpAlwaysAllow}"
                                                                                VerticalAlignment="Center" />
                                                             </Grid>
                                                             <SelectableTextBlock Text="{Binding Description}" FontSize="12" TextWrapping="Wrap" Margin="46,0,0,0"
@@ -367,16 +337,16 @@
                                 <!-- 日志 -->
                                 <Border Classes="card" Padding="16,14" IsVisible="{Binding IsExisting}">
                                     <StackPanel Spacing="8">
-                                        <Button Theme="{StaticResource TKCode.ChipButton}" Command="{Binding ToggleLogCommand}" HorizontalAlignment="Left">
+                                        <arc:Button Variant="Ghost" Size="Small" Command="{Binding ToggleLogCommand}" HorizontalAlignment="Left">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <icons:LucideIcon Kind="ChevronRight" Width="11" Height="11" IsVisible="{Binding !ShowLog}" />
-                                                <icons:LucideIcon Kind="ChevronDown" Width="11" Height="11" IsVisible="{Binding ShowLog}" />
-                                                <TextBlock Text="{loc:TKCodeLangResource McpLogLabel}" FontSize="12" />
+                                                <lucide:LucideIcon Kind="ChevronRight" Size="12" VerticalAlignment="Center" IsVisible="{Binding !ShowLog}" />
+                                                <lucide:LucideIcon Kind="ChevronDown" Size="12" VerticalAlignment="Center" IsVisible="{Binding ShowLog}" />
+                                                <TextBlock Text="{loc:TKCodeLangResource McpLogLabel}" VerticalAlignment="Center" />
                                             </StackPanel>
-                                        </Button>
+                                        </arc:Button>
                                         <StackPanel IsVisible="{Binding ShowLog}">
                                             <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource McpLogEmpty}" IsVisible="{Binding !HasLog}" />
-                                            <ScrollViewer MaxHeight="260" atom:ScrollViewer.IsLiteMode="True" IsVisible="{Binding HasLog}">
+                                            <arc:ScrollArea MaxHeight="260" IsVisible="{Binding HasLog}">
                                                 <ItemsControl ItemsSource="{Binding LogLines}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate x:DataType="x:String">
@@ -385,7 +355,7 @@
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
-                                            </ScrollViewer>
+                                            </arc:ScrollArea>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
@@ -394,161 +364,7 @@
                     </ContentControl.ContentTemplate>
                 </ContentControl>
             </StackPanel>
-        </ScrollViewer>
+        </arc:ScrollArea>
     </Grid>
 
-    <!-- ======== 导入 ======== -->
-    <Grid RowDefinitions="1*,Auto,3*" motion:Presence.IsPresent="{Binding IsImporting}">
-        <Border Grid.RowSpan="3" Background="#33000000" />
-        <Border Grid.Row="1" Classes="menu" Width="760" HorizontalAlignment="Center" DataContext="{Binding Import}" x:DataType="vm:McpImportViewModel"
-                motion:Presence.IsPresent="{Binding $parent[UserControl].((vm:McpSettingsViewModel)DataContext).IsImporting}" motion:Presence.Effect="Zoom" motion:Presence.Distance="12">
-            <DockPanel>
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="18,14,12,6">
-                    <TextBlock Text="{loc:TKCodeLangResource McpImportTitle}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <atom:Button Grid.Column="1" Color="Default" Variant="Text" SizeType="Small" Command="{Binding CloseCommand}" ToolTip.Tip="{loc:TKCodeLangResource Close}">
-                        <atom:Button.Icon><icons:LucideIcon Kind="X" /></atom:Button.Icon>
-                    </atom:Button>
-                </Grid>
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="16,2,16,10">
-                    <Border Classes="segmented">
-                        <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Theme="{StaticResource TKCode.RowButton}" Content="{loc:TKCodeLangResource McpImportPaste}" Command="{Binding ChoosePasteCommand}"
-                                        Classes.selected="{Binding IsPasteMode}" motion:IndicatorPanel.IsCurrent="{Binding IsPasteMode}" />
-                                <Button Theme="{StaticResource TKCode.RowButton}" Content="{loc:TKCodeLangResource McpImportScan}" Command="{Binding ChooseScanCommand}"
-                                        Classes.selected="{Binding IsScanMode}" motion:IndicatorPanel.IsCurrent="{Binding IsScanMode}" />
-                            </StackPanel>
-                        </motion:IndicatorPanel>
-                    </Border>
-                    <atom:Button Grid.Column="2" Color="Default" Variant="Outlined" SizeType="Small" Click="OnOpenImportFile"
-                                 Content="{loc:TKCodeLangResource McpImportFromFile}" />
-                </Grid>
-                <!-- 底部：目标 + 导入 -->
-                <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,Auto,*,Auto" Margin="16,8,16,14">
-                    <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource McpImportTargetLabel}" VerticalAlignment="Center" Margin="0,0,10,0"
-                               IsVisible="{Binding CanTargetProject}" />
-                    <Border Grid.Column="1" Classes="segmented" IsVisible="{Binding CanTargetProject}">
-                        <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Theme="{StaticResource TKCode.RowButton}" Content="{loc:TKCodeLangResource McpScopeGlobal}" Command="{Binding ChooseGlobalTargetCommand}"
-                                        Classes.selected="{Binding !IsProjectTarget}" motion:IndicatorPanel.IsCurrent="{Binding !IsProjectTarget}" />
-                                <Button Theme="{StaticResource TKCode.RowButton}" Content="{loc:TKCodeLangResource McpScopeProject}" Command="{Binding ChooseProjectTargetCommand}"
-                                        Classes.selected="{Binding IsProjectTarget}" motion:IndicatorPanel.IsCurrent="{Binding IsProjectTarget}" />
-                            </StackPanel>
-                        </motion:IndicatorPanel>
-                    </Border>
-                    <TextBlock Grid.Column="2" Text="{Binding Error}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" Margin="12,0" TextWrapping="Wrap"
-                               VerticalAlignment="Center" IsVisible="{Binding HasError}" />
-                    <atom:Button Grid.Column="3" Color="Default" Variant="Solid" SizeType="Small" Command="{Binding ImportCommand}"
-                                 IsEnabled="{Binding CanImport}" Content="{Binding ImportButtonText}" />
-                </Grid>
-                <Border DockPanel.Dock="Bottom" Height="1" Background="{DynamicResource TKCode.Divider}" />
-                <ScrollViewer MaxHeight="520" atom:ScrollViewer.IsLiteMode="True">
-                    <StackPanel Margin="16,0,16,12" Spacing="10">
-                        <!-- 粘贴 -->
-                        <StackPanel Spacing="6" IsVisible="{Binding IsPasteMode}">
-                            <atom:TextArea Classes="multiline" Text="{Binding Text, Mode=TwoWay}" MinLines="6" MaxLines="12"
-                                           PlaceholderText="{loc:TKCodeLangResource McpImportPastePlaceholder}" />
-                            <TextBlock Classes="tertiary" Text="{Binding FormatText}" IsVisible="{Binding FormatText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                            <TextBlock Text="{Binding ParseError}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" IsVisible="{Binding HasParseError}" />
-                        </StackPanel>
-                        <!-- 本机扫描 -->
-                        <StackPanel Spacing="4" IsVisible="{Binding IsScanMode}">
-                            <TextBlock Classes="secondary" FontSize="12" Text="{loc:TKCodeLangResource McpImportNoSources}" IsVisible="{Binding HasNoSources}" />
-                            <ItemsControl ItemsSource="{Binding Sources}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:McpImportSourceViewModel">
-                                        <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" Margin="0,1"
-                                                Command="{Binding $parent[ItemsControl].((vm:McpImportViewModel)DataContext).SelectSourceCommand}" CommandParameter="{Binding}">
-                                            <Grid ColumnDefinitions="140,*,Auto">
-                                                <TextBlock Classes="strong" Text="{Binding Client}" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="1" Classes="tertiary" Text="{Binding Path}" FontFamily="{StaticResource TKCode.MonoFont}"
-                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0" />
-                                                <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding CountText}" VerticalAlignment="Center" />
-                                            </Grid>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                        <!-- 预览 -->
-                        <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding HasItems}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:McpImportItemViewModel">
-                                    <Border BorderBrush="{DynamicResource TKCode.Divider}" BorderThickness="0,1,0,0" Padding="0,10,0,6">
-                                        <StackPanel Spacing="6">
-                                            <Grid ColumnDefinitions="Auto,180,Auto,*">
-                                                <atom:CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" IsEnabled="{Binding CanSelect}" VerticalAlignment="Center" />
-                                                <atom:LineEdit Grid.Column="1" SizeType="Small" Text="{Binding Key, Mode=TwoWay}" FontFamily="{StaticResource TKCode.MonoFont}" Margin="6,0,0,0" />
-                                                <Border Grid.Column="2" Classes="tag" Margin="8,0,0,0">
-                                                    <TextBlock Text="{Binding TypeText}" FontSize="10" Foreground="{DynamicResource TKCode.TextSecondary}" />
-                                                </Border>
-                                                <TextBlock Grid.Column="3" Classes="tertiary" Text="{Binding Summary}" FontFamily="{StaticResource TKCode.MonoFont}" Margin="8,0,0,0"
-                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Summary}" />
-                                            </Grid>
-                                            <StackPanel Margin="30,0,0,0" Spacing="4">
-                                                <TextBlock Text="{Binding Error}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" IsVisible="{Binding HasError}" />
-                                                <TextBlock Text="{Binding KeyProblem}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" IsVisible="{Binding HasKeyProblem}" />
-                                                <TextBlock Text="{loc:TKCodeLangResource McpImportOverwrites}" FontSize="12" Foreground="{DynamicResource TKCode.GitModified}" IsVisible="{Binding Overwrites}" />
-                                                <ItemsControl ItemsSource="{Binding Notes}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate x:DataType="x:String">
-                                                            <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TKCode.TextSecondary}" />
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                                <TextBlock Classes="tertiary" Text="{Binding DroppedText}" TextWrapping="Wrap" IsVisible="{Binding HasDropped}" />
-                                                <ItemsControl ItemsSource="{Binding Inputs}" IsVisible="{Binding HasInputs}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate x:DataType="vm:McpImportInputViewModel">
-                                                            <Grid ColumnDefinitions="180,*" Margin="0,2">
-                                                                <TextBlock Classes="secondary" Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                                <atom:LineEdit Grid.Column="1" SizeType="Small" Text="{Binding Value, Mode=TwoWay}"
-                                                                               PlaceholderText="{loc:TKCodeLangResource McpImportInputHint}" />
-                                                            </Grid>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                                <atom:CheckBox IsChecked="{Binding ImportAutoApprove, Mode=TwoWay}" Content="{Binding AutoApproveText}" IsVisible="{Binding HasAutoApprove}" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
-            </DockPanel>
-        </Border>
-    </Grid>
-
-    <!-- ======== 导出 ======== -->
-    <Grid RowDefinitions="1*,Auto,3*" motion:Presence.IsPresent="{Binding IsExporting}">
-        <Border Grid.RowSpan="3" Background="#33000000" />
-        <Border Grid.Row="1" Classes="menu" Width="680" HorizontalAlignment="Center" DataContext="{Binding Export}" x:DataType="vm:McpExportViewModel"
-                motion:Presence.IsPresent="{Binding $parent[UserControl].((vm:McpSettingsViewModel)DataContext).IsExporting}" motion:Presence.Effect="Zoom" motion:Presence.Distance="12">
-            <StackPanel Margin="18,14,18,14" Spacing="10">
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Text="{loc:TKCodeLangResource McpExportTitle}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <atom:Button Grid.Column="1" Color="Default" Variant="Text" SizeType="Small" Command="{Binding CloseCommand}" ToolTip.Tip="{loc:TKCodeLangResource Close}">
-                        <atom:Button.Icon><icons:LucideIcon Kind="X" /></atom:Button.Icon>
-                    </atom:Button>
-                </Grid>
-                <TextBlock Classes="secondary" FontSize="12" Text="{loc:TKCodeLangResource McpExportHint}" TextWrapping="Wrap" />
-                <Border Classes="card" Padding="12,10">
-                    <ScrollViewer MaxHeight="380" atom:ScrollViewer.IsLiteMode="True">
-                        <SelectableTextBlock Text="{Binding Json}" FontFamily="{StaticResource TKCode.MonoFont}" FontSize="12" />
-                    </ScrollViewer>
-                </Border>
-                <Grid ColumnDefinitions="*,Auto,Auto">
-                    <atom:CheckBox IsChecked="{Binding Expand, Mode=TwoWay}" Content="{loc:TKCodeLangResource McpExportExpand}" VerticalAlignment="Center" />
-                    <atom:Button Grid.Column="1" Color="Default" Variant="Outlined" SizeType="Small" Click="OnSaveExport" Margin="0,0,8,0"
-                                 Content="{loc:TKCodeLangResource SaveToFile}" />
-                    <atom:Button Grid.Column="2" Color="Default" Variant="Solid" SizeType="Small" Click="OnCopyExport"
-                                 Content="{loc:TKCodeLangResource CopyToClipboard}" />
-                </Grid>
-            </StackPanel>
-        </Border>
-    </Grid>
-    </Panel>
 </UserControl>

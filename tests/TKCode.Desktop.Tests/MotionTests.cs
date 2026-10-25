@@ -79,6 +79,50 @@ public sealed partial class MotionTests
     }
 
     [Fact]
+    public async Task Reveal_ContentTemplate_CreatedWhenOpened_ReleasedAfterCollapse()
+    {
+        await HeadlessApp.Session.Dispatch(() => HeadlessApp.WithMotion(() =>
+        {
+            var (window, root) = CreateWindow();
+            var built = 0;
+            var reveal = new Reveal
+            {
+                IsOpen = false,
+                ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object?>((_, _) =>
+                {
+                    built++;
+                    return new Border { Height = 60, Background = Brushes.Purple };
+                }),
+            };
+            root.Children.Add(reveal);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            // 收起时不创建内容
+            Assert.Null(reveal.Child);
+
+            reveal.IsOpen = true;
+            HeadlessApp.Step(window, 40);
+            Assert.NotNull(reveal.Child);
+            Assert.InRange(reveal.Bounds.Height, 1, 59);
+            MotionTicker.FinishAll();
+            window.UpdateLayout();
+            Assert.Equal(60, reveal.Bounds.Height);
+
+            // 收起：动画期间内容还在（高度连续变小），播完才释放
+            reveal.IsOpen = false;
+            HeadlessApp.Step(window, 40);
+            Assert.NotNull(reveal.Child);
+            Assert.InRange(reveal.Bounds.Height, 1, 59);
+            MotionTicker.FinishAll();
+            window.UpdateLayout();
+            Assert.Null(reveal.Child);
+            Assert.Equal(0, reveal.Bounds.Height);
+            Assert.Equal(1, built);
+            window.Close();
+        }), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task Presence_HidesAfterExit_AndRestoresStyleValues()
     {
         await HeadlessApp.Session.Dispatch(() => HeadlessApp.WithMotion(() =>
@@ -308,51 +352,6 @@ public sealed partial class MotionTests
             Assert.Same(items[2], panel.Current);
             window.Close();
         }), TestContext.Current.CancellationToken);
-    }
-
-    [Fact]
-    public async Task FileTree_Collapse_WaitsForAnimation_AndCancelsOnReexpand()
-    {
-        var root = Directory.CreateTempSubdirectory("tkcode-tree-").FullName;
-        Directory.CreateDirectory(Path.Combine(root, "src"));
-        File.WriteAllText(Path.Combine(root, "src", "a.cs"), "");
-        File.WriteAllText(Path.Combine(root, "src", "b.cs"), "");
-        await HeadlessApp.Session.Dispatch(async () =>
-        {
-            var explorer = new TKCode.Desktop.ViewModels.FileExplorerViewModel(new TKCode.Desktop.ViewModels.WorkbenchViewModel(new TKCode.Desktop.Services.PtyHostService(Microsoft.Extensions.Logging.Abstractions.NullLogger<TKCode.Desktop.Services.PtyHostService>.Instance)));
-            explorer.SetRoot(root);
-            for (var i = 0; i < 50 && explorer.VisibleNodes.Count == 0; i++)
-            {
-                await Task.Delay(20);
-                Dispatcher.UIThread.RunJobs();
-            }
-            var src = explorer.VisibleNodes.Single(n => n.Name == "src");
-            explorer.ActivateCommand.Execute(src);
-            Assert.Equal(3, explorer.VisibleNodes.Count);
-
-            var animation = new TaskCompletionSource();
-            IReadOnlyList<TKCode.Desktop.ViewModels.FileNodeViewModel>? animated = null;
-            explorer.CollapseAnimation = (_, nodes) => { animated = nodes; return animation.Task; };
-
-            // 收起：箭头立即转回，子节点等动画播完才移除
-            explorer.ActivateCommand.Execute(src);
-            Assert.False(src.IsExpanded);
-            Assert.Equal(2, animated!.Count);
-            Assert.Equal(3, explorer.VisibleNodes.Count);
-
-            // 动画期间再次展开：不重复插入，动画结束后也不移除
-            explorer.ActivateCommand.Execute(src);
-            Assert.True(src.IsExpanded);
-            Assert.Equal(3, explorer.VisibleNodes.Count);
-            animation.SetResult();
-            Assert.Equal(3, explorer.VisibleNodes.Count);
-
-            // 正常收起
-            explorer.CollapseAnimation = (_, _) => Task.CompletedTask;
-            explorer.ActivateCommand.Execute(src);
-            Assert.Single(explorer.VisibleNodes);
-            return 0;
-        }, TestContext.Current.CancellationToken);
     }
 
     [Fact]

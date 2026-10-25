@@ -32,6 +32,14 @@ public static class CompatResolver
         bool TopLevelCacheControl,
         IReadOnlyList<string> Betas);
 
+    public const string OpenCodeSessionHeader = "x-opencode-session";
+
+    /// <summary>Responses 与 Messages 端点的会话亲和头（这两种协议的缓存键走 body，只有 OpenCode Go 额外要求请求头）。</summary>
+    public static string? ResolveSessionHeader(ModelInfo model) => IsOpenCode(Host(model)) ? OpenCodeSessionHeader : null;
+
+    private static bool IsOpenCode(string host) =>
+        host.Equals("opencode.ai", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".opencode.ai", StringComparison.OrdinalIgnoreCase);
+
     public static ResolvedChatCompat ResolveChat(ModelInfo model)
     {
         var host = Host(model);
@@ -43,6 +51,7 @@ public static class CompatResolver
         var isDashScope = host.Contains("dashscope", StringComparison.OrdinalIgnoreCase);
         var isOpenRouter = host.Contains("openrouter", StringComparison.OrdinalIgnoreCase);
         var isMistral = host.Contains("mistral", StringComparison.OrdinalIgnoreCase);
+        var isOpenCode = IsOpenCode(host);
         var isXai = host.Equals("x.ai", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".x.ai", StringComparison.OrdinalIgnoreCase);
         // Gemini 的 OpenAI 兼容端点对未知字段直接 400（Unknown name ...: Cannot find field）
         var isGemini = host.Contains("googleapis.com", StringComparison.OrdinalIgnoreCase);
@@ -81,8 +90,8 @@ public static class CompatResolver
             // Claude（OpenRouter、中转）与百炼 Qwen 的显式缓存要在 content 上加 cache_control，否则不缓存
             c?.SupportsCacheControl ?? (isClaude || (isQwen && isAliyun)),
             isOpenAI,
-            // 只认请求头的会话亲和：xAI Chat 用 x-grok-conv-id，OpenRouter 用 x-session-id 做粘性路由
-            isXai ? "x-grok-conv-id" : isOpenRouter ? "x-session-id" : null);
+            // 只认请求头的会话亲和：xAI Chat 用 x-grok-conv-id，OpenRouter 用 x-session-id 做粘性路由，OpenCode Go 用 x-opencode-session
+            isXai ? "x-grok-conv-id" : isOpenRouter ? "x-session-id" : isOpenCode ? OpenCodeSessionHeader : null);
     }
 
     public static ResolvedAnthropicCompat ResolveAnthropic(ModelInfo model)

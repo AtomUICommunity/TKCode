@@ -1,11 +1,11 @@
 <!--
   转录里的计划卡片（docs/design/plan-mode.md §14.2）：exit_plan_mode / Claude ExitPlanMode，独立显示，不收进活动组。
-  头部：计划 · 文件名 · 结局；正文默认只显示前 8 行，展开后是完整的渲染计划；“在编辑器中打开”。
+  头部：计划 · 文件名 · 结局；正文默认收起到约 8 行高，展开后是完整的渲染计划；“在编辑器中打开”。
 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:smv="using:StreamMark.Avalonia"
-             xmlns:motion="using:TKCode.Desktop.Motion"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:icons="using:TKCode.Desktop.Icons"
              xmlns:controls="using:TKCode.Desktop.Controls"
@@ -44,20 +44,15 @@
                     Padding="10,2" Margin="22,0,0,0">
                 <SelectableTextBlock Text="{Binding Feedback}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TKCode.TextSecondary}" />
             </Border>
-            <!-- 计划正文：收起时前 8 行，展开后完整 -->
+            <!-- 计划正文：Arc 的收起 / 展开。Markdown 不是纯文本，按固定行高收起到约 8 行高，末行淡出 -->
             <Border IsVisible="{Binding HasPlan}" Background="{DynamicResource TKCode.CodeBg}" CornerRadius="{StaticResource TKCode.RadiusSmall}"
                     Padding="14,8,14,10" Margin="22,0,0,0">
-                <StackPanel Spacing="4">
-                    <smv:MarkdownView Markdown="{Binding BodyMarkdown}" HorizontalAlignment="Stretch" />
-                    <Button Theme="{StaticResource TKCode.TextButton}" Padding="0" HorizontalAlignment="Left"
-                            Command="{Binding ToggleCommand}" IsVisible="{Binding HasMore}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <icons:LucideIcon Kind="ChevronRight" Width="11" Height="11" VerticalAlignment="Center"
-                                              motion:Turn.IsOn="{Binding IsExpanded}" />
-                            <TextBlock Text="{Binding ToggleText}" FontSize="12" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
+                <arc:ExpandableContent Lines="{x:Static vm:PlanCardViewModel.CollapsedLines}" LineHeight="22"
+                                       IsExpanded="{Binding IsExpanded}"
+                                       MoreLabel="{Binding ExpandText}"
+                                       LessLabel="{loc:TKCodeLangResource PlanCardCollapse}">
+                    <smv:MarkdownView Markdown="{Binding Plan}" HorizontalAlignment="Stretch" />
+                </arc:ExpandableContent>
             </Border>
         </StackPanel>
     </Border>

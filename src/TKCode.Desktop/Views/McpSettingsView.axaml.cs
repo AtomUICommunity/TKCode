@@ -1,75 +1,106 @@
+using System.ComponentModel;
 using Avalonia.Controls;
-using Avalonia.Input.Platform;
-using Avalonia.Interactivity;
-using Avalonia.Platform.Storage;
 using TKCode.Desktop.ViewModels;
 
 namespace TKCode.Desktop.Views;
 
 public partial class McpSettingsView : UserControl
 {
+    private McpSettingsViewModel? _vm;
+    private McpImportDialog? _importDialog;
+    private McpExportDialog? _exportDialog;
+
     public McpSettingsView()
     {
         InitializeComponent();
+        DataContextChanged += (_, _) =>
+        {
+            if (_vm is not null)
+            {
+                _vm.PropertyChanged -= OnViewModelChanged;
+            }
+            _vm = DataContext as McpSettingsViewModel;
+            if (_vm is not null)
+            {
+                _vm.PropertyChanged += OnViewModelChanged;
+            }
+        };
     }
 
-    private McpSettingsViewModel? Vm => DataContext as McpSettingsViewModel;
-
-    /// <summary>导入：选择一个配置文件（JSON / TOML），内容放入粘贴框并解析。</summary>
-    private async void OnOpenImportFile(object? sender, RoutedEventArgs e)
+    private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (Vm?.Import is not { } import || TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage)
+        if (_vm is not { } vm)
         {
             return;
         }
-        var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
+        if (e.PropertyName == nameof(McpSettingsViewModel.IsImporting))
         {
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("MCP config") { Patterns = ["*.json", "*.jsonc", "*.toml"] },
-                FilePickerFileTypes.All,
-            ],
-        });
-        if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path)
-        {
-            return;
+            if (vm.IsImporting)
+            {
+                _ = OpenImportAsync(vm);
+            }
+            else if (_importDialog is { } dialog)
+            {
+                // 视图模型关的（导入成功）：先放开引用，关闭动画期间可以再次打开
+                _importDialog = null;
+                dialog.Close();
+            }
         }
-        try
+        else if (e.PropertyName == nameof(McpSettingsViewModel.IsExporting))
         {
-            import.LoadFile(path, await File.ReadAllTextAsync(path));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            import.LoadFile(path, "");
+            if (vm.IsExporting)
+            {
+                _ = OpenExportAsync(vm);
+            }
+            else if (_exportDialog is { } dialog)
+            {
+                _exportDialog = null;
+                dialog.Close();
+            }
         }
     }
 
-    private async void OnCopyExport(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// 打开导入对话框。导入成功时视图模型先把 Import 置空（上面关闭对话框）；
+    /// 用户自己取消（Esc、遮罩、关闭按钮）时对话框先关，这里再把视图模型的状态还原。
+    /// </summary>
+    private async Task OpenImportAsync(McpSettingsViewModel vm)
     {
-        if (Vm?.Export is { } export && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        if (_importDialog is not null || vm.Import is not { } import)
         {
-            await clipboard.SetTextAsync(export.Json);
+            return;
+        }
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            import.CloseCommand.Execute(null);
+            return;
+        }
+        var dialog = _importDialog = new McpImportDialog { DataContext = import };
+        await dialog.ShowAsync(owner);
+        if (ReferenceEquals(_importDialog, dialog))
+        {
+            _importDialog = null;
+            import.CloseCommand.Execute(null);
         }
     }
 
-    private async void OnSaveExport(object? sender, RoutedEventArgs e)
+    private async Task OpenExportAsync(McpSettingsViewModel vm)
     {
-        if (Vm?.Export is not { } export || TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage)
+        if (_exportDialog is not null || vm.Export is not { } export)
         {
             return;
         }
-        var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+        if (TopLevel.GetTopLevel(this) is not Window owner)
         {
-            SuggestedFileName = "mcp.json",
-            DefaultExtension = "json",
-        });
-        if (file is null)
-        {
+            export.CloseCommand.Execute(null);
             return;
         }
-        await using var stream = await file.OpenWriteAsync();
-        await using var writer = new StreamWriter(stream);
-        await writer.WriteAsync(export.Json);
+        var dialog = _exportDialog = new McpExportDialog { DataContext = export };
+        await dialog.ShowAsync(owner);
+        if (ReferenceEquals(_exportDialog, dialog))
+        {
+            _exportDialog = null;
+            export.CloseCommand.Execute(null);
+        }
     }
 }

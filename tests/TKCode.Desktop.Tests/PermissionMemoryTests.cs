@@ -34,7 +34,8 @@ public sealed class PermissionMemoryTests
         await HeadlessApp.Session.Dispatch(async () =>
         {
             var conversation = provider.GetRequiredService<MainWindowViewModel>().Conversation;
-            await WaitUntil(() => conversation.Picker.Selected is not null && conversation.Workspace?.Path == projectA, "ready");
+            var projects = provider.GetRequiredService<ProjectService>();
+            await WaitUntil(() => conversation.Picker.Selected is not null && conversation.Workspace?.Primary == projectA, "ready");
             Assert.Equal(PermissionPickerViewModel.Ask, conversation.Permission.Mode);
 
             await Send(conversation, "你好");
@@ -47,7 +48,7 @@ public sealed class PermissionMemoryTests
             conversation.Permission.ConfirmFullAccessCommand.Execute(null);
             await WaitUntil(() => conversation.Active!.Options.PermissionMode == PermissionPickerViewModel.FullAccess, "permission applied");
             Assert.Equal(PermissionPickerViewModel.FullAccess,
-                provider.GetRequiredService<StateService>().Current.PermissionModes[projectA]);
+                provider.GetRequiredService<StateService>().Current.PermissionModes[projects.FindByPath(projectA)!.Id]);
 
             conversation.NewChat();
             Assert.Null(conversation.Active);
@@ -58,9 +59,9 @@ public sealed class PermissionMemoryTests
             Assert.Equal(PermissionPickerViewModel.FullAccess, conversation.Active!.Options.PermissionMode);
 
             // 另一个项目仍是询问；回到项目 A 的空状态继续沿用完全授权
-            conversation.SetWorkspace(new WorkspaceInfo(projectB, Path.GetFileName(projectB)));
+            conversation.SetWorkspace(projects.FindByPath(projectB));
             Assert.Equal(PermissionPickerViewModel.Ask, conversation.Permission.Mode);
-            conversation.SetWorkspace(new WorkspaceInfo(projectA, Path.GetFileName(projectA)));
+            conversation.SetWorkspace(projects.FindByPath(projectA));
             Assert.Equal(PermissionPickerViewModel.FullAccess, conversation.Permission.Mode);
             return true;
         }, TestContext.Current.CancellationToken);

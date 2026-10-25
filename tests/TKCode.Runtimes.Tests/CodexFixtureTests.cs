@@ -215,6 +215,31 @@ public sealed class CodexFixtureTests
         agent.Abort();
     }
 
+    [Fact]
+    public async Task AdditionalDirectories_AreSentAsWritableRoots_WhenTheyChange()
+    {
+        var (agent, peer, _) = Create();
+        IReadOnlyList<string> directories = ["/Users/dev/shared-lib"];
+        agent.AdditionalDirectories = () => directories;
+        var a = Load("### C-a");
+        var firstTurn = a.ToList().FindIndex(l => l.FromClient && l.Json.Contains("\"turn/start\""));
+        var run = agent.PromptAsync(UserMessage.FromText("这个仓库是做什么的？"));
+        await peer.RunAsync(a.Take(firstTurn));
+        // thread/start 不能携带可写目录：第一轮用 sandboxPolicy 覆盖（docs/design/projects.md §6.8）
+        var first = JsonDocument.Parse((await peer.ReadExtraAsync(Timeout))!).RootElement.GetProperty("params").GetProperty("sandboxPolicy");
+        Assert.Equal("workspaceWrite", first.GetProperty("type").GetString());
+        Assert.Equal(["/Users/dev/shared-lib"], first.GetProperty("writableRoots").EnumerateArray().Select(r => r.GetString()));
+        await peer.RunAsync(a.Skip(firstTurn + 1));
+        await run.WaitAsync(Timeout);
+
+        // 目录变了：下一轮覆盖成新的列表，不重启 app-server
+        directories = ["/Users/dev/shared-lib", "/Users/dev/docs"];
+        run = agent.PromptAsync(UserMessage.FromText("再说一遍"));
+        var second = JsonDocument.Parse((await peer.ReadExtraAsync(Timeout))!).RootElement.GetProperty("params").GetProperty("sandboxPolicy");
+        Assert.Equal(["/Users/dev/shared-lib", "/Users/dev/docs"], second.GetProperty("writableRoots").EnumerateArray().Select(r => r.GetString()));
+        agent.Abort();
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

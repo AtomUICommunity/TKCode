@@ -2,6 +2,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:controls="using:TKCode.Desktop.Controls"
              xmlns:views="using:TKCode.Desktop.Views"
@@ -13,12 +14,11 @@
                 <Setter Property="Foreground" Value="{DynamicResource TKCode.Danger}" />
             </Style>
         </StackPanel.Styles>
-        <!-- 命令全文限高，超出内部滚动（长命令不撑开行） -->
-        <ScrollViewer MaxHeight="120" atom:ScrollViewer.IsLiteMode="True" HorizontalScrollBarVisibility="Disabled"
-                      VerticalScrollBarVisibility="Auto">
+        <!-- 命令全文限高，超出内部滚动（长命令不撑开行）；参数流式输出时贴底 -->
+        <arc:ScrollArea MaxHeight="120" controls:FollowTail.IsEnabled="{Binding IsStreaming}">
             <SelectableTextBlock Text="{Binding Detail}" FontFamily="{StaticResource TKCode.MonoFont}" FontSize="12"
                                  LineHeight="19" TextWrapping="Wrap" Foreground="{DynamicResource TKCode.TextSecondary}" />
-        </ScrollViewer>
+        </arc:ScrollArea>
         <!-- 子 Agent：名字、工具调用次数与 tokens -->
         <TextBlock Classes="tertiary" FontSize="12" Text="{Binding SubagentStats}" IsVisible="{Binding HasSubagent}" />
         <!-- 文件改动：+3 −1 与着色 diff（与变更面板同一控件） -->
@@ -27,11 +27,11 @@
             <views:DiffView Lines="{Binding DiffLines}" MaxContentHeight="320" />
         </StackPanel>
         <Border IsVisible="{Binding ShowResult}" Background="{DynamicResource TKCode.CodeBg}" CornerRadius="6" Padding="10,8">
-            <ScrollViewer MaxHeight="240" atom:ScrollViewer.IsLiteMode="True" HorizontalScrollBarVisibility="Disabled"
-                          controls:FollowTail.IsEnabled="{Binding IsBusy}">
+            <arc:ScrollArea MaxHeight="240"
+                            controls:FollowTail.IsEnabled="{Binding IsBusy}">
                 <SelectableTextBlock Classes="output" Classes.failed="{Binding IsFailed}" Text="{Binding Result}"
                                      FontFamily="{StaticResource TKCode.MonoFont}" FontSize="12" TextWrapping="Wrap" />
-            </ScrollViewer>
+            </arc:ScrollArea>
         </Border>
     </StackPanel>
 </UserControl>

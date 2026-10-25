@@ -13,4 +13,7 @@ public static class ConfigPaths
     public static string SettingsFile => Path.Combine(Home, "settings.json");
     public static string SchemaFile => Path.Combine(Home, "settings.schema.json");
     public static string StateFile => Path.Combine(Home, "state.json");
+
+    /// <summary>项目表（docs/design/projects.md §5.1）：Desktop 写、Host 读。</summary>
+    public static string ProjectsFile => Path.Combine(Home, "projects.json");
 }

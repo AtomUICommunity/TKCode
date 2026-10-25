@@ -61,7 +61,8 @@ public sealed class AgentTool(ToolContext context) : IAgentTool
             return AgentToolResult.Error(ReadOnlySubagentMessage);
         }
         var background = args.Bool("run_in_background") ?? false;
-        var request = new SubagentRequest(context.SessionId, description, args.Required("prompt"), type, args.String("model"), args.String("name"));
+        var request = new SubagentRequest(context.SessionId, description, args.Required("prompt"), type, args.String("model"), args.String("name"),
+            invocation.ToolCallId);
 
         SubagentHandle handle;
         try
@@ -90,15 +91,18 @@ public sealed class AgentTool(ToolContext context) : IAgentTool
                     $"use send_message to=\"{handle.Name}\" to give it more instructions, or task_stop to stop it.")
                 with
                 {
-                    Details = new SubagentDetails(handle.AgentId, handle.Name, type, description, "running", true, 0, 0).ToJson(),
+                    Details = new SubagentDetails(handle.AgentId, handle.Name, type, description, "running", true, 0, 0, Model: handle.Model).ToJson(),
                 };
         }
 
-        handle.Progress += (tools, tokens, activity) => invocation.Progress?.Report(
+        void Report(int tools, long tokens, string? activity) => invocation.Progress?.Report(
             AgentToolResult.Text(activity ?? "") with
             {
-                Details = new SubagentDetails(handle.AgentId, handle.Name, type, description, "running", false, tools, tokens, activity).ToJson(),
+                Details = new SubagentDetails(handle.AgentId, handle.Name, type, description, "running", false, tools, tokens, activity, handle.Model).ToJson(),
             });
+        // 一开始就推送一次：卡片立即显示名称与模型（docs/design/subagent-view.md §5.4）
+        Report(0, 0, null);
+        handle.Progress += Report;
         using var abortOnCancel = cancellationToken.Register(handle.Abort);
         var result = await handle.Completion;
         cancellationToken.ThrowIfCancellationRequested();
@@ -109,7 +113,8 @@ public sealed class AgentTool(ToolContext context) : IAgentTool
         return new AgentToolResult([new TKCode.Ai.Messages.TextContent(text.ToString())])
         {
             IsError = result.Status != "completed",
-            Details = new SubagentDetails(handle.AgentId, handle.Name, type, description, result.Status, false, result.ToolUses, result.Tokens).ToJson(),
+            Details = new SubagentDetails(handle.AgentId, handle.Name, type, description, result.Status, false, result.ToolUses, result.Tokens,
+                Model: handle.Model).ToJson(),
         };
     }
 }

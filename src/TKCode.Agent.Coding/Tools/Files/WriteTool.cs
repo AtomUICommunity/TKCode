@@ -16,7 +16,7 @@ public sealed class WriteTool(ToolContext context) : IAgentTool
 
     public string ParametersSchemaJson => """
         {"type":"object","properties":{
-          "path":{"type":"string","description":"Path to the file to write (absolute or relative to the workspace root)."},
+          "path":{"type":"string","description":"Path to the file to write (absolute or relative to the primary working directory)."},
           "content":{"type":"string","description":"The complete content to write to the file."}},
          "required":["path","content"],"additionalProperties":false}
         """;

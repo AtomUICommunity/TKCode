@@ -1,8 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using TKCode.Desktop.Localization;
 using TKCode.Desktop.ViewModels;
 
 namespace TKCode.Desktop.Views;
@@ -22,13 +20,11 @@ public partial class ProjectPickerView : UserControl
         if (_vm is not null)
         {
             _vm.CloseRequested -= Close;
-            _vm.NewProjectRequested -= OnNewProjectRequested;
         }
         _vm = DataContext as ProjectPickerViewModel;
         if (_vm is not null)
         {
             _vm.CloseRequested += Close;
-            _vm.NewProjectRequested += OnNewProjectRequested;
         }
     }
 
@@ -42,21 +38,4 @@ public partial class ProjectPickerView : UserControl
         Dispatcher.UIThread.Post(() => SearchBox.Focus(), DispatcherPriority.Input);
 
     private void OnPopupClosed(object? sender, EventArgs e) => _vm?.OnClosed();
-
-    private async void OnNewProjectRequested()
-    {
-        if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage)
-        {
-            return;
-        }
-        var folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = Strings.Get(TKCodeLangResourceKind.SelectFolderTitle),
-            AllowMultiple = false,
-        });
-        if (folders.FirstOrDefault()?.TryGetLocalPath() is { } path)
-        {
-            _vm?.AddProject(path);
-        }
-    }
 }

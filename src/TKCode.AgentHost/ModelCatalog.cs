@@ -91,6 +91,9 @@ public sealed class ModelCatalog
     /// <summary>settings.json 的 agent.shell.profile（bash 工具使用的 shell，null 为默认选择）。文件有错误时沿用上一次的值。</summary>
     public string? ShellProfile { get; private set; }
 
+    /// <summary>settings.json 的 permissions.additionalDirectories（全局附加目录）。文件有错误时沿用上一次的值。</summary>
+    public IReadOnlyList<string> AdditionalDirectories { get; private set; } = [];
+
     /// <summary>快速模型引用；文件有错误时沿用上一次成功解析的配置。</summary>
     public string? FastModelRef { get; private set; }
 
@@ -124,6 +127,7 @@ public sealed class ModelCatalog
                 _current = new Snapshot(models, providers, [], result.Warnings);
                 CacheTtl = result.Settings.PromptCacheTtl == "1h" ? PromptCacheTtl.OneHour : PromptCacheTtl.FiveMinutes;
                 ShellProfile = result.Settings.Agent?.Shell?.Profile;
+                AdditionalDirectories = result.Settings.Permissions?.AdditionalDirectories?.Where(d => !string.IsNullOrWhiteSpace(d)).ToArray() ?? [];
                 DefaultModelRef = result.Settings.Model;
                 FastModelRef = result.Settings.FastModel;
                 foreach (var warning in result.Warnings)

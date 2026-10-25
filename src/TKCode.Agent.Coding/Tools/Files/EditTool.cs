@@ -23,7 +23,7 @@ public sealed class EditTool(ToolContext context) : IAgentTool
 
     public string ParametersSchemaJson => """
         {"type":"object","properties":{
-          "path":{"type":"string","description":"Path to the file to edit (absolute or relative to the workspace root)."},
+          "path":{"type":"string","description":"Path to the file to edit (absolute or relative to the primary working directory)."},
           "edits":{"type":"array","minItems":1,"description":"One or more targeted replacements.","items":{"type":"object","properties":{
             "oldText":{"type":"string","description":"Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."},
             "newText":{"type":"string","description":"Replacement text."}},

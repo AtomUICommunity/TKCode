@@ -5,6 +5,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:motion="using:TKCode.Desktop.Motion"
              xmlns:controls="using:TKCode.Desktop.Controls"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
@@ -32,7 +33,7 @@
                 <controls:ZoomHost>
                 <Border Classes="menu" Width="340" Margin="16,0,16,16">
                     <StackPanel>
-                        <ScrollViewer MaxHeight="280" atom:ScrollViewer.IsLiteMode="True">
+                        <arc:ScrollArea MaxHeight="280">
                             <ItemsControl ItemsSource="{Binding Choices}" Margin="4">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:SettingsChoiceViewModel">
@@ -47,16 +48,16 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </ScrollViewer>
+                        </arc:ScrollArea>
                         <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                         <!-- 自定义：可执行文件的路径，或 PATH 里的程序名 -->
                         <Grid ColumnDefinitions="*,Auto" Margin="8">
-                            <atom:LineEdit SizeType="Small" PlaceholderText="{loc:TKCodeLangResource ShellCustomPlaceholder}"
+                            <arc:Input Size="Small" Placeholder="{loc:TKCodeLangResource ShellCustomPlaceholder}"
                                            Text="{Binding CustomPath, Mode=TwoWay}" FontFamily="{StaticResource TKCode.MonoFont}" />
-                            <atom:Button Grid.Column="1" SizeType="Small" Color="Default" Variant="Outlined" Margin="6,0,0,0"
-                                         Command="{Binding ApplyCustomPathCommand}">
+                            <arc:Button Variant="Secondary" Grid.Column="1" Size="Small" Margin="6,0,0,0"
+                                        Command="{Binding ApplyCustomPathCommand}">
                                 <TextBlock Text="{loc:TKCodeLangResource ShellApply}" FontSize="12" />
-                            </atom:Button>
+                            </arc:Button>
                         </Grid>
                     </StackPanel>
                 </Border>

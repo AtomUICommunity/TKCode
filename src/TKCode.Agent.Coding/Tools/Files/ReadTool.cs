@@ -24,11 +24,11 @@ public sealed class ReadTool(ToolContext context) : IAgentTool
         $"Output is limited to {MaxLines} lines or {MaxBytes / 1024}KB, and lines longer than {MaxLineLength} characters are truncated; " +
         "use offset (1-based line number) and limit to page through large files. " +
         "Images (png, jpg, gif, webp, bmp) are returned as attachments. Binary files and directories cannot be read (use ls for directories). " +
-        "Paths may be absolute or relative to the workspace root.";
+        "Paths may be absolute or relative to the primary working directory.";
 
     public string ParametersSchemaJson => """
         {"type":"object","properties":{
-          "path":{"type":"string","description":"Path to the file to read (absolute or relative to the workspace root)."},
+          "path":{"type":"string","description":"Path to the file to read (absolute or relative to the primary working directory)."},
           "offset":{"type":"integer","minimum":1,"description":"Line number to start reading from (1-based). Only provide for large files."},
           "limit":{"type":"integer","minimum":1,"description":"Maximum number of lines to read. Only provide for large files."}},
          "required":["path"],"additionalProperties":false}

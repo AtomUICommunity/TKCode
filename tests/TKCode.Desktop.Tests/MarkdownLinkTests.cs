@@ -15,6 +15,7 @@ using TKCode.Desktop.Services;
 using TKCode.Desktop.ViewModels;
 using TKCode.Desktop.Views;
 using Xunit;
+using TKCode.Config;
 
 namespace TKCode.Desktop.Tests;
 
@@ -100,7 +101,7 @@ public sealed class MarkdownLinkTests
             await HeadlessApp.Session.Dispatch(async () =>
             {
                 var vm = provider.GetRequiredService<MainWindowViewModel>();
-                vm.Conversation.SetWorkspace(new WorkspaceInfo(root, "project"));
+                vm.Conversation.SetWorkspace(Project.Create("project", [root]));
                 var window = new MainWindow { DataContext = vm, Width = 1280, Height = 760 };
                 try
                 {
@@ -226,7 +227,7 @@ public sealed class MarkdownLinkTests
             await HeadlessApp.Session.Dispatch(async () =>
             {
                 var vm = provider.GetRequiredService<MainWindowViewModel>();
-                vm.Conversation.SetWorkspace(new WorkspaceInfo(root, "project"));
+                vm.Conversation.SetWorkspace(Project.Create("project", [root]));
                 var window = new MainWindow { DataContext = vm, Width = 1280, Height = 760 };
                 try
                 {

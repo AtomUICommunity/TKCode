@@ -8,6 +8,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:lucide="https://github.com/AIDotNet/TKCode.Arc/lucide"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:motion="using:TKCode.Desktop.Motion"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:views="using:TKCode.Desktop.Views"
@@ -42,7 +44,7 @@
             <Setter Property="FontSize" Value="14" />
             <Setter Property="LineHeight" Value="20" />
         </Style>
-        <Style Selector="views|ComposerView atom|Button#Attach">
+        <Style Selector="views|ComposerView arc|Button#Attach">
             <Setter Property="Grid.Row" Value="1" />
             <Setter Property="Grid.Column" Value="0" />
         </Style>
@@ -72,7 +74,7 @@
             <Setter Property="Grid.Column" Value="2" />
             <Setter Property="Margin" Value="4,0" />
         </Style>
-        <Style Selector="views|ComposerView.compact:not(.multiline) atom|Button#Attach">
+        <Style Selector="views|ComposerView.compact:not(.multiline) arc|Button#Attach">
             <Setter Property="Grid.Row" Value="0" />
         </Style>
         <Style Selector="views|ComposerView.compact:not(.multiline) Panel#SendArea">
@@ -110,16 +112,16 @@
                             <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                        ToolTip.Tip="{Binding Text}" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
-                                <atom:Button Color="Default" Variant="Solid" SizeType="Small" Content="{loc:TKCodeLangResource McpLogin}" IsVisible="{Binding NeedsAuth}"
-                                             Command="{Binding Owner.LoginCommand}" CommandParameter="{Binding}" />
-                                <atom:Button Color="Default" Variant="Text" SizeType="Small" Content="{loc:TKCodeLangResource McpIgnore}" IsVisible="{Binding Untrusted}"
-                                             Command="{Binding Owner.IgnoreCommand}" CommandParameter="{Binding}" />
-                                <atom:Button Color="Default" Variant="Solid" SizeType="Small" Content="{loc:TKCodeLangResource McpTrust}" IsVisible="{Binding Untrusted}"
-                                             Command="{Binding Owner.TrustCommand}" CommandParameter="{Binding}" />
-                                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding Owner.DismissCommand}" CommandParameter="{Binding}"
-                                             ToolTip.Tip="{loc:TKCodeLangResource Dismiss}">
-                                    <atom:Button.Icon><icons:LucideIcon Kind="X" /></atom:Button.Icon>
-                                </atom:Button>
+                                <arc:Button Variant="Primary" Size="Small" Content="{loc:TKCodeLangResource McpLogin}" IsVisible="{Binding NeedsAuth}"
+                                            Command="{Binding Owner.LoginCommand}" CommandParameter="{Binding}" />
+                                <arc:Button Variant="Ghost" Size="Small" Content="{loc:TKCodeLangResource McpIgnore}" IsVisible="{Binding Untrusted}"
+                                            Command="{Binding Owner.IgnoreCommand}" CommandParameter="{Binding}" />
+                                <arc:Button Variant="Primary" Size="Small" Content="{loc:TKCodeLangResource McpTrust}" IsVisible="{Binding Untrusted}"
+                                            Command="{Binding Owner.TrustCommand}" CommandParameter="{Binding}" />
+                                <arc:Button Classes="icon" Variant="Ghost" Size="Small" Command="{Binding Owner.DismissCommand}" CommandParameter="{Binding}"
+                                            arc:Tooltip.Tip="{loc:TKCodeLangResource Dismiss}" AutomationProperties.Name="{loc:TKCodeLangResource Dismiss}">
+                                    <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="X" />
+                                </arc:Button>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -133,17 +135,17 @@
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <icons:LucideIcon Kind="SquareTerminal" Width="13" Height="13" VerticalAlignment="Center" StrokeBrush="{DynamicResource TKCode.Accent}" />
                     <TextBlock Grid.Column="1" Text="{Binding Mcp.PromptTitle}" Margin="8,0" VerticalAlignment="Center" FontSize="13" TextTrimming="CharacterEllipsis" />
-                    <atom:Button Grid.Column="2" Color="Default" Variant="Text" SizeType="Small" Command="{Binding Mcp.ClearPromptCommand}"
-                                 ToolTip.Tip="{loc:TKCodeLangResource McpRemoveReference}">
-                        <atom:Button.Icon><icons:LucideIcon Kind="X" /></atom:Button.Icon>
-                    </atom:Button>
+                    <arc:Button Classes="icon" Variant="Ghost" Grid.Column="2" Size="Small" Command="{Binding Mcp.ClearPromptCommand}"
+                                arc:Tooltip.Tip="{loc:TKCodeLangResource McpRemoveReference}" AutomationProperties.Name="{loc:TKCodeLangResource McpRemoveReference}">
+                        <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="X" />
+                    </arc:Button>
                 </Grid>
                 <ItemsControl ItemsSource="{Binding Mcp.PromptArguments}" IsVisible="{Binding Mcp.HasPromptArguments}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:McpPromptArgumentViewModel">
                             <Grid ColumnDefinitions="120,*" Margin="0,2">
                                 <TextBlock Classes="secondary" Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" ToolTip.Tip="{Binding Description}" />
-                                <atom:LineEdit Grid.Column="1" SizeType="Small" Text="{Binding Value, Mode=TwoWay}" PlaceholderText="{Binding Description}" />
+                                <arc:Input Grid.Column="1" Size="Small" Text="{Binding Value, Mode=TwoWay}" Placeholder="{Binding Description}" />
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -172,15 +174,13 @@
                                 </Border>
                             </Panel>
                         </Border>
-                        <atom:Button Color="Default" Variant="Solid" Shape="Circle" SizeType="Small"
-                                     Width="18" Height="18" MinWidth="18" Padding="0"
-                                     HorizontalAlignment="Right" VerticalAlignment="Top"
-                                     Command="{Binding $parent[views:ComposerView].((vm:ConversationViewModel)DataContext).RemoveAttachmentCommand, FallbackValue={x:Null}}"
-                                     CommandParameter="{Binding}" ToolTip.Tip="{loc:TKCodeLangResource AttachmentRemove}">
-                            <atom:Button.Icon>
-                                <icons:LucideIcon Kind="X" Width="10" Height="10" />
-                            </atom:Button.Icon>
-                        </atom:Button>
+                        <arc:Button Classes="icon" Variant="Primary" Size="Small"
+                                    Width="18" Height="18" CornerRadius="9"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Command="{Binding $parent[views:ComposerView].((vm:ConversationViewModel)DataContext).RemoveAttachmentCommand, FallbackValue={x:Null}}"
+                                    CommandParameter="{Binding}" arc:Tooltip.Tip="{loc:TKCodeLangResource AttachmentRemove}" AutomationProperties.Name="{loc:TKCodeLangResource AttachmentRemove}">
+                            <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Kind="X" Width="10" Height="10" />
+                        </arc:Button>
                     </Panel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
@@ -197,7 +197,7 @@
                 <Border Classes="menu" Width="440" Margin="0,24,24,0" Padding="4">
                     <StackPanel>
                         <TextBlock Classes="tertiary" Text="{Binding Completion.EmptyText}" Margin="8,6" IsVisible="{Binding Completion.HasEmptyText}" />
-                        <ScrollViewer x:Name="CompletionScroll" MaxHeight="248" HorizontalScrollBarVisibility="Disabled">
+                        <arc:ScrollArea x:Name="CompletionScroll" MaxHeight="248">
                             <!-- 右侧留出滚动条的位置，滚动条浮在内容上会盖住来源列 -->
                             <ItemsControl x:Name="CompletionList" ItemsSource="{Binding Completion.Items}" Margin="0,0,10,0">
                                 <ItemsControl.ItemTemplate>
@@ -218,7 +218,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </ScrollViewer>
+                        </arc:ScrollArea>
                     </StackPanel>
                 </Border>
                 </controls:ZoomHost>
@@ -229,25 +229,21 @@
                                      Padding="12,3"
                                      PlaceholderText="{loc:TKCodeLangResource ComposerPlaceholder}"
                                      Document="{Binding Composer}">
-                <composer:ComposerEditor.ContextMenu>
-                    <atom:ContextMenu>
-                        <atom:MenuItem Header="{loc:TKCodeLangResource EditCut}" Click="OnCutClick" />
-                        <atom:MenuItem Header="{loc:TKCodeLangResource EditCopy}" Click="OnCopyClick">
-                            <atom:MenuItem.Icon><icons:LucideIcon Kind="Copy" /></atom:MenuItem.Icon>
-                        </atom:MenuItem>
-                        <atom:MenuItem Header="{loc:TKCodeLangResource EditPaste}" Click="OnPasteClick" />
-                        <atom:MenuSeparator />
-                        <atom:MenuItem Header="{loc:TKCodeLangResource EditSelectAll}" Click="OnSelectAllClick" />
-                    </atom:ContextMenu>
-                </composer:ComposerEditor.ContextMenu>
+                <arc:ContextMenu.Menu>
+                    <arc:MenuSurface>
+                        <arc:MenuEntry Header="{loc:TKCodeLangResource EditCut}" Icon="{lucide:LucideGeometry Kind=Scissors}" Click="OnCutClick" />
+                        <arc:MenuEntry Header="{loc:TKCodeLangResource EditCopy}" Icon="{lucide:LucideGeometry Kind=Copy}" Click="OnCopyClick" />
+                        <arc:MenuEntry Header="{loc:TKCodeLangResource EditPaste}" Icon="{lucide:LucideGeometry Kind=ClipboardPaste}" Click="OnPasteClick" />
+                        <arc:MenuEntry Header="{loc:TKCodeLangResource EditSelectAll}" Icon="{lucide:LucideGeometry Kind=TextSelect}" Click="OnSelectAllClick"
+                                       HasSeparatorBefore="True" />
+                    </arc:MenuSurface>
+                </arc:ContextMenu.Menu>
             </composer:ComposerEditor>
 
-            <atom:Button x:Name="Attach" Color="Default" Variant="Text" Shape="Circle" SizeType="Small"
-                         VerticalAlignment="Center" Click="OnAttachClick" ToolTip.Tip="{loc:TKCodeLangResource AttachFiles}">
-                <atom:Button.Icon>
-                    <icons:LucideIcon Kind="Paperclip" />
-                </atom:Button.Icon>
-            </atom:Button>
+            <arc:Button Classes="icon" Variant="Ghost" x:Name="Attach" Size="Small"
+                        VerticalAlignment="Center" Click="OnAttachClick" arc:Tooltip.Tip="{loc:TKCodeLangResource AttachFiles}" AutomationProperties.Name="{loc:TKCodeLangResource AttachFiles}">
+                <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="Paperclip" />
+            </arc:Button>
 
             <StackPanel x:Name="Pickers" Orientation="Horizontal" VerticalAlignment="Center">
                 <views:ModelPickerView x:Name="Picker" VerticalAlignment="Center" DataContext="{Binding Picker}" />

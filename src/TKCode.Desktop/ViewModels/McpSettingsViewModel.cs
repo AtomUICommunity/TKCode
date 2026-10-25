@@ -119,6 +119,7 @@ public sealed partial class McpServerDetailViewModel : ObservableObject
         {
             IsProjectScope = false;
         }
+        FillChoices();
         _dirty = false;
     }
 
@@ -131,6 +132,10 @@ public sealed partial class McpServerDetailViewModel : ObservableObject
 
     public ObservableCollection<McpToolItemViewModel> Tools { get; } = [];
     public ObservableCollection<string> LogLines { get; } = [];
+
+    /// <summary>范围（全局 / 项目）与连接方式（本地命令 / 远程 URL）的分段选择：选中项跟随 <see cref="IsProjectScope"/> / <see cref="IsRemote"/>。</summary>
+    public ObservableCollection<SettingsChoiceViewModel> ScopeChoices { get; } = [];
+    public ObservableCollection<SettingsChoiceViewModel> TransportChoices { get; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDirty))]
@@ -226,7 +231,13 @@ public sealed partial class McpServerDetailViewModel : ObservableObject
         McpTexts.Tokens(Tools.Where(t => t.IsEnabled).Sum(t => t.Dto.SchemaChars + t.Description.Length)));
 
     partial void OnNameInputChanged(string value) => MarkDirty();
-    partial void OnIsRemoteChanged(bool value) => MarkDirty();
+    partial void OnIsRemoteChanged(bool value)
+    {
+        FillChoices();
+        MarkDirty();
+    }
+
+    partial void OnIsProjectScopeChanged(bool value) => FillChoices();
     partial void OnCommandInputChanged(string value) => MarkDirty();
     partial void OnArgsInputChanged(string value) => MarkDirty();
     partial void OnCwdInputChanged(string value) => MarkDirty();
@@ -242,6 +253,23 @@ public sealed partial class McpServerDetailViewModel : ObservableObject
     {
         _dirty = true;
         OnPropertyChanged(nameof(IsDirty));
+    }
+
+    private void FillChoices()
+    {
+        SettingsChoiceViewModel.Fill(ScopeChoices,
+            [("global", Strings.Get(TKCodeLangResourceKind.McpScopeGlobal)), ("project", Strings.Get(TKCodeLangResourceKind.McpScopeProject))],
+            IsProjectScope ? "project" : "global");
+        SettingsChoiceViewModel.Fill(TransportChoices,
+            [("local", Strings.Get(TKCodeLangResourceKind.McpTransportLocal)), ("remote", Strings.Get(TKCodeLangResourceKind.McpTransportRemote))],
+            IsRemote ? "remote" : "local");
+    }
+
+    /// <summary>界面语言变了：重建分段选项的文字，并让状态等文字重新取值。</summary>
+    internal void RefreshLanguage()
+    {
+        FillChoices();
+        OnPropertyChanged(string.Empty);
     }
 
     private void Load(McpServerConfig config)
@@ -409,16 +437,10 @@ public sealed partial class McpServerDetailViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ChooseLocal() => IsRemote = false;
+    private void ChooseTransport(SettingsChoiceViewModel choice) => IsRemote = choice.Value == "remote";
 
     [RelayCommand]
-    private void ChooseRemote() => IsRemote = true;
-
-    [RelayCommand]
-    private void ChooseGlobalScope() => IsProjectScope = false;
-
-    [RelayCommand]
-    private void ChooseProjectScope() => IsProjectScope = true;
+    private void ChooseScope(SettingsChoiceViewModel choice) => IsProjectScope = choice.Value == "project";
 
     [RelayCommand]
     private Task SaveAsync() => _owner.SaveAsync(this);
@@ -508,6 +530,14 @@ public sealed partial class McpSettingsViewModel : ObservableObject
     public bool ShowEmptyDetail => Selected is null;
 
     partial void OnSearchChanged(string value) => RebuildLists();
+
+    /// <summary>界面语言变了：列表里的状态文字、分组标题与详情里的分段选项都按新语言重取。</summary>
+    internal void RefreshLanguage()
+    {
+        RebuildLists();
+        Selected?.RefreshLanguage();
+        Import?.RefreshLanguage();
+    }
 
     partial void OnProjectErrorChanged(string? value) => OnPropertyChanged(nameof(HasProjectError));
 

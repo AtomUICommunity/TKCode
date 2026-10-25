@@ -47,8 +47,14 @@ public sealed class AgentHostServerProxy(JsonRpcConnection rpc) : IAgentHostServ
     public Task<IReadOnlyList<SessionSummaryDto>> ListSessionsAsync(string? cwd, CancellationToken cancellationToken = default) =>
         rpc.InvokeAsync(RpcMethods.ListSessions, new ListSessionsParams(cwd), J.ListSessionsParams, J.IReadOnlyListSessionSummaryDto, cancellationToken);
 
-    public Task<SessionPageDto> QuerySessionsAsync(string? cwd, int offset, int limit, CancellationToken cancellationToken = default) =>
-        rpc.InvokeAsync(RpcMethods.QuerySessions, new QuerySessionsParams(cwd, offset, limit), J.QuerySessionsParams, J.SessionPageDto, cancellationToken);
+    public Task<SessionPageDto> QuerySessionsAsync(string? cwd, int offset, int limit, string? projectId = null, CancellationToken cancellationToken = default) =>
+        rpc.InvokeAsync(RpcMethods.QuerySessions, new QuerySessionsParams(cwd, offset, limit, projectId), J.QuerySessionsParams, J.SessionPageDto, cancellationToken);
+
+    public Task<SessionDto> AddSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default) =>
+        rpc.InvokeAsync(RpcMethods.AddDirectory, new SessionDirectoryParams(sessionId, path), J.SessionDirectoryParams, J.SessionDto, cancellationToken);
+
+    public Task<SessionDto> RemoveSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default) =>
+        rpc.InvokeAsync(RpcMethods.RemoveDirectory, new SessionDirectoryParams(sessionId, path), J.SessionDirectoryParams, J.SessionDto, cancellationToken);
 
     public Task RenameSessionAsync(string filePath, string title, CancellationToken cancellationToken = default) =>
         rpc.InvokeAsync(RpcMethods.RenameSession, new RenameSessionParams(filePath, title), J.RenameSessionParams, cancellationToken);
@@ -124,6 +130,12 @@ public sealed class AgentHostServerProxy(JsonRpcConnection rpc) : IAgentHostServ
 
     public Task<AgentAssetsDto> ListAssetsAsync(string? cwd, CancellationToken cancellationToken = default) =>
         rpc.InvokeAsync(RpcMethods.ListAssets, new AssetsParams(cwd), J.AssetsParams, J.AgentAssetsDto, cancellationToken);
+
+    public Task<SubagentOpenResult> OpenSubagentAsync(string sessionId, string toolCallId, CancellationToken cancellationToken = default) =>
+        rpc.InvokeAsync(RpcMethods.OpenSubagent, new SubagentParams(sessionId, toolCallId), J.SubagentParams, J.SubagentOpenResult, cancellationToken);
+
+    public Task CloseSubagentAsync(string sessionId, string toolCallId, CancellationToken cancellationToken = default) =>
+        rpc.InvokeAsync(RpcMethods.CloseSubagent, new SubagentParams(sessionId, toolCallId), J.SubagentParams, cancellationToken);
 }
 
 /// <summary>Host 侧：把 JSON-RPC 方法分发到 <see cref="IAgentHostServer"/> 实现。</summary>
@@ -151,7 +163,11 @@ public static class AgentHostServerDispatcher
         rpc.AddRequestHandler(RpcMethods.SessionHistory, j.HistoryPageParams, j.HistoryPageDto,
             (p, ct) => server.GetHistoryAsync(p.SessionId, p.Before, p.TurnLimit, ct));
         rpc.AddRequestHandler(RpcMethods.QuerySessions, j.QuerySessionsParams, j.SessionPageDto,
-            (p, ct) => server.QuerySessionsAsync(p.Cwd, p.Offset, p.Limit, ct));
+            (p, ct) => server.QuerySessionsAsync(p.Cwd, p.Offset, p.Limit, p.ProjectId, ct));
+        rpc.AddRequestHandler(RpcMethods.AddDirectory, j.SessionDirectoryParams, j.SessionDto,
+            (p, ct) => server.AddSessionDirectoryAsync(p.SessionId, p.Path, ct));
+        rpc.AddRequestHandler(RpcMethods.RemoveDirectory, j.SessionDirectoryParams, j.SessionDto,
+            (p, ct) => server.RemoveSessionDirectoryAsync(p.SessionId, p.Path, ct));
         rpc.AddRequestHandler(RpcMethods.RenameSession, j.RenameSessionParams, (p, ct) => server.RenameSessionAsync(p.FilePath, p.Title, ct));
         rpc.AddRequestHandler(RpcMethods.PinSession, j.PinSessionParams, (p, ct) => server.PinSessionAsync(p.FilePath, p.Pinned, ct));
         rpc.AddRequestHandler(RpcMethods.DeleteSession, j.SessionFileParams, (p, ct) => server.DeleteSessionAsync(p.FilePath, ct));
@@ -174,6 +190,8 @@ public static class AgentHostServerDispatcher
         rpc.AddRequestHandler(RpcMethods.SearchFiles, j.FileSearchRequest, j.FileSearchResultDto, server.SearchFilesAsync);
         rpc.AddRequestHandler(RpcMethods.RevertFile, j.RevertFileRequest, j.RevertFileResult, server.RevertFileAsync);
         rpc.AddRequestHandler(RpcMethods.ListAssets, j.AssetsParams, j.AgentAssetsDto, (p, ct) => server.ListAssetsAsync(p.Cwd, ct));
+        rpc.AddRequestHandler(RpcMethods.OpenSubagent, j.SubagentParams, j.SubagentOpenResult, (p, ct) => server.OpenSubagentAsync(p.SessionId, p.ToolCallId, ct));
+        rpc.AddRequestHandler(RpcMethods.CloseSubagent, j.SubagentParams, (p, ct) => server.CloseSubagentAsync(p.SessionId, p.ToolCallId, ct));
     }
 }
 
@@ -184,6 +202,9 @@ public sealed class AgentHostClientProxy(JsonRpcConnection rpc) : IAgentHostClie
 
     public void OnSessionEvent(SessionEventNotification notification) =>
         rpc.Notify(RpcMethods.SessionEvent, notification, J.SessionEventNotification);
+
+    public void OnSubagentEvent(SubagentEventNotification notification) =>
+        rpc.Notify(RpcMethods.SubagentEvent, notification, J.SubagentEventNotification);
 
     public void OnModelsChanged(ModelsChangedNotification notification) =>
         rpc.Notify(RpcMethods.ModelsChanged, notification, J.ModelsChangedNotification);
@@ -217,6 +238,7 @@ public static class AgentHostClientDispatcher
     {
         var j = RpcJsonContext.Default;
         rpc.AddNotificationHandler(RpcMethods.SessionEvent, j.SessionEventNotification, client.OnSessionEvent);
+        rpc.AddNotificationHandler(RpcMethods.SubagentEvent, j.SubagentEventNotification, client.OnSubagentEvent);
         rpc.AddNotificationHandler(RpcMethods.ModelsChanged, j.ModelsChangedNotification, client.OnModelsChanged);
         rpc.AddRequestHandler(RpcMethods.ApproveTool, j.ToolApprovalRequest, j.ToolApprovalResponse, client.RequestToolApprovalAsync);
         rpc.AddNotificationHandler(RpcMethods.McpChanged, j.McpChangedNotification, client.OnMcpChanged);

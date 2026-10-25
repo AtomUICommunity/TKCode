@@ -152,12 +152,12 @@ public sealed class TurnWriter
     }
 
     /// <summary>工具执行中的输出（例如命令的 stdout 增量，内容为截至目前的完整输出或新增片段由驱动约定）。</summary>
-    public async ValueTask ToolProgressAsync(string toolCallId, string toolName, string text)
+    public async ValueTask ToolProgressAsync(string toolCallId, string toolName, string text, string? details = null)
     {
         await _lock.WaitAsync().ConfigureAwait(false);
         try
         {
-            await _emit(new ToolExecutionUpdateEvent(toolCallId, toolName, AgentToolResult.Text(text))).ConfigureAwait(false);
+            await _emit(new ToolExecutionUpdateEvent(toolCallId, toolName, AgentToolResult.Text(text) with { Details = details })).ConfigureAwait(false);
         }
         finally
         {
@@ -194,7 +194,7 @@ public sealed class TurnWriter
             var started = _toolStartedAt.GetValueOrDefault(toolCallId, System.Diagnostics.Stopwatch.GetTimestamp());
             await _emit(new ToolExecutionEndEvent(toolCallId, toolName, result, System.Diagnostics.Stopwatch.GetElapsedTime(started)))
                 .ConfigureAwait(false);
-            var message = new ToolResultMessage(toolCallId, toolName, result.Content) { IsError = isError };
+            var message = new ToolResultMessage(toolCallId, toolName, result.Content) { IsError = isError, Details = details };
             await AppendMessageCoreAsync(message).ConfigureAwait(false);
         }
         finally

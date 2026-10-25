@@ -19,7 +19,8 @@ public sealed record SessionIndexEntry(
     bool Pinned,
     string? ModelRef,
     string? Runtime,
-    string? NativeSessionId);
+    string? NativeSessionId,
+    string? ProjectId = null);
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(List<SessionIndexEntry>))]
@@ -105,7 +106,8 @@ public sealed class SessionIndex(ILogger<SessionIndex> logger)
                 : snapshot.ModelProvider is null ? snapshot.ModelId
                 : $"{snapshot.ModelProvider}/{snapshot.ModelId}";
             return new SessionIndexEntry(file.FullName, file.Length, file.LastWriteTimeUtc.Ticks, snapshot.SessionId, snapshot.Cwd,
-                TitleOf(snapshot.AllMessages), snapshot.CustomTitle, snapshot.IsPinned, modelRef, snapshot.Runtime, snapshot.NativeSessionId);
+                TitleOf(snapshot.AllMessages), snapshot.CustomTitle, snapshot.IsPinned, modelRef, snapshot.Runtime, snapshot.NativeSessionId,
+                snapshot.ProjectId);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {

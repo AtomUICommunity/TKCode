@@ -139,7 +139,7 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           version="$(sed -n 's:.*<StreamMarkVersion>\(.*\)</StreamMarkVersion>.*:\1:p' Directory.Packages.props)"
           for project in Core Avalonia RaTeX Highlighting.TextMate Mermaid Theme.AtomUI; do
-            dotnet pack "external/StreamMark/src/StreamMark.$project" -c Release -o packages/streammark -p:Version="$version" -p:StreamMarkPackageIdPrefix=none --nologo -v quiet
+            dotnet pack "external/StreamMark/src/StreamMark.$project" -c Release -o packages/streammark -p:Version="$version" --nologo -v quiet
           done
           ls packages/streammark
       - uses: actions/upload-artifact@v4

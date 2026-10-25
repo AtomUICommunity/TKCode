@@ -1,0 +1,32 @@
+<!-- 连续启动的子 Agent：一个标题，下面在引导线旁逐行列出（docs/design/subagent-view.md §6.2）。 -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TKCode.Desktop.ViewModels"
+             xmlns:views="using:TKCode.Desktop.Views"
+             xmlns:icons="using:TKCode.Desktop.Icons"
+             x:Class="TKCode.Desktop.Views.SubagentGroupView"
+             x:DataType="vm:SubagentGroupViewModel"
+             HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+    <StackPanel Margin="0,2" Spacing="2">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0,0,0" MinHeight="24">
+            <icons:LucideIcon Kind="Bot" Width="14" Height="14" VerticalAlignment="Center"
+                              StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
+            <TextBlock Classes="secondary" Text="{Binding Header}" FontSize="13" VerticalAlignment="Center" />
+        </StackPanel>
+        <Grid ColumnDefinitions="Auto,*" Margin="10,0,0,0">
+            <Border Width="1" Margin="0,4" Background="{DynamicResource TKCode.TreeLine}" />
+            <ItemsControl Grid.Column="1" Margin="6,0,0,0" ItemsSource="{Binding Agents}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SubagentCardViewModel">
+                        <views:SubagentCardView />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+    </StackPanel>
+</UserControl>

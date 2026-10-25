@@ -18,6 +18,7 @@ public sealed class StreamingLifecycleTests
         {
             var session = CreateSession();
             session.Apply(new AgentStarted());
+            Assert.True(session.IsPondering);
             session.Apply(new MessageStarted("m1", "assistant", null));
             session.Apply(new ThinkingDelta("m1", 0, "Inspect the build output."));
             session.Apply(new TextDelta("m1", 7, "Running the build."));
@@ -25,6 +26,9 @@ public sealed class StreamingLifecycleTests
             var message = Assert.Single(session.Items.OfType<AssistantMessageItemViewModel>());
             var thinking = Assert.IsType<ThinkingBlockViewModel>(message.Blocks[0]);
             var text = Assert.IsType<TextBlockViewModel>(message.Blocks[1]);
+            Assert.True(thinking.IsStreaming);
+            Assert.False(session.IsPondering);
+            Assert.Equal("Thinking", thinking.Header);
             Assert.Equal(Strings.Get(TKCodeLangResourceKind.Thinking), thinking.Header);
             Assert.True(text.IsStreaming);
 

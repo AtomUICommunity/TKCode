@@ -7,6 +7,7 @@ TKCode 的数据目录默认为 `~/.tkcode`，可以用环境变量 `TKCODE_HOME
 | `settings.json` | 用户（手工编辑或通过设置界面） | 厂商与模型、主模型与快速模型、语言、主题 |
 | `settings.schema.json` | TKCode 启动时生成 | JSON Schema，供编辑器自动补全 |
 | `state.json` | 程序自动写入 | 收藏的模型、最近项目、上次使用的会话参数等 |
+| `projects.json` | 程序自动写入 | 项目表：名称、设备与文件夹（第一个是主文件夹），Desktop 写、Host 读（docs/design/projects.md §5.1）；Agent 读写它需要审批 |
 | `sessions/` | Agent Host | 会话记录（JSONL） |
 
 ## 1. 设计原则
@@ -93,7 +94,7 @@ TKCode 的数据目录默认为 `~/.tkcode`，可以用环境变量 `TKCODE_HOME
 | `promptCacheTtl` | `5m` \| `1h` | `5m` | 提示缓存断点（`cache_control`）的有效期，全局生效：所有 Anthropic Messages 端点，以及经 Chat 协议调用的 Claude 模型。5 分钟的条目每次读取自动续期；1 小时的写入按 2 倍计费，适合两次提问常隔 5–60 分钟的用法。Host 每次请求时读取，进行中的会话也立即生效。设置页「通用」可改。其它值给出警告并按 `5m` 处理 |
 | `providers` | object | `{}` | 键为厂商 id |
 | `webSearch` | object | 无 | 内置 Agent 的 `web_search` 后端，见 §2.6；不配置就不提供该工具 |
-| `permissions` | object | 无 | `additionalDirectories`：除 cwd 外，也算作工作区的目录。这些目录内的只读操作不需要审批 |
+| `permissions` | object | 无 | `additionalDirectories`：除 cwd 外，也算作所有会话工作区的目录（项目自己的文件夹在项目里设置，docs/design/projects.md §6.2）。这些目录内的只读操作不需要审批；修改后在下一轮开始前生效 |
 | `agent` | object | 无 | 内置 Agent 的设置。目前只有 `shell.profile`：bash 工具使用的 shell，见 §2.8 |
 | `terminal` | object | 无 | 交互终端的设置。目前只有 `defaultProfile`：新建终端默认使用的 shell，见 §2.8 |
 | `mcpServers` | object | `{}` | MCP 服务器，键为服务器名（`[A-Za-z0-9_-]{1,32}`），见 §2.7 |

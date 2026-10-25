@@ -5,6 +5,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:views="using:TKCode.Desktop.Views"
              xmlns:icons="using:TKCode.Desktop.Icons"
@@ -82,11 +83,11 @@
                         </DataTemplate>
                     </ItemsControl.DataTemplates>
                 </ItemsControl>
-                <atom:Button Grid.Column="4" SizeType="Small" Variant="Text" Shape="Circle" Focusable="False"
-                             Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Conversation.StopCommand, FallbackValue={x:Null}}"
-                             ToolTip.Tip="{loc:TKCodeLangResource QuestionStopTip}">
-                    <atom:Button.Icon><icons:LucideIcon Kind="StopFilled" /></atom:Button.Icon>
-                </atom:Button>
+                <arc:Button Classes="icon" Variant="Ghost" Grid.Column="4" Size="Small" Focusable="False"
+                            Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Conversation.StopCommand, FallbackValue={x:Null}}"
+                            arc:Tooltip.Tip="{loc:TKCodeLangResource QuestionStopTip}" AutomationProperties.Name="{loc:TKCodeLangResource QuestionStopTip}">
+                    <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="StopFilled" />
+                </arc:Button>
             </Grid>
 
             <!-- 当前问题 -->
@@ -145,8 +146,8 @@
                             </Border>
                         </Panel>
                         <TextBlock Grid.Column="1" Classes="strong" Text="{loc:TKCodeLangResource QuestionOther}" Margin="10,0,12,0" VerticalAlignment="Center" />
-                        <atom:LineEdit x:Name="OtherInput" Grid.Column="2" SizeType="Small" StyleVariant="Borderless" Background="Transparent"
-                                       Text="{Binding OtherText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, FallbackValue=''}" PlaceholderText="{Binding OtherPlaceholder, FallbackValue=''}"
+                        <arc:Input x:Name="OtherInput" Grid.Column="2" Size="Small" Classes="bare"
+                                       Text="{Binding OtherText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, FallbackValue=''}" Placeholder="{Binding OtherPlaceholder, FallbackValue=''}"
                                        VerticalAlignment="Center" />
                         <icons:LucideIcon Grid.Column="3" Kind="Check" Width="13" Height="13" Margin="8,0,2,0" VerticalAlignment="Center"
                                           StrokeBrush="{DynamicResource TKCode.AccentText}"
@@ -182,19 +183,19 @@
             <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource QuestionHints}" FontSize="12" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" Margin="2,0" />
-                <atom:Button Grid.Column="1" SizeType="Small" Color="Default" Variant="Text" Focusable="False" Command="{Binding DeclineCommand}">
+                <arc:Button Variant="Ghost" Grid.Column="1" Size="Small" Focusable="False" Command="{Binding DeclineCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="{loc:TKCodeLangResource QuestionDecline}" VerticalAlignment="Center" />
                         <Border Classes="kbd"><TextBlock Text="Esc" /></Border>
                     </StackPanel>
-                </atom:Button>
-                <atom:Button Grid.Column="2" SizeType="Small" Color="Default" Variant="Solid" Focusable="False" Margin="6,0,0,0"
-                             Command="{Binding PrimaryCommand}">
+                </arc:Button>
+                <arc:Button Variant="Primary" Grid.Column="2" Size="Small" Focusable="False" Margin="6,0,0,0"
+                            Command="{Binding PrimaryCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
-                        <icons:LucideIcon Kind="CornerDownLeft" Width="12" Height="12" VerticalAlignment="Center" />
+                        <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Kind="CornerDownLeft" Width="12" Height="12" VerticalAlignment="Center" />
                     </StackPanel>
-                </atom:Button>
+                </arc:Button>
             </Grid>
         </StackPanel>
     </Border>

@@ -30,14 +30,12 @@
                                                                     </Grid>
                                                                 </Button>
                                                                 <motion:Reveal IsOpen="{Binding IsExpanded}">
-    <!-- 详情只在展开时创建（ExpandedDetail），收起即释放 -->
-    <ContentControl Content="{Binding ExpandedDetail}">
-        <ContentControl.ContentTemplate>
-            <DataTemplate x:DataType="vm:ToolCallBlockViewModel">
-                <views:ToolCallDetailView />
-            </DataTemplate>
-        </ContentControl.ContentTemplate>
-    </ContentControl>
+    <!-- 详情只在展开时创建，收起动画播完后释放 -->
+    <motion:Reveal.ContentTemplate>
+        <DataTemplate x:DataType="vm:ToolCallBlockViewModel">
+            <views:ToolCallDetailView />
+        </DataTemplate>
+    </motion:Reveal.ContentTemplate>
 </motion:Reveal>
                                                             </StackPanel>
 </UserControl>

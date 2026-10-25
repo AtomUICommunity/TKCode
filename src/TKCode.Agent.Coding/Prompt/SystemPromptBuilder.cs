@@ -32,7 +32,7 @@ public static partial class SystemPromptBuilder
         "Show file paths clearly when working with files.",
         "Never revert changes you did not make unless the user explicitly asks; the workspace may contain edits by the user or other agents.",
         "Do not run destructive commands (for example `git reset --hard`, `git checkout --`, `git clean -f`, `git push --force`, `rm -rf`) unless the user explicitly asks.",
-        "In user messages, @path refers to a file or directory in the workspace, relative to the working directory. Read it with your tools when you need its contents; the message only carries the path.",
+        "In user messages, @path refers to a file or directory in the workspace: a relative path is relative to the primary working directory, an absolute path is used as is. Read it with your tools when you need its contents; the message only carries the path.",
     ];
 
     /// <param name="shell">environment 节里的 Shell 一行（bash 工具实际使用的 shell 名）；为 null 时按默认选择。</param>
@@ -68,13 +68,33 @@ public static partial class SystemPromptBuilder
             sections.AddRange(extra);
         }
 
-        var cwd = new StringBuilder(Slashes(workspace.Cwd));
-        foreach (var directory in workspace.Additional)
-        {
-            cwd.Append("\nAdditional workspace directory: ").Append(Slashes(directory));
-        }
-        sections.Add(new("cwd", cwd.ToString()));
+        sections.Add(new("cwd", BuildCwd(workspace)));
         return sections;
+    }
+
+    /// <summary>
+    /// cwd 节（docs/design/projects.md §7.1）：只有主文件夹时只写路径（与旧版相同，恢复的会话不会多出补丁）；
+    /// 有附加目录时写明主文件夹与附加目录，以及路径的解析规则。
+    /// </summary>
+    private static string BuildCwd(WorkspaceRoots workspace)
+    {
+        var additional = workspace.Additional;
+        if (additional.Count == 0)
+        {
+            return Slashes(workspace.Cwd);
+        }
+        var sb = new StringBuilder("Primary working directory: ").Append(Slashes(workspace.Cwd)).Append('\n')
+            .Append("Additional working directories (read, search and edit them just like the primary one; refer to their files by absolute path, " +
+                    "because relative paths and shell commands resolve against the primary working directory):");
+        foreach (var directory in additional)
+        {
+            sb.Append("\n- ").Append(Slashes(directory));
+            if (workspace.IsSessionOnly(directory))
+            {
+                sb.Append(" (added for this session only)");
+            }
+        }
+        return sb.ToString();
     }
 
     public static string Render(IReadOnlyList<PromptSection> sections) =>

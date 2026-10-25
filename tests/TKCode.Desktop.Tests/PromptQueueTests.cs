@@ -1,6 +1,8 @@
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TKCode.Arc;
 using TKCode.Desktop.Services;
 using TKCode.Desktop.ViewModels;
 using TKCode.Desktop.Views;
@@ -59,6 +61,18 @@ public sealed class PromptQueueTests
             Assert.Equal(2, session.QueuedPrompts.Count);
             await Settle();
             HeadlessApp.Save(window, "queue-card");
+
+            // 长消息收起到 2 行（Arc ExpandableText），图标和按钮对齐第一行；展开后显示全部
+            await Send(conversation, string.Join("", Enumerable.Repeat("把设置页里的模型列表改成按厂商分组，每组可以折叠；搜索时自动展开命中的分组。", 5)));
+            await Settle();
+            var longText = window.GetVisualDescendants().OfType<ExpandableText>().Single(t => t.Text?.Length > 100);
+            Assert.True(longText.IsOverflowing);
+            HeadlessApp.Save(window, "queue-card-long");
+            longText.IsExpanded = true;
+            await Settle();
+            HeadlessApp.Save(window, "queue-card-long-expanded");
+            session.QueuedPrompts[2].RemoveCommand.Execute(null);
+            Assert.Equal(2, session.QueuedPrompts.Count);
 
             // 被停止：队列暂停，不自动发出
             session.Apply(new MessageStarted("x", "assistant", null));

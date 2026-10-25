@@ -98,6 +98,12 @@ public sealed record TurnOptions(ModelInfo Model, ThinkingLevel ThinkingLevel, b
 
     /// <summary>审批自动允许（自动放行与完全授权）。</summary>
     public bool AutoApprove => Permission != TKCode.Agent.PermissionMode.Ask;
+
+    /// <summary>
+    /// 主文件夹（cwd）以外的工作区目录（项目的其他文件夹与本会话追加的文件夹，docs/design/projects.md §6.8），绝对路径。
+    /// Claude 在启动时用 --add-dir、ACP 在 new / load / resume 时发送；Codex 每轮作为 writableRoots 发送。
+    /// </summary>
+    public IReadOnlyList<string> AdditionalDirectories { get; init; } = [];
 }
 
 public sealed record RuntimeSessionRequest(
@@ -186,6 +192,12 @@ public interface IRuntimeHost
     /// <summary>原生会话 id 确定或改变（例如恢复失败后新建）。</summary>
     void OnNativeSessionId(string nativeSessionId);
 
+    /// <summary>
+    /// 子 Agent 的转录（docs/design/subagent-view.md §5.1）：同一 <paramref name="key"/>（Claude 为 parent_tool_use_id，Codex 为子 thread id）
+    /// 返回同一个转录。宿主不支持时为 null，运行时照旧丢弃子 Agent 的帧。
+    /// </summary>
+    RuntimeSubagent? OpenSubagent(string key, string name, string? model) => null;
+
     /// <summary>运行时自带的斜杠命令列表（每次整体替换）。</summary>
     void OnCommands(IReadOnlyList<RuntimeCommand> commands)
     {
@@ -202,6 +214,12 @@ public interface IRuntimeSession : IAsyncDisposable
     string? NativeSessionId { get; }
 
     Task RunTurnAsync(UserMessage message, TurnOptions options, TurnWriter writer, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 每轮都按 <see cref="TurnOptions.AdditionalDirectories"/> 设置目录（Codex 的 writableRoots）。为 false 时目录只在启动会话时生效，
+    /// 目录变化后由 <see cref="ExternalAgent"/> 在下一轮之前用原生会话 id 重启会话（docs/design/projects.md §6.8）。
+    /// </summary>
+    bool AppliesDirectoriesPerTurn => false;
 
     /// <summary>运行中追加用户消息；返回 false 表示当前无法插入（调用方改为排队）。</summary>
     ValueTask<bool> SteerAsync(UserMessage message, CancellationToken cancellationToken);

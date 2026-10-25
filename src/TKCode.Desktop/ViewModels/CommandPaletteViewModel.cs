@@ -45,8 +45,8 @@ public sealed partial class CommandPaletteViewModel : ObservableObject
 
     public ObservableCollection<PaletteItemViewModel> Items { get; } = [];
 
-    /// <summary>“新建项目”时请求视图打开文件夹选择框。</summary>
-    public event Action? NewProjectFolderRequested;
+    /// <summary>“新建项目”：请求视图打开创建项目弹窗（设备在弹窗里选择，docs/design/projects.md §8.4）。</summary>
+    public event Action? NewProjectRequested;
 
     [ObservableProperty]
     public partial bool IsOpen { get; private set; }
@@ -94,13 +94,11 @@ public sealed partial class CommandPaletteViewModel : ObservableObject
         IsOpen = true;
     }
 
-    /// <summary>直接打开“新建项目”的设备页（⇧⌘N）。</summary>
+    /// <summary>新建项目（⇧⌘N）：关闭面板，打开创建项目弹窗。</summary>
     public void OpenNewProject()
     {
-        _pages.Clear();
-        Push(RootPage());
-        Push(DevicesPage());
-        IsOpen = true;
+        Close();
+        NewProjectRequested?.Invoke();
     }
 
     [RelayCommand]
@@ -224,11 +222,7 @@ public sealed partial class CommandPaletteViewModel : ObservableObject
             Icon = LucideKind.SquarePen,
             Shortcut = mod + "N",
         };
-        yield return new PaletteItemViewModel(Strings.Get(TKCodeLangResourceKind.NewProjectCommand), () =>
-        {
-            Push(DevicesPage());
-            return Task.CompletedTask;
-        })
+        yield return new PaletteItemViewModel(Strings.Get(TKCodeLangResourceKind.NewProjectCommand), () => Run(() => NewProjectRequested?.Invoke()))
         {
             Icon = LucideKind.Folder,
             Shortcut = shift + "N",
@@ -278,15 +272,6 @@ public sealed partial class CommandPaletteViewModel : ObservableObject
             Icon = LucideKind.PanelRight,
         };
     }
-
-    private PalettePage DevicesPage() => new(Strings.Get(TKCodeLangResourceKind.NewProjectCommand), Strings.Get(TKCodeLangResourceKind.SearchDevices),
-        search => new[] { DeviceInfo.Name }
-            .Where(d => Matches(d, search))
-            .Select(d => new PaletteItemViewModel(d, () => Run(() => NewProjectFolderRequested?.Invoke()))
-            {
-                Icon = LucideKind.Laptop,
-                IsOnline = true,
-            }), OpenHint: true);
 
     /// <summary>执行后关闭面板。</summary>
     private async Task Run(Func<Task> action)

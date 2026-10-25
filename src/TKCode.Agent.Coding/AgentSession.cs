@@ -324,6 +324,12 @@ public sealed class AgentSession : IAsyncDisposable
                 planExisted = null;
                 planExists = planFile is not null && File.Exists(planFile);
             }
+            // 项目的文件夹与本会话追加的文件夹可能已经变化：下一轮开始前同步，cwd 节随补丁更新
+            if (options.AdditionalDirectories is { } directories)
+            {
+                var current = directories(store);
+                workspace.Sync(current.All, current.SessionOnly);
+            }
             IReadOnlyList<IAgentTool> all = set.Tools.Count == 0 ? tools : [.. tools, .. set.Tools];
             // 总是经过 Allows：模式专属工具（exit_plan_mode / enter_plan_mode）在 all 下也要过滤
             agent.Tools = all.Where(role.Allows).ToArray();

@@ -1,0 +1,23 @@
+<!--
+  右侧工作区的子 Agent 标签（docs/design/subagent-view.md §6.3）：子 Agent 的完整消息，
+  使用与主会话相同的转录视图与数据模板（Views/TranscriptTemplates.axaml），没有输入框。
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:atom="https://atomui.net"
+             xmlns:sm="using:StreamMark.Avalonia.Transcript"
+             xmlns:vm="using:TKCode.Desktop.ViewModels"
+             xmlns:controls="using:TKCode.Desktop.Controls"
+             xmlns:loc="using:TKCode.Desktop.Localization"
+             x:Class="TKCode.Desktop.Views.SubagentTabView"
+             x:DataType="vm:SubagentTabViewModel">
+    <Panel>
+        <sm:TranscriptView x:Name="Transcript" MaxContentWidth="760" Padding="24,12,24,16" EntrySpacing="12"
+                           atom:ScrollViewer.IsLiteMode="True" />
+        <controls:DotSpinner Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsLoading}" />
+        <TextBlock Classes="secondary" Text="{Binding Error}" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="360"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource SubagentEmpty}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsEmpty}" />
+    </Panel>
+</UserControl>

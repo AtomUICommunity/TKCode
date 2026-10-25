@@ -16,7 +16,7 @@ namespace TKCode.MemoryHarness;
 /// <summary>
 /// 内存与空闲 CPU 基准：隔离的 TKCODE_HOME + 模拟模型，在真实窗口中跑一个场景，等待稳定后记录
 /// footprint（与“活动监视器”的“内存”列一致）、历史峰值、GC 堆，以及场景结束后一段安静时间内的 CPU。
-/// 环境变量：MH_SCENARIO=idle|markdown|chat，MH_LABEL=结果标签，MH_HOME=复用的数据目录（测磁盘缓存命中），
+/// 环境变量：MH_SCENARIO=idle|markdown|chat|settings（settings 不记内存，逐项输出打开设置 / 切换分区时 UI 线程的最长阻塞），MH_LABEL=结果标签，MH_HOME=复用的数据目录（测磁盘缓存命中），
 /// MH_OUT=结果追加到的文件，MH_QUIET_SECONDS=安静窗口秒数（默认 10），
 /// MH_TRACE=时间线文件（每 20ms 记录 footprint / GC 已提交 / 累计分配，以及启动各阶段的标记，用于分析启动峰值）。
 /// </summary>
@@ -35,6 +35,16 @@ internal static class Program
         Environment.SetEnvironmentVariable("TKCODE_HOME", home);
         Environment.SetEnvironmentVariable("TKCODE_FAKE_PROVIDER", "1");
         Environment.SetEnvironmentVariable("TKCODE_EXTERNAL_RUNTIMES", "0");
+        if (Environment.GetEnvironmentVariable("MH_SCENARIO") == "settings" && !File.Exists(Path.Combine(home, "settings.json")))
+        {
+            // 与真实使用接近：几个已配置的内置厂商（目录里模型很多）和两个 MCP 服务器（都不会启动进程）
+            File.WriteAllText(Path.Combine(home, "settings.json"), """
+                { "providers": { "anthropic": { "apiKey": "sk-ant-bench" }, "openai": { "apiKey": "sk-openai-bench" },
+                                 "deepseek": { "apiKey": "sk-ds-bench" }, "openrouter": { "apiKey": "sk-or-bench" } },
+                  "mcpServers": { "broken": { "type": "ws", "url": "wss://example.com" },
+                                  "remote": { "url": "https://mcp.example.com/mcp", "enabled": false } } }
+                """);
+        }
         var state = new StateService(Path.Combine(home, "state.json"));
         if (!state.Current.Workspaces.Contains(workspace))
         {
@@ -83,6 +93,9 @@ internal static class Program
                 case "idle":
                     // 等启动收尾（连接 Agent Host、预热语法、启动页退场）结束，测稳定空闲
                     await Task.Delay(TimeSpan.FromSeconds(15));
+                    break;
+                case "settings":
+                    await SettingsScenario.RunAsync(vm);
                     break;
                 case "markdown":
                     var file = Samples.WriteMarkdown(workspace);

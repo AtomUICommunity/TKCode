@@ -1,0 +1,101 @@
+<!--
+  创建 / 编辑项目（docs/design/projects.md §9）：名称、设备、源文件夹（第一个是主文件夹）。
+  经 ScaledModal 显示，跟随界面缩放；提交进行中不能关闭，失败时保留输入。
+-->
+<arc:DialogSurface xmlns="https://github.com/avaloniaui"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+                   xmlns:lucide="https://github.com/AIDotNet/TKCode.Arc/lucide"
+                   xmlns:vm="using:TKCode.Desktop.ViewModels"
+                   xmlns:loc="using:TKCode.Desktop.Localization"
+                   x:Class="TKCode.Desktop.Views.ProjectDialog"
+                   x:DataType="vm:ProjectDialogViewModel"
+                   Size="Medium" ShowCloseButton="True" ContentTemplate="{x:Null}"
+                   Title="{Binding Title}" Description="{loc:TKCodeLangResource ProjectDialogDescription}">
+    <arc:DialogSurface.Styles>
+        <Style Selector="Border.folderRow">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.folderRow.flashing">
+            <Setter Property="Background" Value="{arc:ArcDesignTokenResource AccentSubtle}" />
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontSize" Value="{arc:ArcDesignTokenResource TypeSM}" />
+            <Setter Property="FontWeight" Value="{arc:ArcDesignTokenResource WeightMedium}" />
+            <Setter Property="Foreground" Value="{arc:ArcDesignTokenResource Foreground}" />
+        </Style>
+    </arc:DialogSurface.Styles>
+    <arc:DialogSurface.Actions>
+        <Grid ColumnDefinitions="Auto,*,Auto">
+            <arc:Button x:Name="RemoveButton" Variant="Ghost" Click="OnRemoveClick" IsVisible="{Binding IsEdit}"
+                        Content="{loc:TKCodeLangResource ProjectRemoveAction}" Foreground="{arc:ArcDesignTokenResource Danger}" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <arc:Button x:Name="CancelButton" Variant="Secondary" Click="OnCancelClick" Content="{loc:TKCodeLangResource Cancel}" />
+                <arc:Button x:Name="SubmitButton" Variant="Primary" Click="OnSubmitClick" Content="{Binding SubmitText}"
+                            IsEnabled="{Binding CanSubmit}" IsLoading="{Binding IsBusy}" />
+            </StackPanel>
+        </Grid>
+    </arc:DialogSurface.Actions>
+    <StackPanel Spacing="16">
+        <arc:Input x:Name="NameInput" Label="{loc:TKCodeLangResource ProjectName}" Placeholder="{Binding NamePlaceholder}"
+                   Text="{Binding Name, Mode=TwoWay}" MaxLength="80" IsEnabled="{Binding !IsBusy}" />
+        <arc:Select x:Name="DeviceSelect" Label="{loc:TKCodeLangResource ProjectDevice}" ItemsSource="{Binding Devices}" SelectedIndex="0" />
+        <StackPanel Spacing="8">
+            <TextBlock Classes="fieldLabel" Text="{loc:TKCodeLangResource SourceFolders}" />
+            <Border x:Name="FolderList" BorderBrush="{arc:ArcDesignTokenResource Border}" BorderThickness="1"
+                    CornerRadius="{arc:ArcDesignTokenResource RadiusControl}" ClipToBounds="True" DragDrop.AllowDrop="True">
+                <StackPanel>
+                    <TextBlock Text="{loc:TKCodeLangResource SourceFoldersEmpty}" Margin="12,10" TextWrapping="Wrap"
+                               FontSize="{arc:ArcDesignTokenResource TypeSM}" Foreground="{arc:ArcDesignTokenResource TextMuted}"
+                               IsVisible="{Binding !HasFolders}" />
+                    <ItemsControl x:Name="Folders" ItemsSource="{Binding Folders}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ProjectFolderItemViewModel">
+                                <Border Classes="folderRow" Classes.flashing="{Binding IsFlashing}" Padding="12,8,8,8"
+                                        BorderBrush="{arc:ArcDesignTokenResource BorderSubtle}" BorderThickness="0,0,0,1">
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                        <lucide:LucideIcon Kind="Folder" Size="16" VerticalAlignment="Center"
+                                                           Foreground="{arc:ArcDesignTokenResource TextSecondary}" />
+                                        <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center" ToolTip.Tip="{Binding Path}">
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxLines="1"
+                                                       FontWeight="{arc:ArcDesignTokenResource WeightMedium}" />
+                                            <TextBlock Text="{Binding DisplayPath}" TextTrimming="CharacterEllipsis" MaxLines="1"
+                                                       FontSize="{arc:ArcDesignTokenResource TypeXS}" Foreground="{arc:ArcDesignTokenResource TextMuted}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <TextBlock Text="{loc:TKCodeLangResource FolderMissing}" VerticalAlignment="Center" IsVisible="{Binding IsMissing}"
+                                                       FontSize="{arc:ArcDesignTokenResource TypeXS}" Foreground="{arc:ArcDesignTokenResource Danger}" />
+                                            <arc:Badge Size="Small" Tone="Neutral" Content="{loc:TKCodeLangResource PrimaryFolder}" IsVisible="{Binding IsPrimary}"
+                                                       ToolTip.Tip="{loc:TKCodeLangResource PrimaryFolderTip}" />
+                                            <arc:Button Variant="Ghost" Size="Small" Content="{loc:TKCodeLangResource MakePrimary}"
+                                                        IsVisible="{Binding CanMakePrimary}" AutomationProperties.Name="{Binding MakePrimaryTip}"
+                                                        Command="{Binding $parent[arc:DialogSurface].((vm:ProjectDialogViewModel)DataContext).MakePrimaryCommand}"
+                                                        CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                        <arc:Button Grid.Column="3" Variant="Ghost" Size="Small" Margin="2,0,0,0" VerticalAlignment="Center"
+                                                    ToolTip.Tip="{Binding RemoveTip}" AutomationProperties.Name="{Binding RemoveTip}"
+                                                    Command="{Binding $parent[arc:DialogSurface].((vm:ProjectDialogViewModel)DataContext).RemoveCommand}"
+                                                    CommandParameter="{Binding}">
+                                            <arc:ArcGlyph Data="{x:Static arc:ArcIcons.X}" />
+                                        </arc:Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <arc:Button x:Name="AddFolderButton" Variant="Ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                Margin="4" Click="OnAddFolderClick" IsEnabled="{Binding !IsBusy}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <lucide:LucideIcon Kind="FolderPlus" Size="16" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:TKCodeLangResource AddFolder}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </arc:Button>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+        <arc:Alert x:Name="WarningMessage" Tone="Warning" Content="{Binding Warning}"
+                   IsVisible="{Binding Warning, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <arc:Alert x:Name="ErrorMessage" Tone="Danger" Content="{Binding Error}"
+                   IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    </StackPanel>
+</arc:DialogSurface>

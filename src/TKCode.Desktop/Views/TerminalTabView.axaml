@@ -5,6 +5,7 @@
              xmlns:tv="using:TKCode.Terminal.Avalonia"
              xmlns:loc="using:TKCode.Desktop.Localization"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:icons="using:TKCode.Desktop.Icons"
              x:Class="TKCode.Desktop.Views.TerminalTabView"
              x:DataType="vm:TerminalTabViewModel">
@@ -19,8 +20,8 @@
                 Margin="0,8,12,0" Padding="6,4" CornerRadius="6" Background="{DynamicResource TKCode.MenuBg}" BorderBrush="{DynamicResource TKCode.Divider}" BorderThickness="1">
             <Grid ColumnDefinitions="Auto,160,Auto,Auto,Auto,Auto" ColumnSpacing="4">
                 <icons:LucideIcon Grid.Column="0" Kind="Search" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.TextSecondary}" Margin="4,0,2,0" VerticalAlignment="Center" />
-                <atom:LineEdit x:Name="SearchBox" Grid.Column="1" SizeType="Small" StyleVariant="Borderless" Background="Transparent"
-                               PlaceholderText="{loc:TKCodeLangResource TerminalSearchPlaceholder}"
+                <arc:Input x:Name="SearchBox" Grid.Column="1" Size="Small" Classes="bare"
+                               Placeholder="{loc:TKCodeLangResource TerminalSearchPlaceholder}"
                                Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock Grid.Column="2" Text="{Binding SearchCountText}" Foreground="{DynamicResource TKCode.TextSecondary}" FontSize="12" VerticalAlignment="Center" MinWidth="36" TextAlignment="Right" />
                 <Button Grid.Column="3" Theme="{StaticResource TKCode.RowButton}" Width="24" MinHeight="24" Padding="0"

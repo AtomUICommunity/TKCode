@@ -5,6 +5,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:motion="using:TKCode.Desktop.Motion"
              xmlns:controls="using:TKCode.Desktop.Controls"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
@@ -91,11 +92,11 @@
                         </StackPanel>
                         <TextBlock Classes="secondary" FontSize="12" TextWrapping="Wrap" Text="{loc:TKCodeLangResource PermissionFullConfirmText}" />
                         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                            <atom:Button SizeType="Small" Variant="Text" Command="{Binding CancelConfirmCommand}"
-                                         Content="{loc:TKCodeLangResource Cancel}" />
-                            <atom:Button x:Name="ConfirmFullAccess" SizeType="Small" Color="Danger" Variant="Solid"
-                                         Command="{Binding ConfirmFullAccessCommand}"
-                                         Content="{loc:TKCodeLangResource PermissionFullConfirm}" />
+                            <arc:Button Variant="Ghost" Size="Small" Command="{Binding CancelConfirmCommand}"
+                                        Content="{loc:TKCodeLangResource Cancel}" />
+                            <arc:Button Variant="Danger" x:Name="ConfirmFullAccess" Size="Small"
+                                        Command="{Binding ConfirmFullAccessCommand}"
+                                        Content="{loc:TKCodeLangResource PermissionFullConfirm}" />
                         </StackPanel>
                     </StackPanel>
                 </Panel>

@@ -14,10 +14,10 @@
 
 ## 项目列表
 
-- 最近使用的在前，最多 8 个（`AppTray.ProjectLimit`）；`state.json` 的 `recentWorkspaces` 记录使用顺序，`ConversationViewModel.SetWorkspace` 每次切换项目时更新。
-  不足 8 个时按侧栏顺序补齐，从没切换过项目时菜单也不是空的；已不存在的目录不显示。不改动侧栏项目选择器自己的顺序。
-- 点击项目 = 在侧栏项目选择器里选中它（`MainWindowViewModel.OpenProject` → `SidebarViewModel.OpenProject`）：显示并激活窗口、离开设置页、筛选会话、新会话默认在该项目中。
-  不在列表里的目录先加入；目录不存在则忽略。
+- 最近使用的在前，最多 8 个（`AppTray.ProjectLimit`）；`state.json` 的 `recentProjects`（项目 id）记录使用顺序，`ConversationViewModel.SetWorkspace` 每次切换项目时更新。
+  不足 8 个时按侧栏顺序补齐，从没切换过项目时菜单也不是空的；主文件夹已不存在的项目不显示。不改动侧栏项目列表自己的顺序。
+- 点击项目 = 在侧栏的项目列表里选中它（`MainWindowViewModel.OpenProject` → `SidebarViewModel.OpenProject`）：显示并激活窗口、离开设置页、筛选会话、新会话默认在该项目中。
+  菜单条目与 `--open-project` 的参数都是项目的主文件夹路径：按「主文件夹等于它 → 某个文件夹等于它」查找项目，都找不到时新建一个单文件夹项目；目录不存在则忽略（docs/design/projects.md §8.4）。
 - 同名项目（不同目录下的同名文件夹）显示为「名称 (上级目录名)」。
 - 菜单在切换项目、增删项目、切换语言、更新状态变化时重建。`NativeMenu` 实例只创建一次，原地更新（Avalonia.Native 不接受换实例）。
 

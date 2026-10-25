@@ -4,10 +4,9 @@
 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
-             xmlns:motion="using:TKCode.Desktop.Motion"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+             xmlns:lucide="https://github.com/AIDotNet/TKCode.Arc/lucide"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
-             xmlns:views="using:TKCode.Desktop.Views"
              xmlns:icons="using:TKCode.Desktop.Icons"
              xmlns:controls="using:TKCode.Desktop.Controls"
              xmlns:loc="using:TKCode.Desktop.Localization"
@@ -24,26 +23,20 @@
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="Margin" Value="10,12,0,4" />
         </Style>
-        <Style Selector="Border.pill">
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="8,2" />
-            <Setter Property="Background" Value="{DynamicResource TKCode.MenuInputBg}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
+        <!-- 状态徽标：默认中性色，已连接时换成成功色 -->
+        <Style Selector="arc|Badge.connected">
+            <Setter Property="Tone" Value="Success" />
         </Style>
     </UserControl.Styles>
 
-    <Panel>
     <Grid ColumnDefinitions="248,*" Margin="24,0,24,0">
         <!-- ======== 左栏：厂商列表 ======== -->
         <Border Classes="card" Margin="0,0,0,24">
             <DockPanel>
-                <Border DockPanel.Dock="Top" Classes="inputBox" Margin="8,8,8,0">
-                    <Grid ColumnDefinitions="Auto,*" Margin="8,0,0,0">
-                        <icons:LucideIcon Kind="Search" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
-                        <atom:LineEdit Grid.Column="1" StyleVariant="Borderless" Background="Transparent" SizeType="Small"
-                                       PlaceholderText="{loc:TKCodeLangResource SearchProviders}" Text="{Binding ProviderSearch, Mode=TwoWay}" />
-                    </Grid>
-                </Border>
+                <arc:SearchField DockPanel.Dock="Top" Size="Small" Margin="8,8,8,0"
+                                 Label="{loc:TKCodeLangResource SearchProviders}" IsLabelVisible="False"
+                                 Placeholder="{loc:TKCodeLangResource SearchProviders}" ClearText="{loc:TKCodeLangResource ClearSearch}"
+                                 Text="{Binding ProviderSearch, Mode=TwoWay}" />
                 <Button DockPanel.Dock="Bottom" Theme="{StaticResource TKCode.RowButton}" Margin="6" Classes.selected="{Binding IsPickingTemplate}"
                         Command="{Binding OpenTemplatePickerCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="10">
@@ -52,15 +45,16 @@
                     </StackPanel>
                 </Button>
                 <Border DockPanel.Dock="Bottom" Height="1" Background="{DynamicResource TKCode.Divider}" />
-                <ScrollViewer atom:ScrollViewer.IsLiteMode="True">
-                    <StackPanel Margin="6,0,6,6">
+                <!-- Arc 浮动滚动条：右侧留出 10px，悬停时它不会盖住状态点 -->
+                <arc:ScrollArea>
+                    <StackPanel Margin="6,0,10,6">
                         <TextBlock Classes="groupLabel" Text="{loc:TKCodeLangResource ProvidersConfigured}" />
                         <ItemsControl ItemsSource="{Binding ConfiguredList}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:ProviderListItemViewModel">
                                     <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" MinHeight="32" Margin="0,1"
                                             Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).SelectProviderCommand}"
-                                            CommandParameter="{Binding}" ToolTip.Tip="{Binding StatusText}">
+                                            CommandParameter="{Binding}" arc:Tooltip.Tip="{Binding StatusText}">
                                         <Grid ColumnDefinitions="Auto,*,Auto">
                                             <icons:ProviderLogo Key="{Binding LogoKey}" Width="16" Height="16" VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="10,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
@@ -73,36 +67,30 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource NoConfiguredProviders}" TextWrapping="Wrap" Margin="10,4,10,0"
-                                   IsVisible="{Binding HasNoProviders}" />
+                        <arc:EmptyState Icon="{lucide:LucideGeometry Kind=Box}" Description="{loc:TKCodeLangResource NoConfiguredProviders}"
+                                        Margin="0,16,0,0" IsVisible="{Binding HasNoProviders}" />
                     </StackPanel>
-                </ScrollViewer>
+                </arc:ScrollArea>
             </DockPanel>
         </Border>
 
         <!-- ======== 右栏 ======== -->
-        <ScrollViewer Grid.Column="1" Margin="16,0,0,0" atom:ScrollViewer.IsLiteMode="True">
+        <arc:ScrollArea Grid.Column="1" Margin="16,0,0,0">
             <StackPanel MaxWidth="820" Spacing="14" Margin="0,0,16,24">
                 <!-- 配置文件错误 -->
-                <Border CornerRadius="10" Padding="14,10" BorderThickness="1" BorderBrush="{DynamicResource TKCode.Danger}" IsVisible="{Binding HasErrors}">
-                    <StackPanel Spacing="4">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <icons:LucideIcon Kind="CircleAlert" Width="14" Height="14" StrokeBrush="{DynamicResource TKCode.Danger}" />
-                            <TextBlock Classes="strong" Text="{loc:TKCodeLangResource SettingsErrorsTitle}" Foreground="{DynamicResource TKCode.Danger}" />
-                        </StackPanel>
-                        <ItemsControl ItemsSource="{Binding Errors}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="x:String">
-                                    <SelectableTextBlock Text="{Binding}" FontSize="12" FontFamily="{StaticResource TKCode.MonoFont}" TextWrapping="Wrap"
-                                                         Foreground="{DynamicResource TKCode.TextSecondary}" Margin="22,2,0,0" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
+                <arc:Alert Tone="Danger" Title="{loc:TKCodeLangResource SettingsErrorsTitle}" IsVisible="{Binding HasErrors}">
+                    <ItemsControl ItemsSource="{Binding Errors}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <SelectableTextBlock Text="{Binding}" FontSize="12" FontFamily="{StaticResource TKCode.MonoFont}" TextWrapping="Wrap"
+                                                     Foreground="{DynamicResource TKCode.TextSecondary}" Margin="0,2,0,0" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </arc:Alert>
 
-                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource SelectProviderHint}" Margin="0,40,0,0" HorizontalAlignment="Center"
-                           IsVisible="{Binding ShowEmptyDetail}" />
+                <arc:EmptyState Icon="{lucide:LucideGeometry Kind=Box}" Title="{loc:TKCodeLangResource SelectProviderHint}" Margin="0,40,0,0"
+                                IsVisible="{Binding ShowEmptyDetail}" />
 
                 <!-- ===== 自定义厂商 ===== -->
                 <StackPanel Spacing="14" IsVisible="{Binding IsCreatingCustom}">
@@ -110,40 +98,27 @@
                     <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource CustomProviderHint}" TextWrapping="Wrap" FontSize="12" />
                     <Border Classes="card" Padding="16">
                         <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,10,Auto,10,Auto,10,Auto,10,Auto">
-                            <TextBlock Classes="strong" Text="{loc:TKCodeLangResource ProtocolLabel}" VerticalAlignment="Center" />
-                            <Border Grid.Column="1" Classes="segmented">
-                                <!-- 选中底板在选项之间滑动 -->
-                                <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                <ItemsControl ItemsSource="{Binding Protocols}">
-                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:SettingsChoiceViewModel">
-                                            <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" motion:IndicatorPanel.IsCurrent="{Binding IsSelected}" Content="{Binding Label}"
-                                                    Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).ChooseProtocolCommand}"
-                                                    CommandParameter="{Binding}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                </motion:IndicatorPanel>
-                            </Border>
+                            <StackPanel Grid.ColumnSpan="2" Spacing="6">
+                                <TextBlock Classes="strong" Text="{loc:TKCodeLangResource ProtocolLabel}" />
+                                <arc:SegmentedControl ItemsSource="{Binding Protocols}" controls:ChoiceSelection.Command="{Binding ChooseProtocolCommand}" />
+                            </StackPanel>
                             <TextBlock Grid.Row="2" Classes="strong" Text="{loc:TKCodeLangResource ProviderIdLabel}" VerticalAlignment="Center" />
-                            <atom:LineEdit Grid.Row="2" Grid.Column="1" PlaceholderText="my-gateway" Text="{Binding CustomId, Mode=TwoWay}"
+                            <arc:Input Grid.Row="2" Grid.Column="1" Placeholder="my-gateway" Text="{Binding CustomId, Mode=TwoWay}"
                                            FontFamily="{StaticResource TKCode.MonoFont}" />
                             <TextBlock Grid.Row="4" Classes="strong" Text="{loc:TKCodeLangResource ProviderNameLabel}" VerticalAlignment="Center" />
-                            <atom:LineEdit Grid.Row="4" Grid.Column="1" PlaceholderText="My Gateway" Text="{Binding CustomName, Mode=TwoWay}" />
+                            <arc:Input Grid.Row="4" Grid.Column="1" Placeholder="My Gateway" Text="{Binding CustomName, Mode=TwoWay}" />
                             <TextBlock Grid.Row="6" Classes="strong" Text="{loc:TKCodeLangResource BaseUrlLabel}" VerticalAlignment="Center" />
-                            <atom:LineEdit Grid.Row="6" Grid.Column="1" PlaceholderText="https://api.example.com/v1" Text="{Binding CustomBaseUrl, Mode=TwoWay}"
+                            <arc:Input Grid.Row="6" Grid.Column="1" Placeholder="https://api.example.com/v1" Text="{Binding CustomBaseUrl, Mode=TwoWay}"
                                            FontFamily="{StaticResource TKCode.MonoFont}" />
                             <TextBlock Grid.Row="8" Classes="strong" Text="{loc:TKCodeLangResource ApiKeyLabel}" VerticalAlignment="Center" />
-                            <atom:LineEdit Grid.Row="8" Grid.Column="1" PlaceholderText="{loc:TKCodeLangResource ApiKeyPlaceholder}" PasswordChar="•"
-                                           Text="{Binding CustomApiKey, Mode=TwoWay}" />
+                            <arc:PasswordField Grid.Row="8" Grid.Column="1" Label="{loc:TKCodeLangResource ApiKeyLabel}" IsLabelVisible="False"
+                                               Placeholder="{loc:TKCodeLangResource ApiKeyPlaceholder}" Text="{Binding CustomApiKey, Mode=TwoWay}"
+                                               ShowPasswordText="{loc:TKCodeLangResource ShowKey}" HidePasswordText="{loc:TKCodeLangResource HideKey}" />
                         </Grid>
                     </Border>
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding CustomError}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <atom:Button Grid.Column="1" Color="Default" Variant="Solid" Command="{Binding CreateCustomProviderCommand}"
-                                     Content="{loc:TKCodeLangResource CreateProvider}" />
-                    </Grid>
+                    <arc:Alert Tone="Danger" Content="{Binding CustomError}" IsVisible="{Binding CustomError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <arc:Button HorizontalAlignment="Right" Variant="Primary" Command="{Binding CreateCustomProviderCommand}"
+                                Content="{loc:TKCodeLangResource CreateProvider}" />
                 </StackPanel>
 
                 <!-- ===== 厂商详情 ===== -->
@@ -155,36 +130,30 @@
                                 <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto">
                                     <icons:ProviderLogo Key="{Binding LogoKey}" Width="26" Height="26" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" Margin="12,0" VerticalAlignment="Center" />
-                                    <Border Grid.Column="2" Classes="pill">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource TKCode.Success}" IsVisible="{Binding IsOk}" />
-                                            <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource TKCode.TextTertiary}" IsVisible="{Binding !IsOk}" />
-                                            <TextBlock Classes="secondary" Text="{Binding StatusText}" FontSize="12" />
-                                        </StackPanel>
-                                    </Border>
-                                    <atom:ToggleSwitch Grid.Column="4" SizeType="Small" VerticalAlignment="Center" IsVisible="{Binding ShowEnableSwitch}"
+                                    <arc:Badge Grid.Column="2" Size="Small" VerticalAlignment="Center" Classes.connected="{Binding IsOk}"
+                                               Content="{Binding StatusText}" />
+                                    <arc:Switch Grid.Column="4" VerticalAlignment="Center" IsVisible="{Binding ShowEnableSwitch}"
                                                        IsChecked="{Binding Dto.Enabled, Mode=OneWay}" Command="{Binding ToggleEnabledCommand}"
-                                                       ToolTip.Tip="{loc:TKCodeLangResource EnableProvider}" />
-                                    <atom:Button Grid.Column="5" Margin="8,0,0,0" Color="Default" Variant="Text" SizeType="Small" Command="{Binding RemoveCommand}" ToolTip.Tip="{Binding RemoveTooltip}">
-                                        <atom:Button.Icon><icons:LucideIcon Kind="Trash" /></atom:Button.Icon>
-                                    </atom:Button>
+                                                       arc:Tooltip.Tip="{loc:TKCodeLangResource EnableProvider}" />
+                                    <arc:Button Grid.Column="5" Margin="8,0,0,0" Variant="Ghost" Size="Small" Command="{Binding RemoveCommand}"
+                                                arc:Tooltip.Tip="{Binding RemoveTooltip}" AutomationProperties.Name="{Binding RemoveTooltip}">
+                                        <lucide:LucideIcon Kind="Trash2" Size="14" />
+                                    </arc:Button>
                                 </Grid>
-                                <Border Classes="pill" HorizontalAlignment="Left" IsVisible="{Binding IsDraft}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <icons:LucideIcon Kind="Plus" Width="12" Height="12" StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
-                                        <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource DraftHint}" FontSize="12" />
-                                    </StackPanel>
-                                </Border>
-                                <ItemsControl ItemsSource="{Binding Errors}" IsVisible="{Binding HasErrors}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="x:String">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <icons:LucideIcon Kind="CircleAlert" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.Danger}" />
-                                                <TextBlock Text="{Binding}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <arc:Badge Size="Small" HorizontalAlignment="Left" IsVisible="{Binding IsDraft}" Content="{loc:TKCodeLangResource DraftHint}">
+                                    <arc:Badge.Icon>
+                                        <lucide:LucideIcon Kind="Plus" Size="12" />
+                                    </arc:Badge.Icon>
+                                </arc:Badge>
+                                <arc:Alert Tone="Danger" IsVisible="{Binding HasErrors}">
+                                    <ItemsControl ItemsSource="{Binding Errors}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </arc:Alert>
 
                                 <!-- 连接 -->
                                 <Border Classes="card" Padding="16,14">
@@ -192,56 +161,42 @@
                                         <TextBlock Classes="sectionTitle" Text="{loc:TKCodeLangResource ConnectionLabel}" />
                                         <Grid ColumnDefinitions="100,*" IsVisible="{Binding IsCustom}">
                                             <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource ProtocolLabel}" VerticalAlignment="Center" />
-                                            <Border Grid.Column="1" Classes="segmented">
-                                                <!-- 选中底板在选项之间滑动 -->
-                                                <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Button Theme="{StaticResource TKCode.RowButton}" Content="Chat Completions" Command="{Binding ChooseProtocolCommand}" CommandParameter="chat"
-                                                            Classes.selected="{Binding ProtocolInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=chat}" motion:IndicatorPanel.IsCurrent="{Binding ProtocolInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=chat}" />
-                                                    <Button Theme="{StaticResource TKCode.RowButton}" Content="Responses" Command="{Binding ChooseProtocolCommand}" CommandParameter="responses"
-                                                            Classes.selected="{Binding ProtocolInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=responses}" motion:IndicatorPanel.IsCurrent="{Binding ProtocolInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=responses}" />
-                                                    <Button Theme="{StaticResource TKCode.RowButton}" Content="Anthropic Messages" Command="{Binding ChooseProtocolCommand}" CommandParameter="messages"
-                                                            Classes.selected="{Binding ProtocolInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=messages}" motion:IndicatorPanel.IsCurrent="{Binding ProtocolInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=messages}" />
-                                                </StackPanel>
-                                                </motion:IndicatorPanel>
-                                            </Border>
+                                            <arc:SegmentedControl Grid.Column="1" ItemsSource="{Binding ProtocolChoices}"
+                                                                  controls:ChoiceSelection.Command="{Binding ChooseProtocolCommand}" />
                                         </Grid>
                                         <Grid ColumnDefinitions="100,*">
                                             <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource BaseUrlLabel}" VerticalAlignment="Center" />
-                                            <atom:LineEdit Grid.Column="1" Text="{Binding BaseUrlInput, Mode=TwoWay}" FontFamily="{StaticResource TKCode.MonoFont}" />
+                                            <arc:Input Grid.Column="1" Text="{Binding BaseUrlInput, Mode=TwoWay}" FontFamily="{StaticResource TKCode.MonoFont}" />
                                         </Grid>
                                         <Grid ColumnDefinitions="100,*,Auto" RowDefinitions="Auto,Auto">
                                             <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource ApiKeyLabel}" VerticalAlignment="Center" />
-                                            <atom:LineEdit Grid.Column="1" PlaceholderText="{Binding KeyPlaceholder}" Text="{Binding KeyInput, Mode=TwoWay}"
-                                                           PasswordChar="{Binding IsKeyRevealed, Converter={x:Static views:Converters.PasswordChar}}" />
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0,0,0">
-                                                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding ToggleKeyRevealCommand}"
-                                                             ToolTip.Tip="{loc:TKCodeLangResource ShowKey}">
-                                                    <atom:Button.Icon><icons:LucideIcon Kind="{Binding IsKeyRevealed, Converter={x:Static views:Converters.RevealIcon}}" /></atom:Button.Icon>
-                                                </atom:Button>
-                                                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding ClearKeyCommand}" IsVisible="{Binding HasSavedKey}"
-                                                             Content="{loc:TKCodeLangResource ClearKey}" />
-                                            </StackPanel>
+                                            <arc:PasswordField Grid.Column="1" Label="{loc:TKCodeLangResource ApiKeyLabel}" IsLabelVisible="False"
+                                                               Placeholder="{Binding KeyPlaceholder}" Text="{Binding KeyInput, Mode=TwoWay}"
+                                                               IsRevealed="{Binding IsKeyRevealed, Mode=TwoWay}"
+                                                               ShowPasswordText="{loc:TKCodeLangResource ShowKey}" HidePasswordText="{loc:TKCodeLangResource HideKey}" />
+                                            <arc:Button Grid.Column="2" Margin="6,0,0,0" Variant="Ghost" Size="Small" VerticalAlignment="Center"
+                                                        Command="{Binding ClearKeyCommand}" IsVisible="{Binding HasSavedKey}"
+                                                        Content="{loc:TKCodeLangResource ClearKey}" />
                                             <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="tertiary" Text="{Binding KeyHint}" Margin="2,6,0,0"
                                                        TextWrapping="Wrap" />
                                         </Grid>
                                         <Border Height="1" Background="{DynamicResource TKCode.Divider}" Margin="-16,2" />
                                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                                            <atom:Button Color="Default" Variant="Outlined" SizeType="Small" Command="{Binding TestCommand}" IsLoading="{Binding IsTesting}"
-                                                         Content="{loc:TKCodeLangResource TestConnection}" />
+                                            <arc:Button Variant="Secondary" Size="Small" Command="{Binding TestCommand}" IsLoading="{Binding IsTesting}"
+                                                        Content="{loc:TKCodeLangResource TestConnection}" />
                                             <Panel Grid.Column="1" Margin="12,0" VerticalAlignment="Center" IsVisible="{Binding HasTestResult}">
                                                 <TextBlock Text="{Binding TestResult}" FontSize="12" Foreground="{DynamicResource TKCode.Success}" TextTrimming="CharacterEllipsis"
-                                                           IsVisible="{Binding TestSucceeded}" ToolTip.Tip="{Binding TestResult}" />
+                                                           IsVisible="{Binding TestSucceeded}" arc:Tooltip.Tip="{Binding TestResult}" />
                                                 <TextBlock Text="{Binding TestResult}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextTrimming="CharacterEllipsis"
-                                                           IsVisible="{Binding !TestSucceeded}" ToolTip.Tip="{Binding TestResult}" />
+                                                           IsVisible="{Binding !TestSucceeded}" arc:Tooltip.Tip="{Binding TestResult}" />
                                             </Panel>
                                             <TextBlock Grid.Column="2" Classes="tertiary" Text="{loc:TKCodeLangResource Unsaved}" Margin="0,0,10,0" VerticalAlignment="Center"
                                                        IsVisible="{Binding IsDirty}" />
                                             <Panel Grid.Column="3">
-                                                <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding SaveCommand}"
-                                                             Content="{loc:TKCodeLangResource Save}" IsVisible="{Binding !IsDraft}" />
-                                                <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding SaveCommand}"
-                                                             Content="{loc:TKCodeLangResource AddThisProvider}" IsVisible="{Binding IsDraft}" />
+                                                <arc:Button Variant="Primary" Size="Small" Command="{Binding SaveCommand}"
+                                                            Content="{loc:TKCodeLangResource Save}" IsVisible="{Binding !IsDraft}" />
+                                                <arc:Button Variant="Primary" Size="Small" Command="{Binding SaveCommand}"
+                                                            Content="{loc:TKCodeLangResource AddThisProvider}" IsVisible="{Binding IsDraft}" />
                                             </Panel>
                                         </Grid>
                                     </StackPanel>
@@ -253,23 +208,23 @@
                                         <Grid ColumnDefinitions="Auto,Auto,*,200,Auto">
                                             <TextBlock Classes="sectionTitle" Text="{loc:TKCodeLangResource ModelsLabel}" VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="1" Classes="tertiary" Text="{Binding ModelsSummary}" Margin="10,0" VerticalAlignment="Center" />
-                                            <Border Grid.Column="3" Classes="inputBox" IsVisible="{Binding HasModels}">
-                                                <atom:LineEdit StyleVariant="Borderless" Background="Transparent" SizeType="Small"
-                                                               PlaceholderText="{loc:TKCodeLangResource SearchModelsInProvider}" Text="{Binding ModelFilter, Mode=TwoWay}" />
-                                            </Border>
-                                            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2" Margin="8,0,0,0">
-                                                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding EnableAllCommand}" IsVisible="{Binding HasModels}"
-                                                             Content="{loc:TKCodeLangResource EnableAll}" />
-                                                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding DisableAllCommand}" IsVisible="{Binding HasModels}"
-                                                             Content="{loc:TKCodeLangResource DisableAll}" />
-                                                <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding RefreshModelsCommand}" IsLoading="{Binding IsRefreshing}"
-                                                             IsVisible="{Binding SupportsDiscovery}" ToolTip.Tip="{loc:TKCodeLangResource RefreshModels}">
-                                                    <atom:Button.Icon><icons:LucideIcon Kind="RefreshCw" /></atom:Button.Icon>
-                                                </atom:Button>
+                                            <arc:SearchField Grid.Column="3" Size="Small" IsVisible="{Binding HasModels}"
+                                                             Label="{loc:TKCodeLangResource SearchModelsInProvider}" IsLabelVisible="False"
+                                                             Placeholder="{loc:TKCodeLangResource SearchModelsInProvider}" ClearText="{loc:TKCodeLangResource ClearSearch}"
+                                                             Text="{Binding ModelFilter, Mode=TwoWay}" />
+                                            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                <arc:Button Variant="Ghost" Size="Small" Command="{Binding EnableAllCommand}" IsVisible="{Binding HasModels}"
+                                                            Content="{loc:TKCodeLangResource EnableAll}" />
+                                                <arc:Button Variant="Ghost" Size="Small" Command="{Binding DisableAllCommand}" IsVisible="{Binding HasModels}"
+                                                            Content="{loc:TKCodeLangResource DisableAll}" />
+                                                <arc:Button Variant="Ghost" Size="Small" Command="{Binding RefreshModelsCommand}" IsLoading="{Binding IsRefreshing}"
+                                                            IsVisible="{Binding SupportsDiscovery}" arc:Tooltip.Tip="{loc:TKCodeLangResource RefreshModels}"
+                                                            AutomationProperties.Name="{loc:TKCodeLangResource RefreshModels}">
+                                                    <lucide:LucideIcon Kind="RefreshCw" Size="14" />
+                                                </arc:Button>
                                             </StackPanel>
                                         </Grid>
-                                        <TextBlock Text="{Binding DiscoveryError}" FontSize="12" Foreground="{DynamicResource TKCode.GitModified}" TextWrapping="Wrap"
-                                                   IsVisible="{Binding HasDiscoveryError}" />
+                                        <arc:Alert Tone="Warning" Content="{Binding DiscoveryError}" IsVisible="{Binding HasDiscoveryError}" />
                                         <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource ModelsAfterKey}" FontSize="12" IsVisible="{Binding ShowModelsPlaceholder}" />
 
                                         <!-- 覆盖值编辑 -->
@@ -280,43 +235,30 @@
                                                     <TextBlock Classes="strong" Text="{loc:TKCodeLangResource EditModel}" />
                                                     <TextBlock Classes="tertiary" Text="{Binding ModelId}" FontFamily="{StaticResource TKCode.MonoFont}" VerticalAlignment="Center" />
                                                 </StackPanel>
-                                                <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto">
-                                                    <TextBlock Grid.Row="8" Classes="secondary" Text="{loc:TKCodeLangResource ProtocolLabel}" VerticalAlignment="Center" />
-                                                    <Border Grid.Row="8" Grid.Column="1" Classes="segmented">
-                                                        <!-- 选中底板在选项之间滑动 -->
-                                                        <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <Button Theme="{StaticResource TKCode.RowButton}" Content="{Binding ProviderApiText}" Command="{Binding ChooseApiCommand}" CommandParameter=""
-                                                                    Classes.selected="{Binding ApiInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=''}" motion:IndicatorPanel.IsCurrent="{Binding ApiInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=''}" />
-                                                            <Button Theme="{StaticResource TKCode.RowButton}" Content="Chat" Command="{Binding ChooseApiCommand}" CommandParameter="chat"
-                                                                    Classes.selected="{Binding ApiInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=chat}" motion:IndicatorPanel.IsCurrent="{Binding ApiInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=chat}" />
-                                                            <Button Theme="{StaticResource TKCode.RowButton}" Content="Responses" Command="{Binding ChooseApiCommand}" CommandParameter="responses"
-                                                                    Classes.selected="{Binding ApiInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=responses}" motion:IndicatorPanel.IsCurrent="{Binding ApiInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=responses}" />
-                                                            <Button Theme="{StaticResource TKCode.RowButton}" Content="Anthropic" Command="{Binding ChooseApiCommand}" CommandParameter="messages"
-                                                                    Classes.selected="{Binding ApiInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=messages}" motion:IndicatorPanel.IsCurrent="{Binding ApiInput, Converter={x:Static views:Converters.EqualsParameter}, ConverterParameter=messages}" />
-                                                        </StackPanel>
-                                                        </motion:IndicatorPanel>
-                                                    </Border>
+                                                <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,6,Auto">
+                                                    <TextBlock Grid.Row="8" Grid.ColumnSpan="2" Classes="secondary" Text="{loc:TKCodeLangResource ProtocolLabel}" />
+                                                    <arc:SegmentedControl Grid.Row="10" Grid.ColumnSpan="2" ItemsSource="{Binding ApiChoices}"
+                                                                          controls:ChoiceSelection.Command="{Binding ChooseApiCommand}" />
                                                     <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource DisplayNameField}" VerticalAlignment="Center" />
-                                                    <atom:LineEdit Grid.Column="1" SizeType="Small" Text="{Binding NameInput, Mode=TwoWay}" PlaceholderText="{Binding ModelId}" />
+                                                    <arc:Input Grid.Column="1" Size="Small" Text="{Binding NameInput, Mode=TwoWay}" Placeholder="{Binding ModelId}" />
                                                     <TextBlock Grid.Row="2" Classes="secondary" Text="{loc:TKCodeLangResource ContextWindowField}" VerticalAlignment="Center" />
-                                                    <atom:LineEdit Grid.Row="2" Grid.Column="1" SizeType="Small" Text="{Binding ContextInput, Mode=TwoWay}" />
+                                                    <arc:Input Grid.Row="2" Grid.Column="1" Size="Small" Text="{Binding ContextInput, Mode=TwoWay}" />
                                                     <TextBlock Grid.Row="4" Classes="secondary" Text="{loc:TKCodeLangResource MaxTokensField}" VerticalAlignment="Center" />
-                                                    <atom:LineEdit Grid.Row="4" Grid.Column="1" SizeType="Small" Text="{Binding MaxTokensInput, Mode=TwoWay}" />
+                                                    <arc:Input Grid.Row="4" Grid.Column="1" Size="Small" Text="{Binding MaxTokensInput, Mode=TwoWay}" />
                                                     <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="16">
-                                                        <atom:CheckBox IsChecked="{Binding Reasoning, Mode=TwoWay}" Content="{loc:TKCodeLangResource ReasoningTip}" />
-                                                        <atom:CheckBox IsChecked="{Binding Images, Mode=TwoWay}" Content="{loc:TKCodeLangResource VisionTip}" />
+                                                        <arc:Checkbox IsChecked="{Binding Reasoning, Mode=TwoWay}" Content="{loc:TKCodeLangResource ReasoningTip}" />
+                                                        <arc:Checkbox IsChecked="{Binding Images, Mode=TwoWay}" Content="{loc:TKCodeLangResource VisionTip}" />
                                                     </StackPanel>
                                                 </Grid>
                                                 <TextBlock Classes="tertiary" Text="{Binding Hint}" TextWrapping="Wrap" />
                                                 <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                                                    <atom:Button Color="Default" Variant="Text" SizeType="Small" Command="{Binding ResetCommand}"
-                                                                 Content="{loc:TKCodeLangResource ResetOverride}" />
-                                                    <atom:Button Color="Default" Variant="Text" SizeType="Small"
-                                                                 Command="{Binding $parent[ContentControl].((vm:ProviderDetailViewModel)DataContext).CloseEditorCommand}"
-                                                                 Content="{loc:TKCodeLangResource Cancel}" />
-                                                    <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding SaveCommand}"
-                                                                 Content="{loc:TKCodeLangResource Save}" />
+                                                    <arc:Button Variant="Ghost" Size="Small" Command="{Binding ResetCommand}"
+                                                                Content="{loc:TKCodeLangResource ResetOverride}" />
+                                                    <arc:Button Variant="Ghost" Size="Small"
+                                                                Command="{Binding $parent[ContentControl].((vm:ProviderDetailViewModel)DataContext).CloseEditorCommand}"
+                                                                Content="{loc:TKCodeLangResource Cancel}" />
+                                                    <arc:Button Variant="Primary" Size="Small" Command="{Binding SaveCommand}"
+                                                                Content="{loc:TKCodeLangResource Save}" />
                                                 </StackPanel>
                                             </StackPanel>
                                         </Border>
@@ -326,7 +268,7 @@
                                                 <DataTemplate x:DataType="vm:ProviderModelItemViewModel">
                                                     <Border BorderBrush="{DynamicResource TKCode.Divider}" BorderThickness="0,0,0,1" Padding="0,7">
                                                         <Grid ColumnDefinitions="Auto,*,Auto,56,84,96,Auto">
-                                                            <atom:ToggleSwitch SizeType="Small" VerticalAlignment="Center" IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                                            <arc:Switch VerticalAlignment="Center" IsChecked="{Binding IsEnabled, Mode=OneWay}"
                                                                                Command="{Binding $parent[ItemsControl].((vm:ProviderDetailViewModel)DataContext).ToggleModelCommand}"
                                                                                CommandParameter="{Binding}" />
                                                             <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
@@ -335,7 +277,7 @@
                                                                     <Ellipse Width="5" Height="5" Fill="{DynamicResource TKCode.Accent}" VerticalAlignment="Center"
                                                                              IsVisible="{Binding HasOverride}" />
                                                                     <Border Background="{DynamicResource TKCode.AccentSoftBg}" CornerRadius="4" Padding="5,0" VerticalAlignment="Center"
-                                                                            IsVisible="{Binding ApiOverridden}" ToolTip.Tip="{loc:TKCodeLangResource ModelProtocolTip}">
+                                                                            IsVisible="{Binding ApiOverridden}" arc:Tooltip.Tip="{loc:TKCodeLangResource ModelProtocolTip}">
                                                                         <TextBlock Text="{Binding ApiText}" FontSize="10" Foreground="{DynamicResource TKCode.AccentText}" />
                                                                     </Border>
                                                                 </StackPanel>
@@ -343,35 +285,36 @@
                                                                            IsVisible="{Binding ShowId}" />
                                                             </StackPanel>
                                                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,8,0">
-                                                                <icons:LucideIcon Kind="Brain" Width="13" Height="13" IsVisible="{Binding Reasoning}" ToolTip.Tip="{loc:TKCodeLangResource ReasoningTip}"
+                                                                <icons:LucideIcon Kind="Brain" Width="13" Height="13" IsVisible="{Binding Reasoning}" arc:Tooltip.Tip="{loc:TKCodeLangResource ReasoningTip}"
                                                                                   StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
-                                                                <icons:LucideIcon Kind="Image" Width="13" Height="13" IsVisible="{Binding Images}" ToolTip.Tip="{loc:TKCodeLangResource VisionTip}"
+                                                                <icons:LucideIcon Kind="Image" Width="13" Height="13" IsVisible="{Binding Images}" arc:Tooltip.Tip="{loc:TKCodeLangResource VisionTip}"
                                                                                   StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
-                                                                <icons:LucideIcon Kind="Zap" Width="13" Height="13" IsVisible="{Binding FastMode}" ToolTip.Tip="{loc:TKCodeLangResource FastTip}"
+                                                                <icons:LucideIcon Kind="Zap" Width="13" Height="13" IsVisible="{Binding FastMode}" arc:Tooltip.Tip="{loc:TKCodeLangResource FastTip}"
                                                                                   StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
-                                                                <icons:LucideIcon Kind="Box" Width="12" Height="12" IsVisible="{Binding !InCatalog}" ToolTip.Tip="{loc:TKCodeLangResource CustomModelTip}"
+                                                                <icons:LucideIcon Kind="Box" Width="12" Height="12" IsVisible="{Binding !InCatalog}" arc:Tooltip.Tip="{loc:TKCodeLangResource CustomModelTip}"
                                                                                   StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
                                                             </StackPanel>
                                                             <TextBlock Grid.Column="3" Classes="secondary" Text="{Binding ContextText}" FontSize="12" VerticalAlignment="Center"
                                                                        HorizontalAlignment="Right" />
                                                             <TextBlock Grid.Column="4" Classes="tertiary" Text="{Binding OutputText}" VerticalAlignment="Center" HorizontalAlignment="Right" />
                                                             <TextBlock Grid.Column="5" Classes="tertiary" Text="{Binding PriceText}" VerticalAlignment="Center" HorizontalAlignment="Right"
-                                                                       ToolTip.Tip="{loc:TKCodeLangResource PriceTip}" />
-                                                            <atom:Button Grid.Column="6" Margin="6,0,0,0" Color="Default" Variant="Text" SizeType="Small"
-                                                                         Command="{Binding $parent[ItemsControl].((vm:ProviderDetailViewModel)DataContext).EditModelCommand}"
-                                                                         CommandParameter="{Binding}" ToolTip.Tip="{loc:TKCodeLangResource EditModel}">
-                                                                <atom:Button.Icon><icons:LucideIcon Kind="Pencil" /></atom:Button.Icon>
-                                                            </atom:Button>
+                                                                       arc:Tooltip.Tip="{loc:TKCodeLangResource PriceTip}" />
+                                                            <arc:Button Grid.Column="6" Margin="6,0,0,0" Variant="Ghost" Size="Small"
+                                                                        Command="{Binding $parent[ItemsControl].((vm:ProviderDetailViewModel)DataContext).EditModelCommand}"
+                                                                        CommandParameter="{Binding}" arc:Tooltip.Tip="{loc:TKCodeLangResource EditModel}"
+                                                                        AutomationProperties.Name="{loc:TKCodeLangResource EditModel}">
+                                                                <lucide:LucideIcon Kind="Pencil" Size="14" />
+                                                            </arc:Button>
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                         <Grid ColumnDefinitions="*,Auto">
-                                            <atom:LineEdit SizeType="Small" PlaceholderText="{loc:TKCodeLangResource AddModelPlaceholder}" Text="{Binding NewModelId, Mode=TwoWay}"
+                                            <arc:Input Size="Small" Placeholder="{loc:TKCodeLangResource AddModelPlaceholder}" Text="{Binding NewModelId, Mode=TwoWay}"
                                                            FontFamily="{StaticResource TKCode.MonoFont}" />
-                                            <atom:Button Grid.Column="1" Margin="8,0,0,0" Color="Default" Variant="Outlined" SizeType="Small" Command="{Binding AddModelCommand}"
-                                                         Content="{loc:TKCodeLangResource AddModel}" />
+                                            <arc:Button Grid.Column="1" Margin="8,0,0,0" Variant="Secondary" Size="Small" VerticalAlignment="Center"
+                                                        Command="{Binding AddModelCommand}" Content="{loc:TKCodeLangResource AddModel}" />
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -380,65 +323,6 @@
                     </ContentControl.ContentTemplate>
                 </ContentControl>
             </StackPanel>
-        </ScrollViewer>
+        </arc:ScrollArea>
     </Grid>
-
-    <!-- ======== 添加厂商：模板选择 ======== -->
-    <Grid RowDefinitions="1*,Auto,3*" motion:Presence.IsPresent="{Binding IsPickingTemplate}">
-        <Border Grid.RowSpan="3" Background="#33000000" PointerPressed="OnTemplateBackdropPressed" />
-        <Border Grid.Row="1" Classes="menu" Width="640" HorizontalAlignment="Center"
-                motion:Presence.IsPresent="{Binding IsPickingTemplate}" motion:Presence.Effect="Zoom" motion:Presence.Distance="12">
-            <DockPanel>
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="18,14,12,6">
-                    <TextBlock Text="{loc:TKCodeLangResource TemplatePickerTitle}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <atom:Button Grid.Column="1" Color="Default" Variant="Text" SizeType="Small" Command="{Binding CloseTemplatePickerCommand}"
-                                 ToolTip.Tip="{loc:TKCodeLangResource Close}">
-                        <atom:Button.Icon><icons:LucideIcon Kind="X" /></atom:Button.Icon>
-                    </atom:Button>
-                </Grid>
-                <Border DockPanel.Dock="Top" Classes="inputBox" Margin="16,4,16,8">
-                    <Grid ColumnDefinitions="Auto,*" Margin="10,0,0,0">
-                        <icons:LucideIcon Kind="Search" Width="14" Height="14" StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
-                        <atom:LineEdit x:Name="TemplateSearchBox" Grid.Column="1" StyleVariant="Borderless" Background="Transparent"
-                                       PlaceholderText="{loc:TKCodeLangResource SearchTemplates}" Text="{Binding TemplateSearch, Mode=TwoWay}" />
-                    </Grid>
-                </Border>
-                <ScrollViewer MaxHeight="460" atom:ScrollViewer.IsLiteMode="True">
-                    <ItemsControl ItemsSource="{Binding TemplateGroups}" Margin="12,0,12,12">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ProviderTemplateGroupViewModel">
-                                <StackPanel>
-                                    <TextBlock Classes="groupLabel" Text="{Binding Title}" />
-                                    <ItemsControl ItemsSource="{Binding Items}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:ProviderTemplateViewModel">
-                                                <Button Theme="{StaticResource TKCode.MenuItem}" MinHeight="44" Margin="2" Padding="10,6"
-                                                        Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).PickTemplateCommand}"
-                                                        CommandParameter="{Binding}">
-                                                    <Grid ColumnDefinitions="Auto,*">
-                                                        <Panel Width="22" Height="22" VerticalAlignment="Center">
-                                                            <icons:ProviderLogo Key="{Binding LogoKey}" Width="18" Height="18" PreferColor="{Binding !IsCustom}" />
-                                                        </Panel>
-                                                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                                            <TextBlock Classes="strong" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Classes="tertiary" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis"
-                                                                       IsVisible="{Binding Subtitle, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                                        </StackPanel>
-                                                    </Grid>
-                                                </Button>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </DockPanel>
-        </Border>
-    </Grid>
-    </Panel>
 </UserControl>

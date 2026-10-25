@@ -41,7 +41,7 @@ public sealed partial class ClaudeRuntime(ExecutableLocator? locator = null) : I
     internal static readonly string[] BaseArguments =
     [
         "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-        "--replay-user-messages", "--permission-prompt-tool", "stdio", "--thinking-display", "summarized",
+        "--replay-user-messages", "--permission-prompt-tool", "stdio", "--thinking-display", "summarized", "--forward-subagent-text",
     ];
 
     public async Task<RuntimeDescriptor> ProbeAsync(CancellationToken cancellationToken)
@@ -110,6 +110,7 @@ public sealed partial class ClaudeRuntime(ExecutableLocator? locator = null) : I
         }
         // --resume / --session-id 一律用 --flag=value 形式，防止以 '-' 开头的值被解析成参数（§2.2）
         args.Add(sessionId is not null ? $"--resume={sessionId}" : $"--session-id={newSessionId}");
+        args.AddRange(DirectoryArguments(options.AdditionalDirectories));
         string? mcpConfig = null;
         if (request.McpBridge is { } bridge)
         {
@@ -147,6 +148,10 @@ public sealed partial class ClaudeRuntime(ExecutableLocator? locator = null) : I
         }
         return session;
     }
+
+    /// <summary>项目的其他文件夹与本会话追加的文件夹（docs/design/projects.md §6.8）；同样用 --flag=value 形式，防止以 '-' 开头的路径被解析成参数。</summary>
+    internal static IEnumerable<string> DirectoryArguments(IReadOnlyList<string> directories) =>
+        directories.Distinct(StringComparer.Ordinal).Select(d => $"--add-dir={d}");
 
     /// <summary>子进程环境（§2.3）：去掉 CLAUDECODE，入口标记为 sdk-cli，开启会话状态帧。</summary>
     private static Dictionary<string, string?> Environment(string? cwd) => new()

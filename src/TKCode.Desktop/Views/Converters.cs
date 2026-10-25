@@ -16,15 +16,4 @@ public static class Converters
 
     public static readonly IValueConverter LeftIndent =
         new FuncValueConverter<double, Thickness>(indent => new Thickness(indent - 8, 0, 0, 0));
-
-    /// <summary>绑定值等于 ConverterParameter（分段选择的选中态）。</summary>
-    public static readonly IValueConverter EqualsParameter =
-        new FuncValueConverter<object?, object?, bool>((value, parameter) => Equals(value?.ToString(), parameter?.ToString()));
-
-    /// <summary>Key 输入框：显示明文时不使用掩码字符。</summary>
-    public static readonly IValueConverter PasswordChar =
-        new FuncValueConverter<bool, char>(revealed => revealed ? '\0' : '•');
-
-    public static readonly IValueConverter RevealIcon =
-        new FuncValueConverter<bool, LucideKind>(revealed => revealed ? LucideKind.EyeOff : LucideKind.Eye);
 }

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace TKCode.Runtimes;
 
 /// <summary>
-/// 运行时的磁盘缓存（例如 ACP Agent 的模型列表：只有建立会话后才能得知，缓存后下次启动即可在选择器中显示）。
+/// 运行时的磁盘缓存（例如通过 CLI 命令或真实 ACP 会话发现的模型列表，缓存后下次启动即可在选择器中显示）。
 /// 以运行时 id 为文件名，内容带上可执行文件路径与版本，任一变化即视为失效。
 /// </summary>
 public sealed class RuntimeCache(string directory)

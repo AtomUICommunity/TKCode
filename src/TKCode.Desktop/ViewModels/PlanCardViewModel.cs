@@ -26,10 +26,6 @@ public sealed partial class PlanCardViewModel : TranscriptItemViewModel
 
     public ToolCallBlockViewModel Call { get; }
 
-    /// <summary>用系统默认程序打开计划文件（测试中替换）。</summary>
-    public static Action<string> OpenFile { get; set; } = path =>
-        Services.ShellOpen.Open(path, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
-
     /// <summary>pending / approved / revise / dismissed / aborted / failed。</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPending), nameof(StatusText), nameof(IsApproved))]
@@ -45,7 +41,7 @@ public sealed partial class PlanCardViewModel : TranscriptItemViewModel
     public partial string? Path { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Preview), nameof(HasMore), nameof(BodyMarkdown), nameof(HasPlan), nameof(ToggleText))]
+    [NotifyPropertyChangedFor(nameof(HasPlan), nameof(ExpandText))]
     public partial string Plan { get; private set; } = "";
 
     [ObservableProperty]
@@ -56,8 +52,8 @@ public sealed partial class PlanCardViewModel : TranscriptItemViewModel
     [NotifyPropertyChangedFor(nameof(HasFeedback))]
     public partial string? Feedback { get; private set; }
 
+    /// <summary>正文是否展开（视图里 Arc 的 ExpandableContent 双向绑定；行被回收再实例化时保持状态）。</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BodyMarkdown), nameof(ToggleText))]
     public partial bool IsExpanded { get; set; }
 
     public bool IsPending => Status == "pending";
@@ -86,29 +82,16 @@ public sealed partial class PlanCardViewModel : TranscriptItemViewModel
         _ => Strings.Get(TKCodeLangResourceKind.PlanCardWaiting),
     };
 
-    private string[] Lines => Plan.Split('\n');
+    /// <summary>收起时的「展开全部 N 行」（N 是计划原文的行数）。</summary>
+    public string ExpandText => Strings.Format(TKCodeLangResourceKind.PlanCardExpandFormat, Plan.Split('\n').Length);
 
-    /// <summary>收起时的正文：前 <see cref="CollapsedLines"/> 行。</summary>
-    public string Preview => HasMore ? string.Join('\n', Lines.Take(CollapsedLines)).TrimEnd() : Plan;
-
-    public bool HasMore => Lines.Length > CollapsedLines;
-
-    /// <summary>正文的 Markdown：收起时只有前几行，展开后是完整计划。</summary>
-    public string BodyMarkdown => IsExpanded ? Plan : Preview;
-
-    public string ToggleText => IsExpanded
-        ? Strings.Get(TKCodeLangResourceKind.PlanCardCollapse)
-        : Strings.Format(TKCodeLangResourceKind.PlanCardExpandFormat, Lines.Length);
-
-    [RelayCommand]
-    private void Toggle() => IsExpanded = !IsExpanded;
-
+    /// <summary>在右侧工作区打开计划文件：与 read 工具同一条通路，由会话把请求接到工作区。</summary>
     [RelayCommand]
     private void Open()
     {
         if (Path is { Length: > 0 } path)
         {
-            OpenFile(path);
+            Call.OpenFileRequested?.Invoke(path);
         }
     }
 
@@ -204,6 +187,6 @@ public sealed partial class PlanCardViewModel : TranscriptItemViewModel
     {
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(StatusText));
-        OnPropertyChanged(nameof(ToggleText));
+        OnPropertyChanged(nameof(ExpandText));
     }
 }

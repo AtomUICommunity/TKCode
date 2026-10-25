@@ -29,18 +29,9 @@ public sealed partial class UserMessageItemViewModel(string text, IReadOnlyList<
     /// <summary>超过这么多行就默认收起，点击展开。</summary>
     public const int CollapsedLineLimit = 8;
 
-    /// <summary>默认收起；是否显示按钮由气泡按实际排版行数决定。</summary>
+    /// <summary>默认收起；是否显示按钮由气泡按实际排版行数决定。放在视图模型上，行被回收再实例化时保持展开状态。</summary>
     [ObservableProperty]
     public partial bool IsExpanded { get; set; }
-
-    public string ToggleText => Strings.Get(IsExpanded ? TKCodeLangResourceKind.UserMessageCollapse : TKCodeLangResourceKind.UserMessageExpand);
-
-    [RelayCommand]
-    private void Toggle() => IsExpanded = !IsExpanded;
-
-    partial void OnIsExpandedChanged(bool value) => OnPropertyChanged(nameof(ToggleText));
-
-    public void RefreshLanguage() => OnPropertyChanged(nameof(ToggleText));
 
     /// <summary>附图（显示在气泡上方，点击全屏查看）。</summary>
     public IReadOnlyList<ImageAttachmentViewModel> Images { get; } =
@@ -167,6 +158,9 @@ public abstract partial class AssistantBlockViewModel : ObservableObject
     protected virtual void OnStreamingChanged()
     {
     }
+
+    /// <summary>正在进行（流式输出中的思考、执行中的工具）：进行中的活动组只显示这些步骤，完成后收起。</summary>
+    public virtual bool IsLive => false;
 
     public virtual void RefreshLanguage()
     {
@@ -341,15 +335,25 @@ public sealed partial class ThinkingBlockViewModel(long? durationMs = null) : As
     /// <summary>粗略估算：中日韩等宽字符约 1 token / 字，其余约 4 字符 / token。</summary>
     private static long EstimateTokens(long wide, long total) => wide + (total - wide + 3) / 4;
 
+    private bool _userToggled;
+
+    /// <summary>流式输出时自动展开，结束后收起；用户手动展开 / 收起过则不再自动改变。</summary>
     [ObservableProperty]
-    public partial bool IsExpanded { get; set; }
+    public partial bool IsExpanded { get; set; } = true;
 
     public string Header => Strings.Get(IsStreaming ? TKCodeLangResourceKind.Thinking : TKCodeLangResourceKind.ThoughtProcess);
 
+    public override bool IsLive => IsStreaming;
+
     protected override void OnStreamingChanged()
     {
+        if (!_userToggled)
+        {
+            IsExpanded = IsStreaming;
+        }
         OnPropertyChanged(nameof(Header));
         OnPropertyChanged(nameof(Stats));
+        OnPropertyChanged(nameof(IsLive));
     }
 
     public override void RefreshLanguage()
@@ -359,7 +363,11 @@ public sealed partial class ThinkingBlockViewModel(long? durationMs = null) : As
     }
 
     [RelayCommand]
-    private void Toggle() => IsExpanded = !IsExpanded;
+    private void Toggle()
+    {
+        _userToggled = true;
+        IsExpanded = !IsExpanded;
+    }
 }
 
 public enum ToolCallStatus
@@ -398,8 +406,14 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
         }
     }
 
-    /// <summary>展开后的完整参数：主参数原文，取不到时显示完整 JSON。</summary>
-    public string Detail => IsStreaming ? Arguments : _detail ??= PrimaryArgument ?? Arguments;
+    /// <summary>展开后的完整参数：主参数原文，取不到时显示完整 JSON。参数流式输出时显示末尾一段（随参数刷新，长参数不整段重排）。</summary>
+    public string Detail => IsStreaming ? StreamingDetail : _detail ??= PrimaryArgument ?? Arguments;
+
+    private const int StreamingDetailLength = 2000;
+
+    private string StreamingDetail => _args.Length <= StreamingDetailLength
+        ? Arguments
+        : "…" + _args.ToString(_args.Length - StreamingDetailLength, StreamingDetailLength);
 
     private string? PrimaryArgument => ToolPresentation.PrimaryArgument(Category, Arguments);
 
@@ -409,6 +423,7 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
     private string? _detail;
     private string? _partialSummary;
     private bool _argsNotifyPending;
+    private bool _detailNotifyPending;
 
     /// <summary>完整（或截至目前）的参数 JSON。</summary>
     public string Arguments
@@ -437,9 +452,10 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
             _partialSummary = partial is null ? null : ToolPresentation.SingleLine(partial);
         }
         NotifyLater(ref _argsNotifyPending, nameof(Summary));
+        NotifyLater(ref _detailNotifyPending, nameof(Detail));
     }
 
-    protected override void ResetPending() => _argsNotifyPending = false;
+    protected override void ResetPending() => _argsNotifyPending = _detailNotifyPending = false;
 
     protected override void OnStreamingChanged()
     {
@@ -503,15 +519,26 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
     [ObservableProperty]
     public partial string? Duration { get; set; }
 
+    private bool _userToggled;
+
+    /// <summary>
+    /// 执行中（参数流式输出 / 运行）自动展开，完成后收起；用户手动展开 / 收起过则不再自动改变。
+    /// read 没有详情，不展开。详情视图按需创建，收起后释放（见 ToolStepView）。
+    /// </summary>
     [ObservableProperty]
-    public partial bool IsExpanded { get; set; }
+    public partial bool IsExpanded { get; set; } = ToolPresentation.Classify(toolName) != ToolCategory.Read;
 
-    /// <summary>展开时才有值：详情视图按需创建，收起后释放（长对话里大量收起的工具行不占视图内存）。</summary>
-    public ToolCallBlockViewModel? ExpandedDetail => IsExpanded ? this : null;
-
-    partial void OnIsExpandedChanged(bool value) => OnPropertyChanged(nameof(ExpandedDetail));
+    private void UpdateExpanded()
+    {
+        if (!_userToggled && !IsRead)
+        {
+            IsExpanded = IsBusy;
+        }
+    }
 
     public bool IsBusy => Status is ToolCallStatus.Streaming or ToolCallStatus.Running;
+
+    public override bool IsLive => IsBusy;
     public bool IsFailed => Status == ToolCallStatus.Failed;
     public bool IsSucceeded => Status == ToolCallStatus.Succeeded;
 
@@ -529,6 +556,8 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
         OnPropertyChanged(nameof(IsFailed));
         OnPropertyChanged(nameof(IsSucceeded));
         OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(IsLive));
+        UpdateExpanded();
     }
 
     public override void RefreshLanguage()
@@ -546,6 +575,9 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
 
     /// <summary>由会话设置：请求在工作区打开文件（路径已解析为绝对路径）。</summary>
     public Action<string>? OpenFileRequested { get; set; }
+
+    /// <summary>由会话设置：请求在右侧打开这个子 Agent 的转录（docs/design/subagent-view.md §6.2）。</summary>
+    public Action<ToolCallBlockViewModel>? OpenSubagentRequested { get; set; }
 
     [RelayCommand]
     private void OpenFile()
@@ -571,24 +603,54 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
     }
 
     [RelayCommand]
-    private void Toggle() => IsExpanded = !IsExpanded;
+    private void Toggle()
+    {
+        _userToggled = true;
+        IsExpanded = !IsExpanded;
+    }
 }
 
 /// <summary>
 /// 活动组：两段正文之间连续的思考与工具调用（可跨多次模型请求），显示为一行可折叠的摘要。
-/// 进行中的组默认展开；结束后自动折叠。一轮结束后，除最后一段正文外的全部内容收进“已工作 N 分 N 秒”的工作空间组（<see cref="SetWorked"/>）。
-/// 用户手动展开 / 折叠后不再自动改变。
+/// 进行中只显示正在进行的步骤（流式输出中的思考、执行中的工具），步骤完成后带动画收起、计入摘要；点击摘要展开全部步骤。
+/// 一轮结束后，除最后一段正文外的全部内容收进“已工作 N 分 N 秒”的工作空间组（<see cref="SetWorked"/>），默认收起。
 /// </summary>
 public sealed partial class ActivityGroupViewModel : TranscriptItemViewModel
 {
-    private bool _userToggled;
     private IReadOnlyList<AssistantBlockViewModel> _source = [];
+    private IReadOnlyList<AssistantBlockViewModel> _display = [];
     private Dictionary<AssistantBlockViewModel, ExploreStepViewModel> _explore = new(ReferenceEqualityComparer.Instance);
 
+    /// <summary>
+    /// 显示的步骤。只在组内容显示（<see cref="ShowSteps"/>）时与内容同步：收起期间（包括收起动画）保持原样，再次显示时才同步——
+    /// 进行中的组就地变成工作空间组时，收起动画不会因内容变多而跳动；历史里收起的组也不创建步骤视图。
+    /// </summary>
     public ObservableCollection<AssistantBlockViewModel> Steps { get; } = [];
 
+    /// <summary>展开：显示全部步骤（用户点击摘要）。</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSteps))]
     public partial bool IsExpanded { get; set; }
+
+    /// <summary>组内有正在进行的步骤（一轮结束后不算）。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSteps))]
+    public partial bool HasLiveSteps { get; private set; }
+
+    /// <summary>组内容是否显示：展开时显示全部步骤；否则只显示正在进行的步骤，没有时整组收起。</summary>
+    public bool ShowSteps => IsExpanded || HasLiveSteps;
+
+    partial void OnIsExpandedChanged(bool value) => SyncIfShown();
+
+    partial void OnHasLiveStepsChanged(bool value) => SyncIfShown();
+
+    private void SyncIfShown()
+    {
+        if (ShowSteps)
+        {
+            SyncSteps(_display);
+        }
+    }
 
     /// <summary>组仍在进行（其后还没有正文，且会话在运行）。</summary>
     [ObservableProperty]
@@ -603,50 +665,41 @@ public sealed partial class ActivityGroupViewModel : TranscriptItemViewModel
     /// <summary>工作空间组的耗时。</summary>
     public TimeSpan Elapsed { get; private set; }
 
-    partial void OnIsActiveChanged(bool value) => UpdateExpanded();
+    private readonly HashSet<AssistantBlockViewModel> _watched = new(ReferenceEqualityComparer.Instance);
 
-    /// <summary>组内有工具仍在执行，或组仍在进行时保持展开；全部完成后才收起（用户手动操作过则不再改）。</summary>
-    private void UpdateExpanded()
+    /// <summary>只监听组内思考与工具是否仍在进行（IsLive）：进行中只显示这些步骤，完成后收起。</summary>
+    private void WatchLive(IReadOnlyList<AssistantBlockViewModel> steps)
     {
-        if (!_userToggled)
+        var blocks = new HashSet<AssistantBlockViewModel>(steps.Where(b => b is ThinkingBlockViewModel or ToolCallBlockViewModel), ReferenceEqualityComparer.Instance);
+        foreach (var old in _watched.Where(b => !blocks.Contains(b)).ToList())
         {
-            IsExpanded = IsActive || _watchedCalls.Any(c => c.IsBusy);
+            old.PropertyChanged -= OnBlockLiveChanged;
+            _watched.Remove(old);
         }
-    }
-
-    private readonly HashSet<ToolCallBlockViewModel> _watchedCalls = [];
-
-    /// <summary>只监听组内工具的执行状态（IsBusy），用于运行中保持展开、结束后收起。</summary>
-    private void WatchCalls(IReadOnlyList<AssistantBlockViewModel> steps)
-    {
-        var calls = new HashSet<ToolCallBlockViewModel>(steps.OfType<ToolCallBlockViewModel>(), ReferenceEqualityComparer.Instance);
-        foreach (var old in _watchedCalls.Where(c => !calls.Contains(c)).ToList())
+        foreach (var block in blocks)
         {
-            old.PropertyChanged -= OnCallBusyChanged;
-            _watchedCalls.Remove(old);
-        }
-        foreach (var call in calls)
-        {
-            if (_watchedCalls.Add(call))
+            if (_watched.Add(block))
             {
-                call.PropertyChanged += OnCallBusyChanged;
+                block.PropertyChanged += OnBlockLiveChanged;
             }
         }
     }
 
-    private void OnCallBusyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnBlockLiveChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ToolCallBlockViewModel.IsBusy))
+        if (e.PropertyName == nameof(AssistantBlockViewModel.IsLive))
         {
-            UpdateExpanded();
+            RefreshLive();
         }
     }
+
+    private void RefreshLive() => HasLiveSteps = !IsTurnWork && _watched.Any(b => b.IsLive);
 
     /// <summary>按顺序同步步骤（通常只是追加），连续的探索类工具合并为一个“查阅”组，并刷新摘要。</summary>
     public void SetSteps(IReadOnlyList<AssistantBlockViewModel> steps)
     {
         _source = steps;
-        WatchCalls(steps);
+        WatchLive(steps);
         var next = new Dictionary<AssistantBlockViewModel, ExploreStepViewModel>(ReferenceEqualityComparer.Instance);
         var display = new List<AssistantBlockViewModel>(steps.Count);
         for (var i = 0; i < steps.Count;)
@@ -678,8 +731,9 @@ public sealed partial class ActivityGroupViewModel : TranscriptItemViewModel
             i = j;
         }
         _explore = next;
-        SyncSteps(display);
-        UpdateExpanded();
+        _display = display;
+        RefreshLive();
+        SyncIfShown();
         RefreshSummary();
     }
 
@@ -705,13 +759,13 @@ public sealed partial class ActivityGroupViewModel : TranscriptItemViewModel
         }
     }
 
-    /// <summary>一轮结束：收进工作空间，显示耗时，并默认折叠（用户未手动操作过）。</summary>
+    /// <summary>一轮结束：收进工作空间，显示耗时，默认收起（用户展开过则保持）。先于 <see cref="SetSteps"/> 调用，组先收起再换内容。</summary>
     public void SetWorked(TimeSpan elapsed)
     {
         IsTurnWork = true;
         Elapsed = elapsed;
         IsActive = false;
-        UpdateExpanded();
+        RefreshLive();
         RefreshSummary();
     }
 
@@ -743,11 +797,7 @@ public sealed partial class ActivityGroupViewModel : TranscriptItemViewModel
     }
 
     [RelayCommand]
-    private void Toggle()
-    {
-        _userToggled = true;
-        IsExpanded = !IsExpanded;
-    }
+    private void Toggle() => IsExpanded = !IsExpanded;
 }
 
 /// <summary>
@@ -784,8 +834,11 @@ public sealed partial class ExploreStepViewModel : AssistantBlockViewModel
             IsExpanded = busy;
         }
         OnPropertyChanged(nameof(Calls));
+        OnPropertyChanged(nameof(IsLive));
         RefreshSummary();
     }
+
+    public override bool IsLive => Calls.Any(c => c.IsBusy);
 
     private void OnCallChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -821,6 +874,7 @@ public sealed partial class ExploreStepViewModel : AssistantBlockViewModel
         {
             IsExpanded = Calls.Any(c => c.IsBusy);
         }
+        OnPropertyChanged(nameof(IsLive));
         RefreshSummary();
     }
 

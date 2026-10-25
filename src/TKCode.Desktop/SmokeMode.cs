@@ -103,6 +103,7 @@ internal static class SmokeMode
             }
 
             CheckFilePreviews(Check, vm, window, project);
+            CheckExplorerUi(Check, vm, window, project);
             CheckComposer(Check, window);
             CheckDrafts(Check);
 
@@ -254,6 +255,54 @@ internal static class SmokeMode
             {
                 Directory.Delete(dir, recursive: true);
             }
+        }
+    }
+
+    // Exercise compiled explorer popup/dialog resources in NativeAOT, without executing file actions or native trash.
+    private static void CheckExplorerUi(Action<string, bool, string?> check, MainWindowViewModel vm, MainWindow window, string project)
+    {
+        var wasOpen = vm.IsExplorerOpen;
+        var motionDisabled = Motion.MotionSettings.ForceDisabled;
+        Motion.MotionSettings.ForceDisabled = true;
+        try
+        {
+            vm.IsExplorerOpen = true;
+            Pump(4);
+            var tree = window.GetVisualDescendants().OfType<FileExplorerTree>().Single();
+            var target = vm.Explorer.CaptureContext(null);
+            check("explorer.root", target is not null, vm.Explorer.Root);
+            if (target is not null)
+            {
+                using var menu = new ExplorerContextMenu(vm.Explorer, window, error =>
+                {
+                    check("explorer.menu-action", false, error.Message);
+                    return Task.CompletedTask;
+                });
+                menu.Show(target, tree, new Point(12, 12), tree);
+                Pump(3);
+                var surface = window.GetVisualDescendants().OfType<TKCode.Arc.MenuSurface>().FirstOrDefault();
+                check("explorer.scaled-menu", surface is { IsOpen: false } && surface.GetVisualAncestors().OfType<ZoomHost>().Any(), null);
+                menu.Close();
+            }
+            foreach (var action in new[] { ExplorerAction.Rename, ExplorerAction.Trash })
+            {
+                var completion = ExplorerFileDialog.ShowAsync(window, new ExplorerFileDialogRequest(
+                    action, Path.Combine(project, "README.md"), false, "README.md",
+                    static _ => Task.FromException(new InvalidOperationException("Smoke must not submit file actions."))));
+                Pump(3);
+                var dialog = window.GetVisualDescendants().OfType<ExplorerFileDialog>().Single();
+                var cancel = dialog.GetVisualDescendants().OfType<TKCode.Arc.Button>().Single(button => button.Name == "CancelButton");
+                var input = dialog.GetVisualDescendants().OfType<TKCode.Arc.Input>().FirstOrDefault();
+                check(action == ExplorerAction.Rename ? "explorer.rename-input" : "explorer.trash-cancel-focus",
+                    action == ExplorerAction.Rename ? input is { IsKeyboardFocusWithin: true, Text: "README.md" } : cancel.IsKeyboardFocusWithin, null);
+                cancel.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+                check("explorer.dialog-closed", WaitUntil(() => completion.IsCompleted), null);
+            }
+        }
+        finally
+        {
+            vm.IsExplorerOpen = wasOpen;
+            Motion.MotionSettings.ForceDisabled = motionDisabled;
         }
     }
 

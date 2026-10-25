@@ -51,6 +51,33 @@ public sealed class OpenAIChatCompletionsApiTests
     }
 
     [Fact]
+    public async Task SwitchingContentKind_EndsThePreviousBlockImmediately()
+    {
+        // Chat Completions 没有块结束事件：思考在正文 / 工具调用开始时就结束，而不是等到整条消息结束
+        var stream = Chunks(
+            """{"choices":[{"index":0,"delta":{"reasoning_content":"想一想"}}]}""",
+            """{"choices":[{"index":0,"delta":{"content":"好的"}}]}""",
+            """{"choices":[{"index":0,"delta":{"reasoning_content":"再想想"}}]}""",
+            """{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"agent","arguments":"{}"}}]}}]}""",
+            """{"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}""",
+            "[DONE]");
+        var (events, message) = await Run.StreamAsync(Api(new FakeHandler((HttpStatusCode.OK, stream))), DeepSeek, Run.Context(UserMessage.FromText("q")));
+
+        var order = events.Select(e => e switch
+        {
+            ThinkingEndEvent t => $"thinking-end:{t.ContentIndex}",
+            TextEndEvent t => $"text-end:{t.ContentIndex}",
+            TextStartEvent t => $"text-start:{t.ContentIndex}",
+            ThinkingStartEvent t => $"thinking-start:{t.ContentIndex}",
+            ToolCallStartEvent t => $"tool-start:{t.ContentIndex}",
+            _ => null,
+        }).OfType<string>().ToList();
+        Assert.Equal(["thinking-start:0", "thinking-end:0", "text-start:1", "text-end:1", "thinking-start:2", "thinking-end:2", "tool-start:3"], order);
+        Assert.Equal(StopReason.ToolUse, message.StopReason);
+        Assert.Equal(["想一想", "再想想"], message.Content.OfType<ThinkingContent>().Select(t => t.Thinking));
+    }
+
+    [Fact]
     public async Task LengthWithToolCall_IsLength_SoTruncatedCallIsNotExecuted()
     {
         var stream = Chunks(

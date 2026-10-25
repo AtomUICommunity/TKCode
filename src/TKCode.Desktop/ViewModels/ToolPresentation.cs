@@ -43,13 +43,13 @@ public static class ToolPresentation
         "grep" or "glob" or "search" or "find" or "list_directory" or "ls" or "codebase_search" or "file_search"
             or "grep_search" or "toolsearch" => ToolCategory.Search,
         "webfetch" or "web_fetch" or "websearch" or "web_search" or "fetch" => ToolCategory.Fetch,
-        "task" or "agent" => ToolCategory.Task,
+        "task" or "agent" or "spawn_agent" => ToolCategory.Task,
         "skill" => ToolCategory.Skill,
         "ask_user" or "askuserquestion" or "request_user_input" => ToolCategory.Question,
         "exit_plan_mode" or "exitplanmode" => ToolCategory.PlanReview,
         "enter_plan_mode" or "enterplanmode" => ToolCategory.EnterPlan,
-        "task_create" or "task_update" or "task_get" or "task_list" or "todowrite" or "update_plan" or "taskcreate" or "taskupdate"
-            => ToolCategory.Plan,
+        "task_create" or "task_update" or "task_get" or "task_list" or "todowrite" or "update_plan"
+            or "taskcreate" or "taskupdate" or "taskget" or "tasklist" => ToolCategory.Plan,
         _ => ToolCategory.Other,
     };
 

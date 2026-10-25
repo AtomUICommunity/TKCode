@@ -86,6 +86,41 @@ public sealed class OpenAIResponsesApiTests
         Assert.Equal("call_1", input[5]!["call_id"]!.GetValue<string>());
     }
 
+    [Theory]
+    [InlineData("gpt-5.6-sol", "openai", true, "auto")]
+    [InlineData("gpt-6.1-sol", "proxy", true, "auto")]
+    [InlineData("openai/gpt-6.1-sol", "proxy", true, "auto")]
+    [InlineData("OpenAI/GPT-6.1-Sol", "proxy", true, "auto")]
+    [InlineData("deepseek-v4.1-flash-1017", "proxy", true, null)]
+    [InlineData("deepseek/deepseek-v4.1-flash-1017", "proxy", true, null)]
+    [InlineData("deepseek-v4.1-flash-1017", "openai", true, null)]
+    [InlineData("o3", "openai", true, null)]
+    [InlineData("gpt-4.1", "openai", false, null)]
+    public async Task Request_ReasoningSummary_IsOnlyEnabledForGptModels(
+        string modelId, string provider, bool supportsReasoning, string? expectedSummary)
+    {
+        var model = Model with { Id = modelId, Provider = provider, Reasoning = supportsReasoning };
+        var handler = new FakeHandler((HttpStatusCode.OK, ToolTurn));
+        var (_, message) = await Run.StreamAsync(new OpenAIResponsesApi(new HttpClient(handler)), model,
+            Run.Context(UserMessage.FromText("go")), new StreamOptions { ThinkingLevel = ThinkingLevel.High });
+
+        Assert.Equal(StopReason.ToolUse, message.StopReason);
+        var body = Assert.Single(handler.Bodies);
+        if (supportsReasoning)
+        {
+            var reasoning = body["reasoning"]!.AsObject();
+            Assert.Equal("high", reasoning["effort"]!.GetValue<string>());
+            Assert.Equal(expectedSummary, reasoning["summary"]?.GetValue<string>());
+            Assert.Equal(expectedSummary is not null, reasoning.ContainsKey("summary"));
+            Assert.Equal("reasoning.encrypted_content", body["include"]![0]!.GetValue<string>());
+        }
+        else
+        {
+            Assert.Null(body["reasoning"]);
+            Assert.Null(body["include"]);
+        }
+    }
+
     [Fact]
     public async Task TrailingReasoningWithoutFollowingItem_IsNotReplayed()
     {

@@ -4,7 +4,8 @@
 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+             xmlns:lucide="https://github.com/AIDotNet/TKCode.Arc/lucide"
              xmlns:motion="using:TKCode.Desktop.Motion"
              xmlns:controls="using:TKCode.Desktop.Controls"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
@@ -14,6 +15,15 @@
              xmlns:smv="using:StreamMark.Avalonia"
              x:Class="TKCode.Desktop.Views.SettingsView"
              x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <!-- 状态徽标：默认中性色，按状态换成成功 / 危险色 -->
+        <Style Selector="arc|Badge.ok">
+            <Setter Property="Tone" Value="Success" />
+        </Style>
+        <Style Selector="arc|Badge.bad">
+            <Setter Property="Tone" Value="Danger" />
+        </Style>
+    </UserControl.Styles>
     <UserControl.Resources>
         <!-- 命令、Skills 与模式：一项（名称、描述、来源，打开 / 在文件夹中显示） -->
         <DataTemplate x:Key="AssetItemTemplate" x:DataType="vm:AssetItemViewModel">
@@ -21,20 +31,18 @@
                 <StackPanel Spacing="2" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Classes="strong" Text="{Binding Title}" />
-                        <Border CornerRadius="4" Padding="5,0" Background="{DynamicResource TKCode.MenuInputBg}" VerticalAlignment="Center">
-                            <TextBlock Classes="tertiary" FontSize="11" Text="{Binding Source}" />
-                        </Border>
+                        <arc:Badge Size="Small" VerticalAlignment="Center" Content="{Binding Source}" />
                     </StackPanel>
                     <TextBlock Classes="secondary" FontSize="12" TextWrapping="Wrap" Text="{Binding Description}" IsVisible="{Binding HasDescription}" />
                     <TextBlock Classes="tertiary" FontSize="11" Text="{Binding Detail}" IsVisible="{Binding HasDetail}" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="12,0,0,0">
-                    <atom:Button SizeType="Small" Color="Default" Variant="Text" Command="{Binding Owner.OpenCommand}" CommandParameter="{Binding}"
-                                 Content="{loc:TKCodeLangResource OpenInEditor}" />
-                    <atom:Button SizeType="Small" Color="Default" Variant="Text" Command="{Binding Owner.RevealCommand}" CommandParameter="{Binding}"
-                                 ToolTip.Tip="{loc:TKCodeLangResource RevealInFolder}">
-                        <atom:Button.Icon><icons:LucideIcon Kind="Folder" /></atom:Button.Icon>
-                    </atom:Button>
+                    <arc:Button Variant="Ghost" Size="Small" Command="{Binding Owner.OpenCommand}" CommandParameter="{Binding}"
+                                Content="{loc:TKCodeLangResource OpenInEditor}" />
+                    <arc:Button Variant="Ghost" Size="Small" Command="{Binding Owner.RevealCommand}" CommandParameter="{Binding}"
+                                arc:Tooltip.Tip="{loc:TKCodeLangResource RevealInFolder}" AutomationProperties.Name="{loc:TKCodeLangResource RevealInFolder}">
+                        <lucide:LucideIcon Kind="Folder" Size="14" />
+                    </arc:Button>
                 </StackPanel>
             </Grid>
         </DataTemplate>
@@ -47,28 +55,29 @@
                 <DockPanel>
                     <Panel x:Name="NavHeader" DockPanel.Dock="Top" Height="44" Background="Transparent"
                            WindowDecorationProperties.ElementRole="TitleBar" />
-                    <StackPanel Margin="8,4,8,8" Spacing="1">
-                        <Button Theme="{StaticResource TKCode.RowButton}" Command="{Binding CloseSettingsCommand}" Margin="0,0,0,10">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <icons:LucideIcon Kind="ArrowLeft" Width="14" Height="14" />
-                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource BackToApp}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-                        <ItemsControl ItemsSource="{Binding Settings.Nav}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:SettingsNavItemViewModel">
-                                    <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" Margin="0,0,0,1"
-                                            Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Settings.NavigateCommand}"
-                                            CommandParameter="{Binding}">
-                                        <StackPanel Orientation="Horizontal" Spacing="10">
-                                            <icons:LucideIcon Kind="{Binding Icon}" Width="14" Height="14" />
-                                            <TextBlock Classes="strong" Text="{Binding Title}" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
+                    <!-- Arc 菜单面板直接放在布局里当导航：高亮在行间滑动，键盘上下 / 首尾 / Enter 都是现成的 -->
+                    <arc:MenuSurface x:Name="NavMenu" Margin="0,4,0,8" VerticalAlignment="Top" Background="Transparent" BorderThickness="0">
+                        <arc:MenuEntry Header="{loc:TKCodeLangResource BackToApp}" Icon="{lucide:LucideGeometry Kind=ArrowLeft}"
+                                       Command="{Binding CloseSettingsCommand}" />
+                        <arc:MenuEntry Header="{Binding Settings.Nav[0].Title}" Icon="{lucide:LucideGeometry Kind=SlidersHorizontal}" HasSeparatorBefore="True"
+                                       ToggleType="Radio" GroupName="SettingsNav" IsChecked="{Binding Settings.Nav[0].IsSelected, Mode=OneWay}"
+                                       Command="{Binding Settings.NavigateCommand}" CommandParameter="{Binding Settings.Nav[0]}" />
+                        <arc:MenuEntry Header="{Binding Settings.Nav[1].Title}" Icon="{lucide:LucideGeometry Kind=Box}"
+                                       ToggleType="Radio" GroupName="SettingsNav" IsChecked="{Binding Settings.Nav[1].IsSelected, Mode=OneWay}"
+                                       Command="{Binding Settings.NavigateCommand}" CommandParameter="{Binding Settings.Nav[1]}" />
+                        <arc:MenuEntry Header="{Binding Settings.Nav[2].Title}" Icon="{lucide:LucideGeometry Kind=Bot}"
+                                       ToggleType="Radio" GroupName="SettingsNav" IsChecked="{Binding Settings.Nav[2].IsSelected, Mode=OneWay}"
+                                       Command="{Binding Settings.NavigateCommand}" CommandParameter="{Binding Settings.Nav[2]}" />
+                        <arc:MenuEntry Header="{Binding Settings.Nav[3].Title}" Icon="{lucide:LucideGeometry Kind=Plug}"
+                                       ToggleType="Radio" GroupName="SettingsNav" IsChecked="{Binding Settings.Nav[3].IsSelected, Mode=OneWay}"
+                                       Command="{Binding Settings.NavigateCommand}" CommandParameter="{Binding Settings.Nav[3]}" />
+                        <arc:MenuEntry Header="{Binding Settings.Nav[4].Title}" Icon="{lucide:LucideGeometry Kind=SquareTerminal}"
+                                       ToggleType="Radio" GroupName="SettingsNav" IsChecked="{Binding Settings.Nav[4].IsSelected, Mode=OneWay}"
+                                       Command="{Binding Settings.NavigateCommand}" CommandParameter="{Binding Settings.Nav[4]}" />
+                        <arc:MenuEntry Header="{Binding Settings.Nav[5].Title}" Icon="{lucide:LucideGeometry Kind=CircleAlert}"
+                                       ToggleType="Radio" GroupName="SettingsNav" IsChecked="{Binding Settings.Nav[5].IsSelected, Mode=OneWay}"
+                                       Command="{Binding Settings.NavigateCommand}" CommandParameter="{Binding Settings.Nav[5]}" />
+                    </arc:MenuSurface>
                 </DockPanel>
             </Panel>
         </Border>
@@ -82,26 +91,19 @@
             <!-- ========== MCP 服务器（主从双栏） ========== -->
             <views:McpSettingsView DataContext="{Binding Mcp}" motion:Presence.IsPresent="{Binding $parent[DockPanel].((vm:SettingsViewModel)DataContext).IsMcp}"
                                    motion:Presence.Effect="SlideUp" motion:Presence.AnimateExit="False" />
-            <ScrollViewer motion:Presence.IsPresent="{Binding IsScrollSection}" motion:Presence.Effect="SlideUp" motion:Presence.AnimateExit="False" atom:ScrollViewer.IsLiteMode="True">
+            <arc:ScrollArea motion:Presence.IsPresent="{Binding IsScrollSection}" motion:Presence.Effect="SlideUp" motion:Presence.AnimateExit="False">
                 <StackPanel MaxWidth="760" Margin="40,0,40,48" Spacing="16">
                     <!-- 配置错误 -->
-                    <Border CornerRadius="10" Padding="14,10" BorderThickness="1" BorderBrush="{DynamicResource TKCode.Danger}"
-                            IsVisible="{Binding HasErrors}">
-                        <StackPanel Spacing="4">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <icons:LucideIcon Kind="CircleAlert" Width="14" Height="14" StrokeBrush="{DynamicResource TKCode.Danger}" />
-                                <TextBlock Classes="strong" Text="{loc:TKCodeLangResource SettingsErrorsTitle}" Foreground="{DynamicResource TKCode.Danger}" />
-                            </StackPanel>
-                            <ItemsControl ItemsSource="{Binding Errors}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="x:String">
-                                        <SelectableTextBlock Text="{Binding}" FontSize="12" FontFamily="{StaticResource TKCode.MonoFont}" TextWrapping="Wrap"
-                                                             Foreground="{DynamicResource TKCode.TextSecondary}" Margin="22,2,0,0" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
+                    <arc:Alert Tone="Danger" Title="{loc:TKCodeLangResource SettingsErrorsTitle}" IsVisible="{Binding HasErrors}">
+                        <ItemsControl ItemsSource="{Binding Errors}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <SelectableTextBlock Text="{Binding}" FontSize="12" FontFamily="{StaticResource TKCode.MonoFont}" TextWrapping="Wrap"
+                                                         Foreground="{DynamicResource TKCode.TextSecondary}" Margin="0,2,0,0" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </arc:Alert>
 
                     <!-- ========== 通用 ========== -->
                     <StackPanel Spacing="16" motion:Presence.IsPresent="{Binding IsGeneral}" motion:Presence.Effect="SlideUp" motion:Presence.AnimateExit="False">
@@ -128,8 +130,8 @@
                                                VerticalOffset="6" IsLightDismissEnabled="True">
                                             <controls:ZoomHost>
                                             <Border Classes="menu" Width="320" Margin="16,0,16,16">
-                                                <ScrollViewer MaxHeight="320" atom:ScrollViewer.IsLiteMode="True">
-                                                    <ItemsControl ItemsSource="{Binding DefaultModels}" Margin="4">
+                                                <arc:ScrollArea MaxHeight="320">
+                                                    <ItemsControl ItemsSource="{Binding DefaultModels}" Margin="4,4,10,4">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="vm:SettingsChoiceViewModel">
                                                                 <Button Theme="{StaticResource TKCode.MenuItem}" Classes.selected="{Binding IsSelected}" MinHeight="30"
@@ -144,7 +146,7 @@
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
-                                                </ScrollViewer>
+                                                </arc:ScrollArea>
                                             </Border>
                                             </controls:ZoomHost>
                                         </motion:Popover>
@@ -170,8 +172,8 @@
                                                VerticalOffset="6" IsLightDismissEnabled="True">
                                             <controls:ZoomHost>
                                             <Border Classes="menu" Width="320" Margin="16,0,16,16">
-                                                <ScrollViewer MaxHeight="320" atom:ScrollViewer.IsLiteMode="True">
-                                                    <ItemsControl ItemsSource="{Binding FastModels}" Margin="4">
+                                                <arc:ScrollArea MaxHeight="320">
+                                                    <ItemsControl ItemsSource="{Binding FastModels}" Margin="4,4,10,4">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="vm:SettingsChoiceViewModel">
                                                                 <Button Theme="{StaticResource TKCode.MenuItem}" Classes.selected="{Binding IsSelected}" MinHeight="30"
@@ -186,7 +188,7 @@
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
-                                                </ScrollViewer>
+                                                </arc:ScrollArea>
                                             </Border>
                                             </controls:ZoomHost>
                                         </motion:Popover>
@@ -199,41 +201,15 @@
                                 <!-- 语言 -->
                                 <Grid ColumnDefinitions="*,Auto" Margin="16,12">
                                     <TextBlock Classes="strong" Text="{loc:TKCodeLangResource LanguageLabel}" VerticalAlignment="Center" />
-                                    <Border Grid.Column="1" Classes="segmented">
-                                        <!-- 选中底板在选项之间滑动 -->
-                                        <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                        <ItemsControl ItemsSource="{Binding Languages}">
-                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:SettingsChoiceViewModel">
-                                                    <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" motion:IndicatorPanel.IsCurrent="{Binding IsSelected}" Content="{Binding Label}"
-                                                            Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Settings.ChooseLanguageCommand}"
-                                                            CommandParameter="{Binding}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        </motion:IndicatorPanel>
-                                    </Border>
+                                    <arc:SegmentedControl Grid.Column="1" ItemsSource="{Binding Languages}"
+                                                          controls:ChoiceSelection.Command="{Binding ChooseLanguageCommand}" />
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                                 <!-- 主题 -->
                                 <Grid ColumnDefinitions="*,Auto" Margin="16,12">
                                     <TextBlock Classes="strong" Text="{loc:TKCodeLangResource ThemeLabel}" VerticalAlignment="Center" />
-                                    <Border Grid.Column="1" Classes="segmented">
-                                        <!-- 选中底板在选项之间滑动 -->
-                                        <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                        <ItemsControl ItemsSource="{Binding Themes}">
-                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:SettingsChoiceViewModel">
-                                                    <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" motion:IndicatorPanel.IsCurrent="{Binding IsSelected}" Content="{Binding Label}"
-                                                            Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Settings.ChooseThemeCommand}"
-                                                            CommandParameter="{Binding}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        </motion:IndicatorPanel>
-                                    </Border>
+                                    <arc:SegmentedControl Grid.Column="1" ItemsSource="{Binding Themes}"
+                                                          controls:ChoiceSelection.Command="{Binding ChooseThemeCommand}" />
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                                 <!-- 界面缩放 -->
@@ -242,20 +218,8 @@
                                         <TextBlock Classes="strong" Text="{loc:TKCodeLangResource UiScaleLabel}" />
                                         <TextBlock Classes="tertiary" Text="{Binding UiScaleHint}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <Border Grid.Column="1" Classes="segmented" VerticalAlignment="Center">
-                                        <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                        <ItemsControl ItemsSource="{Binding UiScales}">
-                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:SettingsChoiceViewModel">
-                                                    <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" motion:IndicatorPanel.IsCurrent="{Binding IsSelected}" Content="{Binding Label}"
-                                                            Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Settings.ChooseUiScaleCommand}"
-                                                            CommandParameter="{Binding}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        </motion:IndicatorPanel>
-                                    </Border>
+                                    <arc:SegmentedControl Grid.Column="1" VerticalAlignment="Center" ItemsSource="{Binding UiScales}"
+                                                          controls:ChoiceSelection.Command="{Binding ChooseUiScaleCommand}" />
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                                 <!-- 关闭窗口时保留在托盘 -->
@@ -264,7 +228,7 @@
                                         <TextBlock Classes="strong" Text="{loc:TKCodeLangResource CloseToTrayLabel}" />
                                         <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource CloseToTrayHint}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <atom:ToggleSwitch Grid.Column="1" SizeType="Small" VerticalAlignment="Center" IsChecked="{Binding CloseToTray}" />
+                                    <arc:Switch Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding CloseToTray}" />
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                                 <!-- 减少动态效果 -->
@@ -273,7 +237,7 @@
                                         <TextBlock Classes="strong" Text="{loc:TKCodeLangResource ReduceMotionLabel}" />
                                         <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource ReduceMotionHint}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <atom:ToggleSwitch Grid.Column="1" SizeType="Small" VerticalAlignment="Center" IsChecked="{Binding ReduceMotion}" />
+                                    <arc:Switch Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding ReduceMotion}" />
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                                 <!-- 图片原始清晰度 -->
@@ -282,7 +246,7 @@
                                         <TextBlock Classes="strong" Text="{loc:TKCodeLangResource OriginalImagesLabel}" />
                                         <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource OriginalImagesHint}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <atom:ToggleSwitch Grid.Column="1" SizeType="Small" VerticalAlignment="Center" IsChecked="{Binding OriginalImages}" />
+                                    <arc:Switch Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding OriginalImages}" />
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                                 <!-- 提示缓存有效期 -->
@@ -291,20 +255,8 @@
                                         <TextBlock Classes="strong" Text="{loc:TKCodeLangResource CacheTtlLabel}" />
                                         <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource CacheTtlHint}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <Border Grid.Column="1" Classes="segmented" VerticalAlignment="Center">
-                                        <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                        <ItemsControl ItemsSource="{Binding CacheTtls}">
-                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:SettingsChoiceViewModel">
-                                                    <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" motion:IndicatorPanel.IsCurrent="{Binding IsSelected}" Content="{Binding Label}"
-                                                            Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Settings.ChooseCacheTtlCommand}"
-                                                            CommandParameter="{Binding}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        </motion:IndicatorPanel>
-                                    </Border>
+                                    <arc:SegmentedControl Grid.Column="1" VerticalAlignment="Center" ItemsSource="{Binding CacheTtls}"
+                                                          controls:ChoiceSelection.Command="{Binding ChooseCacheTtlCommand}" />
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                                 <!-- Agent 的 bash 工具使用的 shell -->
@@ -324,20 +276,16 @@
                                         <TextBlock Classes="secondary" Text="{Binding CatalogSourceText}" FontSize="12" />
                                         <TextBlock Classes="tertiary" Text="{Binding CatalogCountsText}" />
                                     </StackPanel>
-                                    <atom:Button Grid.Column="1" SizeType="Small" Color="Default" Variant="Outlined" VerticalAlignment="Center"
-                                                 Command="{Binding CheckCatalogCommand}" IsLoading="{Binding IsCheckingCatalog}">
+                                    <arc:Button Grid.Column="1" Variant="Secondary" Size="Small" VerticalAlignment="Center"
+                                                Command="{Binding CheckCatalogCommand}" IsLoading="{Binding IsCheckingCatalog}">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <icons:LucideIcon Kind="RefreshCw" Width="12" Height="12" />
-                                            <TextBlock Text="{loc:TKCodeLangResource CheckForUpdates}" FontSize="12" />
+                                            <lucide:LucideIcon Kind="RefreshCw" Size="14" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:TKCodeLangResource CheckForUpdates}" VerticalAlignment="Center" />
                                         </StackPanel>
-                                    </atom:Button>
+                                    </arc:Button>
                                 </Grid>
-                                <TextBlock Text="{Binding CatalogErrorText}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap"
-                                           IsVisible="{Binding HasCatalogError}" />
-                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsUpToDate}">
-                                    <icons:LucideIcon Kind="Check" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.Success}" />
-                                    <TextBlock Text="{loc:TKCodeLangResource CatalogUpToDate}" FontSize="12" Foreground="{DynamicResource TKCode.Success}" />
-                                </StackPanel>
+                                <arc:Alert Tone="Danger" Content="{Binding CatalogErrorText}" IsVisible="{Binding HasCatalogError}" />
+                                <arc:Alert Tone="Success" Content="{loc:TKCodeLangResource CatalogUpToDate}" IsVisible="{Binding IsUpToDate}" />
                                 <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource CatalogHint}" TextWrapping="Wrap" />
 
                                 <!-- 待应用的更新：差异 -->
@@ -349,15 +297,15 @@
                                                 <TextBlock Classes="strong" Text="{loc:TKCodeLangResource CatalogUpdateTitle}" />
                                                 <TextBlock Classes="secondary" Text="{Binding UpdateSummaryText}" FontSize="12" />
                                             </StackPanel>
-                                            <atom:Button Grid.Column="1" SizeType="Small" Color="Default" Variant="Text" Margin="0,0,6,0" VerticalAlignment="Center"
-                                                         Command="{Binding DiscardCatalogUpdateCommand}" Content="{loc:TKCodeLangResource Discard}" />
-                                            <atom:Button Grid.Column="2" SizeType="Small" Color="Default" Variant="Solid" VerticalAlignment="Center"
-                                                         Command="{Binding ApplyCatalogUpdateCommand}" Content="{loc:TKCodeLangResource ApplyUpdate}" />
+                                            <arc:Button Grid.Column="1" Variant="Ghost" Size="Small" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                        Command="{Binding DiscardCatalogUpdateCommand}" Content="{loc:TKCodeLangResource Discard}" />
+                                            <arc:Button Grid.Column="2" Variant="Primary" Size="Small" VerticalAlignment="Center"
+                                                        Command="{Binding ApplyCatalogUpdateCommand}" Content="{loc:TKCodeLangResource ApplyUpdate}" />
                                         </Grid>
-                                        <atom:CheckBox IsChecked="{Binding ShowOnlyConfiguredChanges, Mode=TwoWay}" Content="{loc:TKCodeLangResource OnlyConfiguredProviders}" />
+                                        <arc:Checkbox IsChecked="{Binding ShowOnlyConfiguredChanges, Mode=TwoWay}" Content="{loc:TKCodeLangResource OnlyConfiguredProviders}" />
                                         <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource NoRelevantChanges}" FontSize="12" IsVisible="{Binding HasNoVisibleChanges}" />
-                                        <ScrollViewer MaxHeight="420" atom:ScrollViewer.IsLiteMode="True">
-                                            <ItemsControl ItemsSource="{Binding CatalogChanges}">
+                                        <arc:ScrollArea MaxHeight="420">
+                                            <ItemsControl ItemsSource="{Binding CatalogChanges}" Margin="0,0,10,0">
                                                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:CatalogProviderChangeItemViewModel">
@@ -365,9 +313,7 @@
                                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                                 <icons:ProviderLogo Key="{Binding LogoKey}" Width="14" Height="14" VerticalAlignment="Center" />
                                                                 <TextBlock Classes="strong" Text="{Binding Name}" VerticalAlignment="Center" />
-                                                                <Border Background="{DynamicResource TKCode.KbdBg}" CornerRadius="4" Padding="5,0" VerticalAlignment="Center">
-                                                                    <TextBlock Classes="tertiary" Text="{Binding KindText}" FontSize="11" />
-                                                                </Border>
+                                                                <arc:Badge Size="Small" VerticalAlignment="Center" Content="{Binding KindText}" />
                                                                 <TextBlock Classes="tertiary" Text="{Binding SummaryText}" VerticalAlignment="Center" />
                                                             </StackPanel>
                                                             <ItemsControl ItemsSource="{Binding Changes}" Margin="22,0,0,0">
@@ -414,7 +360,7 @@
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
-                                        </ScrollViewer>
+                                        </arc:ScrollArea>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -428,10 +374,10 @@
                                                      Foreground="{DynamicResource TKCode.TextSecondary}" />
                                 <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource SettingsFileHint}" TextWrapping="Wrap" />
                                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                    <atom:Button SizeType="Small" Color="Default" Variant="Outlined" Command="{Binding OpenSettingsFileCommand}"
-                                                 Content="{loc:TKCodeLangResource OpenInEditor}" />
-                                    <atom:Button SizeType="Small" Color="Default" Variant="Text" Command="{Binding RevealSettingsFileCommand}"
-                                                 Content="{loc:TKCodeLangResource RevealInFolder}" />
+                                    <arc:Button Variant="Secondary" Size="Small" Command="{Binding OpenSettingsFileCommand}"
+                                                Content="{loc:TKCodeLangResource OpenInEditor}" />
+                                    <arc:Button Variant="Ghost" Size="Small" Command="{Binding RevealSettingsFileCommand}"
+                                                Content="{loc:TKCodeLangResource RevealInFolder}" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -466,13 +412,8 @@
                                                 <TextBlock Text="{Binding Dto.Error}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap"
                                                            IsVisible="{Binding HasError}" />
                                             </StackPanel>
-                                            <Border Grid.Column="2" CornerRadius="10" Padding="8,2" Background="{DynamicResource TKCode.MenuInputBg}" VerticalAlignment="Top">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource TKCode.Success}" IsVisible="{Binding IsReady}" />
-                                                    <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource TKCode.Danger}" IsVisible="{Binding IsError}" />
-                                                    <TextBlock Classes="secondary" Text="{Binding StatusText}" FontSize="12" />
-                                                </StackPanel>
-                                            </Border>
+                                            <arc:Badge Grid.Column="2" Size="Small" VerticalAlignment="Top" Classes.ok="{Binding IsReady}" Classes.bad="{Binding IsError}"
+                                                       Content="{Binding StatusText}" />
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -480,13 +421,13 @@
                         </ItemsControl>
                         <!-- 未安装：默认折叠 -->
                         <StackPanel Spacing="6" IsVisible="{Binding HasMissingRuntimes}">
-                            <Button Theme="{StaticResource TKCode.ChipButton}" Command="{Binding ToggleMissingRuntimesCommand}">
+                            <arc:Button Variant="Ghost" Size="Small" HorizontalAlignment="Left" Command="{Binding ToggleMissingRuntimesCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <icons:LucideIcon Kind="ChevronRight" Width="11" Height="11" IsVisible="{Binding !ShowMissingRuntimes}" />
-                                    <icons:LucideIcon Kind="ChevronDown" Width="11" Height="11" IsVisible="{Binding ShowMissingRuntimes}" />
-                                    <TextBlock Text="{Binding MissingRuntimesTitle}" FontSize="12" />
+                                    <lucide:LucideIcon Kind="ChevronRight" Size="12" VerticalAlignment="Center" IsVisible="{Binding !ShowMissingRuntimes}" />
+                                    <lucide:LucideIcon Kind="ChevronDown" Size="12" VerticalAlignment="Center" IsVisible="{Binding ShowMissingRuntimes}" />
+                                    <TextBlock Text="{Binding MissingRuntimesTitle}" VerticalAlignment="Center" />
                                 </StackPanel>
-                            </Button>
+                            </arc:Button>
                             <ItemsControl ItemsSource="{Binding MissingRuntimes}" IsVisible="{Binding ShowMissingRuntimes}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:RuntimeItemViewModel">
@@ -517,20 +458,8 @@
                                         <TextBlock Classes="strong" Text="{loc:TKCodeLangResource DefaultRoleLabel}" />
                                         <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource DefaultRoleHint}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <Border Grid.Column="1" Classes="segmented" Margin="16,0,0,0">
-                                        <motion:IndicatorPanel IndicatorBrush="{DynamicResource TKCode.SegmentSelectedBg}" IndicatorBorderBrush="{DynamicResource TKCode.SegmentSelectedBorder}" IndicatorRadius="6">
-                                        <ItemsControl ItemsSource="{Binding DefaultRoles}">
-                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:SettingsChoiceViewModel">
-                                                    <Button Theme="{StaticResource TKCode.RowButton}" Classes.selected="{Binding IsSelected}" motion:IndicatorPanel.IsCurrent="{Binding IsSelected}" Content="{Binding Label}"
-                                                            Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).Settings.Assets.ChooseDefaultRoleCommand}"
-                                                            CommandParameter="{Binding}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        </motion:IndicatorPanel>
-                                    </Border>
+                                    <arc:SegmentedControl Grid.Column="1" Margin="16,0,0,0" ItemsSource="{Binding DefaultRoles}"
+                                                          controls:ChoiceSelection.Command="{Binding ChooseDefaultRoleCommand}" />
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                                 <!-- 目录 -->
@@ -552,10 +481,10 @@
                         </Border>
                         <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,6,0,0">
                             <TextBlock Classes="strong" Text="{loc:TKCodeLangResource AssetsCommandsTitle}" VerticalAlignment="Center" />
-                            <atom:Button Grid.Column="1" SizeType="Small" Color="Default" Variant="Text" Command="{Binding CreateCommand}" CommandParameter="command|global"
-                                         Content="{loc:TKCodeLangResource AssetsNewGlobal}" />
-                            <atom:Button Grid.Column="2" SizeType="Small" Color="Default" Variant="Text" Command="{Binding CreateCommand}" CommandParameter="command|project"
-                                         Content="{loc:TKCodeLangResource AssetsNewProject}" IsEnabled="{Binding HasProject}" />
+                            <arc:Button Grid.Column="1" Variant="Ghost" Size="Small" Command="{Binding CreateCommand}" CommandParameter="command|global"
+                                        Content="{loc:TKCodeLangResource AssetsNewGlobal}" />
+                            <arc:Button Grid.Column="2" Variant="Ghost" Size="Small" Command="{Binding CreateCommand}" CommandParameter="command|project"
+                                        Content="{loc:TKCodeLangResource AssetsNewProject}" IsEnabled="{Binding HasProject}" />
                         </Grid>
                         <Border Classes="card">
                             <Panel>
@@ -565,10 +494,10 @@
                         </Border>
                         <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,6,0,0">
                             <TextBlock Classes="strong" Text="{loc:TKCodeLangResource AssetsSkillsTitle}" VerticalAlignment="Center" />
-                            <atom:Button Grid.Column="1" SizeType="Small" Color="Default" Variant="Text" Command="{Binding CreateCommand}" CommandParameter="skill|global"
-                                         Content="{loc:TKCodeLangResource AssetsNewGlobal}" />
-                            <atom:Button Grid.Column="2" SizeType="Small" Color="Default" Variant="Text" Command="{Binding CreateCommand}" CommandParameter="skill|project"
-                                         Content="{loc:TKCodeLangResource AssetsNewProject}" IsEnabled="{Binding HasProject}" />
+                            <arc:Button Grid.Column="1" Variant="Ghost" Size="Small" Command="{Binding CreateCommand}" CommandParameter="skill|global"
+                                        Content="{loc:TKCodeLangResource AssetsNewGlobal}" />
+                            <arc:Button Grid.Column="2" Variant="Ghost" Size="Small" Command="{Binding CreateCommand}" CommandParameter="skill|project"
+                                        Content="{loc:TKCodeLangResource AssetsNewProject}" IsEnabled="{Binding HasProject}" />
                         </Grid>
                         <Border Classes="card">
                             <Panel>
@@ -578,10 +507,10 @@
                         </Border>
                         <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,6,0,0">
                             <TextBlock Classes="strong" Text="{loc:TKCodeLangResource AssetsRolesTitle}" VerticalAlignment="Center" />
-                            <atom:Button Grid.Column="1" SizeType="Small" Color="Default" Variant="Text" Command="{Binding CreateCommand}" CommandParameter="role|global"
-                                         Content="{loc:TKCodeLangResource AssetsNewGlobal}" />
-                            <atom:Button Grid.Column="2" SizeType="Small" Color="Default" Variant="Text" Command="{Binding CreateCommand}" CommandParameter="role|project"
-                                         Content="{loc:TKCodeLangResource AssetsNewProject}" IsEnabled="{Binding HasProject}" />
+                            <arc:Button Grid.Column="1" Variant="Ghost" Size="Small" Command="{Binding CreateCommand}" CommandParameter="role|global"
+                                        Content="{loc:TKCodeLangResource AssetsNewGlobal}" />
+                            <arc:Button Grid.Column="2" Variant="Ghost" Size="Small" Command="{Binding CreateCommand}" CommandParameter="role|project"
+                                        Content="{loc:TKCodeLangResource AssetsNewProject}" IsEnabled="{Binding HasProject}" />
                         </Grid>
                         <Border Classes="card">
                             <Panel>
@@ -619,17 +548,42 @@
                     <!-- ========== 关于 ========== -->
                     <StackPanel Spacing="16" motion:Presence.IsPresent="{Binding IsAbout}" motion:Presence.Effect="SlideUp" motion:Presence.AnimateExit="False">
                         <TextBlock Text="{loc:TKCodeLangResource SettingsAbout}" FontSize="20" FontWeight="SemiBold" />
-                        <Border Classes="card" Padding="16,14">
-                            <StackPanel Spacing="10">
-                                <TextBlock Classes="strong" Text="TKCode" FontSize="15" />
-                                <TextBlock Classes="secondary" Text="{Binding VersionText}" />
-                                <StackPanel Spacing="2">
-                                    <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource AboutDataDir}" />
-                                    <SelectableTextBlock Text="{Binding DataDirectory}" FontFamily="{StaticResource TKCode.MonoFont}" FontSize="12" />
+
+                        <!-- 身份：名称、版本徽标，右侧 GitHub 图标按钮 -->
+                        <Border Classes="card" Padding="20,16">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="6" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Classes="strong" Text="TKCode" FontSize="18" VerticalAlignment="Center" />
+                                        <arc:Badge Size="Small" VerticalAlignment="Center" Content="{Binding VersionDisplay}" />
+                                    </StackPanel>
+                                    <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource AboutUi}" />
                                 </StackPanel>
-                                <TextBlock Classes="secondary" Text="{Binding CatalogText}" TextWrapping="Wrap" />
-                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource AboutIcons}" TextWrapping="Wrap" />
-                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource AboutUi}" />
+                                <arc:Button Grid.Column="1" Variant="Ghost" Size="Small" VerticalAlignment="Center"
+                                            Command="{Binding OpenRepositoryCommand}"
+                                            ToolTip.Tip="{loc:TKCodeLangResource UpdateViewOnGitHub}"
+                                            AutomationProperties.Name="{loc:TKCodeLangResource UpdateViewOnGitHub}">
+                                    <icons:ProviderGlyph Key="github" Width="18" Height="18" />
+                                </arc:Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- 详情：数据目录（可复制）、模型目录、图标来源 -->
+                        <Border Classes="card">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,12">
+                                    <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource AboutDataDir}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                                    <SelectableTextBlock Grid.Column="1" Text="{Binding DataDirectory}" FontFamily="{StaticResource TKCode.MonoFont}"
+                                                         FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <arc:CopyButton Grid.Column="2" IsIconOnly="True" Variant="Plain" Value="{Binding DataDirectory}" Margin="12,0,0,0"
+                                                    VerticalAlignment="Center" AutomationProperties.Name="{loc:TKCodeLangResource CopyPath}" />
+                                </Grid>
+                                <StackPanel IsVisible="{Binding CatalogText, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
+                                    <TextBlock Classes="secondary" Text="{Binding CatalogText}" TextWrapping="Wrap" Margin="16,12" />
+                                </StackPanel>
+                                <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
+                                <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource AboutIcons}" TextWrapping="Wrap" Margin="16,12" />
                             </StackPanel>
                         </Border>
 
@@ -638,21 +592,21 @@
                             <TextBlock Classes="strong" Text="{loc:TKCodeLangResource UpdateSectionTitle}" FontSize="15" Margin="0,8,0,0" />
                             <Border Classes="card">
                                 <StackPanel>
-                                    <!-- 当前版本 + 检查 -->
+                                    <!-- 当前版本 + 操作 -->
                                     <Grid ColumnDefinitions="*,Auto" Margin="16,12">
                                         <StackPanel Spacing="2" VerticalAlignment="Center">
                                             <TextBlock Classes="strong" Text="{Binding CurrentVersionText}" />
                                             <TextBlock Classes="tertiary" Text="{Binding StatusText}" TextWrapping="Wrap" />
                                         </StackPanel>
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="16,0,0,0" VerticalAlignment="Center">
-                                            <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding DownloadCommand}"
-                                                         Content="{loc:TKCodeLangResource UpdateAction}" IsVisible="{Binding ShowDownloadButton}" />
-                                            <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding OpenReleasePageCommand}"
-                                                         Content="{loc:TKCodeLangResource UpdateOpenPage}" IsVisible="{Binding ShowOpenPageButton}" />
-                                            <atom:Button Color="Default" Variant="Solid" SizeType="Small" Command="{Binding InstallCommand}"
-                                                         Content="{loc:TKCodeLangResource UpdateInstallRestart}" IsVisible="{Binding ShowInstallButton}" />
-                                            <atom:Button Color="Default" Variant="Outlined" SizeType="Small" Command="{Binding CheckNowCommand}"
-                                                         Content="{loc:TKCodeLangResource UpdateCheckNow}" IsEnabled="{Binding !IsChecking}" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="16,0,0,0" VerticalAlignment="Center">
+                                            <arc:Button Variant="Primary" Size="Small" Command="{Binding DownloadCommand}"
+                                                        Content="{loc:TKCodeLangResource UpdateAction}" IsVisible="{Binding ShowDownloadButton}" />
+                                            <arc:Button Variant="Secondary" Size="Small" Command="{Binding OpenReleasePageCommand}"
+                                                        Content="{loc:TKCodeLangResource UpdateOpenPage}" IsVisible="{Binding ShowOpenPageButton}" />
+                                            <arc:Button Variant="Primary" Size="Small" Command="{Binding InstallCommand}"
+                                                        Content="{loc:TKCodeLangResource UpdateInstallRestart}" IsVisible="{Binding ShowInstallButton}" />
+                                            <arc:Button Variant="Secondary" Size="Small" Command="{Binding CheckNowCommand}"
+                                                        Content="{loc:TKCodeLangResource UpdateCheckNow}" IsLoading="{Binding IsChecking}" />
                                         </StackPanel>
                                     </Grid>
                                     <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
@@ -662,7 +616,7 @@
                                             <TextBlock Classes="strong" Text="{loc:TKCodeLangResource UpdatePrereleaseLabel}" />
                                             <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource UpdatePrereleaseHint}" TextWrapping="Wrap" />
                                         </StackPanel>
-                                        <atom:ToggleSwitch Grid.Column="1" SizeType="Small" VerticalAlignment="Center" IsChecked="{Binding IsReceivingPrereleases}" />
+                                        <arc:Switch Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding IsReceivingPrereleases}" />
                                     </Grid>
                                     <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
                                     <!-- 自动检查 -->
@@ -671,7 +625,7 @@
                                             <TextBlock Classes="strong" Text="{loc:TKCodeLangResource UpdateAutoCheckLabel}" />
                                             <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource UpdateAutoCheckHint}" TextWrapping="Wrap" />
                                         </StackPanel>
-                                        <atom:ToggleSwitch Grid.Column="1" SizeType="Small" VerticalAlignment="Center" IsChecked="{Binding IsAutoCheck}" />
+                                        <arc:Switch Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding IsAutoCheck}" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -680,10 +634,12 @@
                                 <StackPanel Spacing="8">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock Classes="strong" Text="{Binding NotesTitle}" VerticalAlignment="Center" />
-                                        <atom:Button Grid.Column="1" Color="Default" Variant="Text" SizeType="Small" Command="{Binding OpenReleasePageCommand}"
-                                                     Content="{loc:TKCodeLangResource UpdateViewOnGitHub}">
-                                            <atom:Button.Icon><icons:LucideIcon Kind="ExternalLink" /></atom:Button.Icon>
-                                        </atom:Button>
+                                        <arc:Button Grid.Column="1" Variant="Ghost" Size="Small" Command="{Binding OpenReleasePageCommand}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <lucide:LucideIcon Kind="ExternalLink" Size="13" VerticalAlignment="Center" />
+                                                <TextBlock Text="{loc:TKCodeLangResource UpdateViewOnGitHub}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </arc:Button>
                                     </Grid>
                                     <smv:MarkdownView Markdown="{Binding Notes}" HorizontalAlignment="Stretch" />
                                 </StackPanel>
@@ -691,7 +647,7 @@
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
-            </ScrollViewer>
+            </arc:ScrollArea>
             </Panel>
         </DockPanel>
     </Grid>

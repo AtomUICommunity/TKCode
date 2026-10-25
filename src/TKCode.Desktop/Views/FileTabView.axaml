@@ -2,6 +2,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:atom="https://atomui.net"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:smv="using:StreamMark.Avalonia"
              xmlns:smx="using:StreamMark.Avalonia.Extensions"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
@@ -72,10 +73,10 @@
                         </ScrollViewer>
                     </DataTemplate>
                     <DataTemplate DataType="previews:MarkdownPreviewViewModel">
-                        <ScrollViewer atom:ScrollViewer.IsLiteMode="True">
+                        <arc:ScrollArea>
                             <smv:MarkdownView Markdown="{Binding Markdown}" MaxWidth="760" Margin="24,16,24,32" HorizontalAlignment="Left"
                                               smx:MarkdownServices.ImageBaseUri="{Binding Directory}" />
-                        </ScrollViewer>
+                        </arc:ScrollArea>
                     </DataTemplate>
                     <DataTemplate DataType="previews:ImagePreviewViewModel">
                         <DockPanel>

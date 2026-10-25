@@ -1,4 +1,7 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
@@ -91,27 +94,32 @@ public sealed class MainWindowSnapshotTests
             // 文件树：默认隐藏 . 开头的文件，目录在前
             vm.ToggleExplorerCommand.Execute(null);
             await Settle();
-            Assert.Equal(["src", "README.md"], vm.Explorer.VisibleNodes.Select(n => n.Name));
+            await WaitUntil(() => vm.Explorer.RootNodes.Count == 2, "explorer roots loaded");
+            Assert.Equal(["src", "README.md"], vm.Explorer.RootNodes.Select(n => n.Name));
             vm.Explorer.ToggleHiddenCommand.Execute(null);
-            await Settle();
-            Assert.Contains(vm.Explorer.VisibleNodes, n => n.Name == ".env.example");
+            await WaitUntil(() => vm.Explorer.RootNodes.Any(n => n.Name == ".env.example"), "hidden explorer roots loaded");
+            Assert.Contains(vm.Explorer.RootNodes, n => n.Name == ".env.example");
             vm.Explorer.ToggleHiddenCommand.Execute(null);
+            await WaitUntil(() => vm.Explorer.RootNodes.Count == 2, "filtered explorer roots loaded");
             HeadlessApp.Save(window, "explorer");
 
             // 打开 Markdown（默认预览）与代码文件
-            vm.Explorer.ActivateCommand.Execute(vm.Explorer.VisibleNodes.Single(n => n.Name == "README.md"));
+            await vm.Explorer.ActivateCommand.ExecuteAsync(vm.Explorer.RootNodes.Single(n => n.Name == "README.md"));
             await Settle();
             Assert.True(vm.IsWorkbenchOpen);
             await WaitUntil(() => vm.Workbench.ActiveFile?.Preview is not null, "markdown loaded");
             Assert.IsType<TKCode.Desktop.Previews.MarkdownPreviewViewModel>(vm.Workbench.ActiveFile!.Preview);
             HeadlessApp.Save(window, "editor-markdown");
-            vm.Explorer.ActivateCommand.Execute(vm.Explorer.VisibleNodes.Single(n => n.Name == "src"));
+            var src = vm.Explorer.RootNodes.Single(n => n.Name == "src");
+            await vm.Explorer.ExpandAsync(src);
             await Settle();
-            vm.Explorer.ActivateCommand.Execute(vm.Explorer.VisibleNodes.Single(n => n.Name == "App.cs"));
+            var app = src.Children.Single(n => n.Name == "App.cs");
+            await vm.Explorer.ActivateCommand.ExecuteAsync(app);
             await WaitUntil(() => vm.Workbench.ActiveFile?.Preview is TKCode.Desktop.Previews.CodePreviewViewModel, "file loaded");
             Assert.Equal(6, window.GetVisualDescendants().OfType<TKCode.Desktop.Controls.CodeView>().Single().LineCount);
             Assert.Equal(["src", "App.cs"], vm.Workbench.ActiveFile!.Breadcrumbs.Select(b => b.Text));
-            Assert.True(vm.Explorer.VisibleNodes.Single(n => n.Name == "App.cs").IsSelected);
+            Assert.True(app.IsSelected);
+            Assert.Same(app, vm.Explorer.SelectedNode);
             HeadlessApp.Save(window, "editor-code");
             // 收起文件树：编辑区成为最右一栏
             vm.ToggleExplorerCommand.Execute(null);
@@ -122,10 +130,44 @@ public sealed class MainWindowSnapshotTests
 
             // 搜索文件
             vm.Explorer.Search = "app";
-            await WaitUntil(() => vm.Explorer.VisibleNodes.Any(n => n.Name == "App.cs"), "file search");
-            Assert.Equal("src", vm.Explorer.VisibleNodes.Single(n => n.Name == "App.cs").Hint);
+            await WaitUntil(() => vm.Explorer.SearchResults.Any(n => n.Name == "App.cs"), "file search");
+            Assert.True(vm.Explorer.IsSearching);
+            Assert.Equal("src", vm.Explorer.SearchResults.Single(n => n.Name == "App.cs").Hint);
+            HeadlessApp.Save(window, "explorer-search");
+            // Search rows pass their actual template parameter; blank viewport space always targets the root.
+            var searchNode = vm.Explorer.SearchResults.Single(n => n.Name == "App.cs");
+            var searchRow = window.GetVisualDescendants().OfType<Button>()
+                .Single(b => ReferenceEquals(b.CommandParameter, searchNode) && b.IsEffectivelyVisible);
+            var rowPoint = searchRow.TranslatePoint(new Point(12, searchRow.Bounds.Height / 2), window)!.Value;
+            window.MouseDown(rowPoint, MouseButton.Right);
+            window.MouseUp(rowPoint, MouseButton.Right);
+            await Settle();
+            Assert.Same(searchNode, vm.Explorer.SelectedNode);
+            var searchMenu = window.GetVisualDescendants().OfType<TKCode.Arc.MenuSurface>().Single(m => m.IsEffectivelyVisible);
+            Assert.False(searchMenu.IsOpen); // The scaled host, not MenuSurface, owns the popup.
+            Assert.Contains(searchMenu.Items.OfType<TKCode.Arc.MenuEntry>(), e => Equals(e.Header,
+                TKCode.Desktop.Localization.Strings.Get(TKCode.Desktop.Localization.TKCodeLangResourceKind.ExplorerReveal)));
+            HeadlessApp.Save(window, "explorer-search-context");
+            window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            window.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            await Settle();
+            var searchScroll = window.FindControl<ScrollViewer>("ExplorerSearchScroll")!;
+            var blankPoint = searchScroll.TranslatePoint(new Point(12, searchScroll.Bounds.Height - 16), window)!.Value;
+            window.MouseDown(blankPoint, MouseButton.Right);
+            window.MouseUp(blankPoint, MouseButton.Right);
+            await Settle();
+            var blankMenu = window.GetVisualDescendants().OfType<TKCode.Arc.MenuSurface>().Single(m => m.IsEffectivelyVisible);
+            Assert.DoesNotContain(blankMenu.Items.OfType<TKCode.Arc.MenuEntry>(), e => e.IsDestructive);
+            Assert.Contains(blankMenu.Items.OfType<TKCode.Arc.MenuEntry>(), e => Equals(e.Header,
+                TKCode.Desktop.Localization.Strings.Get(TKCode.Desktop.Localization.TKCodeLangResourceKind.ExplorerOpenRoot)));
+            window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            window.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+            await Settle();
             vm.Explorer.Search = "";
             await Settle();
+            Assert.False(vm.Explorer.IsSearching);
+            Assert.Empty(vm.Explorer.SearchResults);
+            Assert.Same(app, vm.Explorer.SelectedNode);
 
             // “+”添加工具面板；最大化编辑区隐藏对话栏
             vm.Workbench.AddToolCommand.Execute(vm.Workbench.Tools.Single(t => t.Kind == WorkbenchTabKind.Terminal));
@@ -156,7 +198,7 @@ public sealed class MainWindowSnapshotTests
             await Settle();
             Assert.False(vm.Sidebar.VisibleSessions[0].IsWaitingApproval);
 
-            // 命令面板：根页、搜索会话、新建项目的设备页
+            // 命令面板：根页、搜索会话；新建项目（⇧⌘N）关闭面板并打开创建项目弹窗（docs/design/projects.md §8.4）
             vm.Palette.Open();
             await Settle();
             HeadlessApp.Save(window, "palette-root");
@@ -165,10 +207,19 @@ public sealed class MainWindowSnapshotTests
             Assert.Contains(vm.Palette.Items, i => i.Title == "看看目录里有哪些文件");
             vm.Palette.OpenNewProject();
             await Settle();
-            Assert.True(vm.Palette.HasBreadcrumb);
-            HeadlessApp.Save(window, "palette-devices");
-            vm.Palette.Back();
-            vm.Palette.Close();
+            Assert.False(vm.Palette.IsOpen);
+            var projectModal = Assert.Single(TKCode.Arc.Primitives.ModalPresence.GetModals(window));
+            var projectDialog = Assert.IsType<ProjectDialog>(Assert.IsType<TKCode.Desktop.Controls.ZoomHost>(projectModal.Panel).Child);
+            Assert.False(projectDialog.ViewModel.IsEdit);
+            HeadlessApp.Save(window, "palette-new-project");
+            projectDialog.FindControl<TKCode.Arc.Button>("CancelButton")!
+                .RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+            // 关闭有退出动效：等它从覆盖层移除
+            for (var i = 0; i < 100 && TKCode.Arc.Primitives.ModalPresence.GetModals(window).Count > 0; i++)
+            {
+                await Settle();
+            }
+            Assert.Empty(TKCode.Arc.Primitives.ModalPresence.GetModals(window));
 
             // 前进 / 后退
             vm.Conversation.NewChat();

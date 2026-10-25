@@ -13,7 +13,7 @@ Guidance for coding agents and new contributors. The "what" lives in the code an
 AtomUI 6.2.6's isolated build tools require a .NET 10 Runtime (also included in the .NET 10 SDK). Install it alongside the .NET 11 SDK; solution projects and published applications target .NET 11. Release CI provisions both SDKs and selects .NET 11 through `global.json`.
 
 1. `git submodule update --init` — pulls `external/StreamMark`.
-2. `tools/streammark/pack.sh` — packs `StreamMark.*` into `packages/streammark` (the local NuGet feed in `nuget.config`). Needs a Rust toolchain once, for the RaTeX native lib. After bumping the submodule, keep `StreamMarkVersion` in `Directory.Packages.props` in sync.
+2. `tools/streammark/pack.sh` — packs `TKCode.StreamMark.*` (the nuget.org package IDs, which `TKCode.Arc` also depends on) into `packages/streammark` (the local NuGet feed in `nuget.config`). Needs a Rust toolchain once, for the RaTeX native lib. After bumping the submodule, keep `StreamMarkVersion` in `Directory.Packages.props` in sync.
 3. Terminal work only: Zig 0.16.0 exactly — do not use a package-manager Zig. `tools/terminal/build-ghostty.sh` auto-installs the pinned version via `tools/terminal/install-zig.sh`.
 
 ## Commands
@@ -73,7 +73,7 @@ Terminal native libraries (only for `TKCode.Terminal.*` / `native/` work):
 
 ## Pitfalls
 
-- Restore/build fails on `StreamMark.*` → you skipped the setup steps above.
+- Restore/build fails on `TKCode.StreamMark.*` → you skipped the setup steps above.
 - Keep `UseOptimizedPublish=false` on Desktop and MemoryHarness: .NET 11's optimized NativeAOT publish prepares resources before Avalonia adds them during reference resolution. A publish can otherwise succeed with missing compiled XAML; verify the published Desktop with `--smoke`.
 - The Desktop build auto-copies the Agent Host into `agenthost/` and the pty host into `ptyhost/` in its output; publishing AOTs both into the same subfolders. Run the app binary, not the hosts directly.
 - Desktop is single-instance (`instance.lock` in `~/.tkcode` + a named pipe): a second launch just forwards to the running one, which may be hidden in the tray. Pass `--new-instance` (or a different `TKCODE_HOME`) when you need a local build next to an installed one. Tray / Dock / jump-list menus: `docs/design/system-menus.md`.

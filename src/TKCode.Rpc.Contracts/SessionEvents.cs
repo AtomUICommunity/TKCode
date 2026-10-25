@@ -5,6 +5,9 @@ namespace TKCode.Rpc;
 /// <summary>Host 推送的会话事件。Seq 单调递增，便于检测丢失与去重。</summary>
 public sealed record SessionEventNotification(string SessionId, long Seq, SessionEvent Event);
 
+/// <summary>子 Agent 转录的事件：SessionId 为父会话，ToolCallId 为派生它的工具调用。</summary>
+public sealed record SubagentEventNotification(string SessionId, string ToolCallId, long Seq, SessionEvent Event);
+
 /// <summary>
 /// 跨进程的会话事件：只携带增量（不带"截至目前的完整消息"），保持流量与消息长度线性相关。
 /// </summary>

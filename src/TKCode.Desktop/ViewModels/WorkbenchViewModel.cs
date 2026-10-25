@@ -16,6 +16,7 @@ public enum WorkbenchTabKind
     Terminal,
     Diffs,
     History,
+    Subagent,
 }
 
 internal static class WorkbenchTexts
@@ -54,6 +55,9 @@ public abstract partial class WorkbenchTabViewModel(WorkbenchTabKind kind) : Obs
     public abstract string Title { get; }
     public virtual LucideKind Icon => WorkbenchTexts.Icon(Kind);
     public virtual string IconColor => "TKCode.TextSecondary";
+
+    /// <summary>标签在忙（子 Agent 运行中）：图标换成转圈。</summary>
+    public virtual bool IsBusy => false;
 
     [ObservableProperty]
     public partial bool IsActive { get; set; }
@@ -111,22 +115,42 @@ public sealed partial class FileTabViewModel : WorkbenchTabViewModel, IDisposabl
     public FileTabViewModel(string path, string? root, FilePreviewRegistry? registry = null) : base(WorkbenchTabKind.File)
     {
         _registry = registry ?? FilePreviewRegistry.Default;
-        FilePath = path;
-        Name = System.IO.Path.GetFileName(path);
-        var relative = root is not null && path.StartsWith(root, StringComparison.Ordinal) ? System.IO.Path.GetRelativePath(root, path) : Name;
-        Breadcrumbs = relative.Split(System.IO.Path.DirectorySeparatorChar).Select((part, i) => new BreadcrumbItem(part, i > 0)).ToArray();
-        (FileIcon, FileColor) = FileIcons.For(Name, false);
+        SetPath(path, root);
         _ = LoadAsync();
     }
 
-    public string FilePath { get; }
-    public string Name { get; }
+    public string FilePath { get; private set; } = "";
+    public string Name { get; private set; } = "";
     public override string Title => Name;
-    public LucideKind FileIcon { get; }
-    public string FileColor { get; }
+    public LucideKind FileIcon { get; private set; }
+    public string FileColor { get; private set; } = "TKCode.TextSecondary";
     public override LucideKind Icon => FileIcon;
     public override string IconColor => FileColor;
-    public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; }
+    public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
+
+    private void SetPath(string path, string? root)
+    {
+        FilePath = path;
+        Name = System.IO.Path.GetFileName(path);
+        var prefix = root is null ? null : System.IO.Path.TrimEndingDirectorySeparator(root) + System.IO.Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var relative = prefix is not null && path.StartsWith(prefix, comparison) ? path[prefix.Length..] : Name;
+        Breadcrumbs = relative.Split(System.IO.Path.DirectorySeparatorChar).Select((part, i) => new BreadcrumbItem(part, i > 0)).ToArray();
+        (FileIcon, FileColor) = FileIcons.For(Name, false);
+    }
+
+    /// <summary>Keep the tab's identity/order while cancelling previews of the old location.</summary>
+    public Task RetargetAsync(string path, string? root)
+    {
+        var preferred = Views.FirstOrDefault(v => v.IsSelected)?.Provider;
+        _cts.Cancel();
+        SetPath(path, root);
+        foreach (var property in new[] { nameof(FilePath), nameof(Name), nameof(Title), nameof(FileIcon), nameof(FileColor), nameof(Icon), nameof(IconColor), nameof(Breadcrumbs) })
+        {
+            OnPropertyChanged(property);
+        }
+        return LoadAsync(preferred);
+    }
 
     /// <summary>可用的查看方式（按优先级）。</summary>
     [ObservableProperty]
@@ -179,12 +203,16 @@ public sealed partial class FileTabViewModel : WorkbenchTabViewModel, IDisposabl
     private async Task LoadAsync(IFilePreviewProvider? preferred = null)
     {
         _cts.Cancel();
+        _cts.Dispose();
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
         ClearPreviews();
+        _probe = null;
+        Notice = null;
         try
         {
             var probe = await FileProbe.ReadAsync(FilePath, token);
+            token.ThrowIfCancellationRequested();
             _probe = probe;
             var views = _registry.Match(probe).Select(p => new FileViewOption(p)).ToArray();
             Views = views;
@@ -204,7 +232,10 @@ public sealed partial class FileTabViewModel : WorkbenchTabViewModel, IDisposabl
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Notice = ex.Message;
+            if (!token.IsCancellationRequested)
+            {
+                Notice = ex.Message;
+            }
         }
     }
 
@@ -233,8 +264,11 @@ public sealed partial class FileTabViewModel : WorkbenchTabViewModel, IDisposabl
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            Preview = null;
-            Notice = ex.Message;
+            if (!token.IsCancellationRequested)
+            {
+                Preview = null;
+                Notice = ex.Message;
+            }
         }
     }
 
@@ -251,6 +285,7 @@ public sealed partial class FileTabViewModel : WorkbenchTabViewModel, IDisposabl
     public void Dispose()
     {
         _cts.Cancel();
+        _cts.Dispose();
         ClearPreviews();
     }
 }
@@ -317,26 +352,91 @@ public sealed partial class WorkbenchViewModel : ObservableObject
         OpenRequested?.Invoke();
     }
 
+    /// <summary>Start a new terminal at cwd; never inject a command into an existing shell.</summary>
+    public void OpenTerminal(string? cwd)
+    {
+        var terminal = new TerminalTabViewModel(_hosts, cwd);
+        terminal.Closed += () => RemoveTab(terminal);
+        Tabs.Add(terminal);
+        Activate(terminal);
+        OpenRequested?.Invoke();
+    }
+
+    public void RetargetFiles(string oldPath, string newPath, bool isDirectory)
+    {
+        foreach (var tab in Tabs.OfType<FileTabViewModel>().Where(t => IsAffected(t.FilePath, oldPath, isDirectory)).ToArray())
+        {
+            // Substring mapping preserves case-distinct Unix paths (GetRelativePath on macOS does not).
+            _ = tab.RetargetAsync(newPath + tab.FilePath[oldPath.Length..], Root);
+        }
+        OnPropertyChanged(nameof(ActiveFile));
+        OnPropertyChanged(nameof(ActiveFilePath));
+        ActiveFileChanged?.Invoke(ActiveFilePath);
+    }
+
+    /// <summary>Called only after the recycling backend has reported success.</summary>
+    public void CloseFiles(string path, bool isDirectory)
+    {
+        foreach (var tab in Tabs.OfType<FileTabViewModel>().Where(t => IsAffected(t.FilePath, path, isDirectory)).ToArray())
+        {
+            RemoveTab(tab);
+        }
+    }
+
+    private static bool IsAffected(string candidate, string path, bool isDirectory)
+    {
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return string.Equals(candidate, path, comparison) || (isDirectory && candidate.StartsWith(
+            System.IO.Path.TrimEndingDirectorySeparator(path) + System.IO.Path.DirectorySeparatorChar, comparison));
+    }
+
     /// <summary>变更标签页：当前会话的文件改动（一个实例，随会话切换刷新）。</summary>
     public ChangesTabViewModel Changes { get; } = new();
 
     private SessionViewModel? _changesSource;
 
-    /// <summary>切换当前会话：变更面板跟随它，转录中的“审查 / 打开”也指向它。</summary>
+    /// <summary>切换当前会话：变更面板跟随它，转录中的“审查 / 打开”也指向它；其他会话的子 Agent 标签关闭。</summary>
     public void SetChangesSource(SessionViewModel? session)
     {
         if (_changesSource is not null)
         {
             _changesSource.ReviewRequested -= ReviewChange;
             _changesSource.OpenRequested -= OpenFile;
+            _changesSource.SubagentRequested -= OpenSubagent;
         }
         _changesSource = session;
         if (session is not null)
         {
             session.ReviewRequested += ReviewChange;
             session.OpenRequested += OpenFile;
+            session.SubagentRequested += OpenSubagent;
         }
         Changes.SetSession(session);
+        foreach (var tab in Tabs.OfType<SubagentTabViewModel>().Where(t => t.SessionId != session?.SessionId).ToArray())
+        {
+            RemoveTab(tab);
+        }
+    }
+
+    /// <summary>Agent Host 连接（子 Agent 标签打开转录时使用），由主窗口 ViewModel 设置。</summary>
+    public AgentHostConnection? Host { get; set; }
+
+    /// <summary>打开子 Agent 的标签（docs/design/subagent-view.md §6.3）：每个子 Agent 一个，已打开时激活。</summary>
+    public void OpenSubagent(SessionViewModel session, ToolCallBlockViewModel call)
+    {
+        var tab = Tabs.OfType<SubagentTabViewModel>().FirstOrDefault(t => t.SessionId == session.SessionId && t.ToolCallId == call.ToolCallId);
+        if (tab is null)
+        {
+            if (Host is null)
+            {
+                return;
+            }
+            var (name, model, _) = SubagentCardViewModel.Describe(call);
+            tab = new SubagentTabViewModel(Host, session, call, name, model, OpenFile);
+            Tabs.Add(tab);
+        }
+        Activate(tab);
+        OpenRequested?.Invoke();
     }
 
     [RelayCommand]
@@ -369,12 +469,7 @@ public sealed partial class WorkbenchViewModel : ObservableObject
         }
         if (tool.Kind == WorkbenchTabKind.Terminal)
         {
-            // 每次都新建一个终端（01 §7），在项目目录中启动
-            var terminal = new TerminalTabViewModel(_hosts, Root);
-            terminal.Closed += () => RemoveTab(terminal);
-            Tabs.Add(terminal);
-            Activate(terminal);
-            OpenRequested?.Invoke();
+            OpenTerminal(Root);
             return;
         }
         var existing = Tabs.FirstOrDefault(t => t.Kind == tool.Kind);

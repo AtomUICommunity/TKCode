@@ -96,7 +96,14 @@ public sealed class AgentHostConnection(ILogger<AgentHostConnection> logger) : I
     /// 会话事件先进入队列，界面线程每次取出当前积压的全部事件依次处理：高频增量（流式文本、工具参数）
     /// 不再每个都单独排队到界面线程，事件顺序保持不变。
     /// </summary>
-    void IAgentHostClient.OnSessionEvent(SessionEventNotification notification)
+    void IAgentHostClient.OnSessionEvent(SessionEventNotification notification) => EnqueueEvent(notification);
+
+    /// <summary>已打开的子 Agent 转录的事件（已切换到 UI 线程，与会话事件同一队列保持顺序）。</summary>
+    public event Action<SubagentEventNotification>? SubagentEvent;
+
+    void IAgentHostClient.OnSubagentEvent(SubagentEventNotification notification) => EnqueueEvent(notification);
+
+    private void EnqueueEvent(object notification)
     {
         _events.Enqueue(notification);
         if (Interlocked.Exchange(ref _drainScheduled, 1) == 0)
@@ -105,7 +112,7 @@ public sealed class AgentHostConnection(ILogger<AgentHostConnection> logger) : I
         }
     }
 
-    private readonly System.Collections.Concurrent.ConcurrentQueue<SessionEventNotification> _events = new();
+    private readonly System.Collections.Concurrent.ConcurrentQueue<object> _events = new();
     private int _drainScheduled;
 
     private void DrainEvents()
@@ -113,7 +120,15 @@ public sealed class AgentHostConnection(ILogger<AgentHostConnection> logger) : I
         Volatile.Write(ref _drainScheduled, 0);
         while (_events.TryDequeue(out var notification))
         {
-            SessionEvent?.Invoke(notification);
+            switch (notification)
+            {
+                case SessionEventNotification session:
+                    SessionEvent?.Invoke(session);
+                    break;
+                case SubagentEventNotification subagent:
+                    SubagentEvent?.Invoke(subagent);
+                    break;
+            }
         }
     }
 

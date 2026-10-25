@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform;
+using TKCode.Config;
 using TKCode.Desktop.Localization;
 using TKCode.Desktop.Updates;
 using TKCode.Desktop.ViewModels;
@@ -25,7 +26,7 @@ public sealed class AppTray
     private readonly UserSettingsService _settings;
     private readonly UpdatesViewModel _updates;
     private readonly MainWindowViewModel _main;
-    private readonly WorkspaceService _workspaces;
+    private readonly ProjectService _projects;
     private readonly TrayIcon _icon;
 
     /// <summary>托盘菜单只创建一次：Avalonia.Native 会把它导出为原生菜单，换成另一个实例时更新会失败（“menu being updated does not match”）。Dock 菜单同理。</summary>
@@ -33,14 +34,14 @@ public sealed class AppTray
     private readonly NativeMenu? _dockMenu;
 
     public AppTray(Application app, IClassicDesktopStyleApplicationLifetime desktop, Window window, UserSettingsService settings, UpdatesViewModel updates,
-        MainWindowViewModel main, WorkspaceService workspaces)
+        MainWindowViewModel main, ProjectService projects)
     {
         _desktop = desktop;
         _window = window;
         _settings = settings;
         _updates = updates;
         _main = main;
-        _workspaces = workspaces;
+        _projects = projects;
         _icon = new TrayIcon
         {
             Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://TKCode/Assets/app-logo.png"))),
@@ -75,9 +76,9 @@ public sealed class AppTray
             }
         };
         Strings.LanguageChanged += (_, _) => Rebuild();
-        // 切换项目（含加入新项目）后「最近项目」随之变化
+        // 切换项目、新建 / 修改 / 移除项目后「最近项目」随之变化
         main.Conversation.WorkspaceChanged += Rebuild;
-        main.Sidebar.Projects.CollectionChanged += (_, _) => Rebuild();
+        projects.Changed += Rebuild;
         Rebuild();
     }
 
@@ -105,7 +106,7 @@ public sealed class AppTray
 
     private void Rebuild()
     {
-        var projects = _workspaces.Recent(ProjectLimit);
+        var projects = _projects.Recent(ProjectLimit);
         FillMenu(_menu, BuildItems(_updates, projects));
         if (_dockMenu is not null)
         {
@@ -207,7 +208,7 @@ public sealed class AppTray
     }
 
     /// <summary>托盘菜单的内容（与平台无关，便于测试）；Text 为 null 表示分隔线。</summary>
-    internal static IReadOnlyList<TrayItem> BuildItems(UpdatesViewModel updates, IReadOnlyList<WorkspaceInfo>? projects = null)
+    internal static IReadOnlyList<TrayItem> BuildItems(UpdatesViewModel updates, IReadOnlyList<Project>? projects = null)
     {
         var items = new List<TrayItem>
         {
@@ -244,7 +245,7 @@ public sealed class AppTray
     /// macOS Dock 右键菜单：新会话 + 平铺的最近项目（Dock 菜单习惯平铺）。
     /// 「退出」「隐藏」等由系统自带，不重复添加。
     /// </summary>
-    internal static IReadOnlyList<TrayItem> BuildDockItems(IReadOnlyList<WorkspaceInfo> projects)
+    internal static IReadOnlyList<TrayItem> BuildDockItems(IReadOnlyList<Project> projects)
     {
         var items = new List<TrayItem> { new(Strings.Get(TKCodeLangResourceKind.NewSession), TrayAction.NewSession) };
         if (projects.Count > 0)
@@ -260,19 +261,19 @@ public sealed class AppTray
     /// Windows 任务栏按钮右键的跳转列表：任务（新会话、退出 TKCode）+「项目」类别（最近项目）。
     /// 任务栏按钮的右键菜单由系统绘制，「关闭窗口」只会隐藏到托盘，所以这里单独提供真正的「退出」。
     /// </summary>
-    internal static (IReadOnlyList<JumpListEntry> Tasks, IReadOnlyList<JumpListEntry> Projects) BuildJumpList(IReadOnlyList<WorkspaceInfo> projects)
+    internal static (IReadOnlyList<JumpListEntry> Tasks, IReadOnlyList<JumpListEntry> Projects) BuildJumpList(IReadOnlyList<Project> projects)
     {
         IReadOnlyList<JumpListEntry> tasks =
         [
             new(Strings.Get(TKCodeLangResourceKind.NewSession), AppCommand.NewSession.ToCommandLine(), null),
             new(Strings.Get(TKCodeLangResourceKind.TrayQuit), AppCommand.Quit.ToCommandLine(), null),
         ];
-        var entries = projects.Select(p => new JumpListEntry(p.Name, AppCommand.OpenProject(p.Path).ToCommandLine(), p.Path)).ToList();
+        var entries = projects.Select(p => new JumpListEntry(p.Name, AppCommand.OpenProject(p.Primary).ToCommandLine(), p.Primary)).ToList();
         return (tasks, entries);
     }
 
     /// <summary>项目条目；重名的项目（不同目录下的同名文件夹）附上上级目录名以便区分。没有项目时可放一条灰色的占位。</summary>
-    private static List<TrayItem> ProjectItems(IReadOnlyList<WorkspaceInfo> projects, bool placeholder)
+    private static List<TrayItem> ProjectItems(IReadOnlyList<Project> projects, bool placeholder)
     {
         if (projects.Count == 0)
         {
@@ -281,8 +282,8 @@ public sealed class AppTray
         return projects.Select(p =>
         {
             var duplicated = projects.Count(o => string.Equals(o.Name, p.Name, StringComparison.OrdinalIgnoreCase)) > 1;
-            var parent = duplicated ? Path.GetFileName(Path.GetDirectoryName(p.Path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))) : null;
-            return new TrayItem(string.IsNullOrEmpty(parent) ? p.Name : $"{p.Name} ({parent})", TrayAction.OpenProject, p.Path);
+            var parent = duplicated ? Path.GetFileName(Path.GetDirectoryName(p.Primary.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))) : null;
+            return new TrayItem(string.IsNullOrEmpty(parent) ? p.Name : $"{p.Name} ({parent})", TrayAction.OpenProject, p.Primary);
         }).ToList();
     }
 }

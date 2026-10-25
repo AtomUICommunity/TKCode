@@ -1,0 +1,296 @@
+<!--
+  会话转录的数据模板：主窗口的会话视图与右侧子 Agent 标签（docs/design/subagent-view.md §6.1）共用，保证两处显示完全一致。
+  正文块是 StreamMark 的 Markdown 条目，其余条目（用户消息、思考、活动组、卡片、消息底栏、等待指示）使用这里的模板。
+-->
+<DataTemplates xmlns="https://github.com/avaloniaui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:atom="https://atomui.net"
+               xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+               xmlns:motion="using:TKCode.Desktop.Motion"
+               xmlns:vm="using:TKCode.Desktop.ViewModels"
+               xmlns:views="using:TKCode.Desktop.Views"
+               xmlns:icons="using:TKCode.Desktop.Icons"
+               xmlns:controls="using:TKCode.Desktop.Controls"
+               xmlns:loc="using:TKCode.Desktop.Localization"
+               x:Class="TKCode.Desktop.Views.TranscriptTemplates">
+    <!-- 一轮结束的改动：N 个文件已更改，整轮撤销，逐文件审查 / 打开 -->
+    <DataTemplate DataType="vm:TurnChangesItemViewModel">
+        <views:TurnChangesView />
+    </DataTemplate>
+    <!-- Agent 的提问与用户的回答 -->
+    <DataTemplate DataType="vm:QuestionCardViewModel">
+        <views:QuestionCardView />
+    </DataTemplate>
+    <!-- 计划审批：计划快照与结局 -->
+    <DataTemplate DataType="vm:PlanCardViewModel">
+        <views:PlanCardView />
+    </DataTemplate>
+    <!-- 子 Agent：连续启动的合为一组，每行名称、模型、后台标记；点击在右侧打开它的消息 -->
+    <DataTemplate DataType="vm:SubagentGroupViewModel">
+        <views:SubagentGroupView />
+    </DataTemplate>
+    <!-- 非用户输入：后台任务通知 / 其他 Agent 会话的消息，一行提示，展开看正文 -->
+    <DataTemplate DataType="vm:NotificationItemViewModel">
+        <StackPanel Margin="0,4">
+            <Button Theme="{StaticResource TKCode.TextButton}" Padding="4,0,8,0" Command="{Binding ToggleCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:LucideIcon Kind="{Binding Icon}" Width="13" Height="13" VerticalAlignment="Center"
+                                      StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
+                    <TextBlock Classes="secondary" Text="{Binding Header}" FontSize="13" VerticalAlignment="Center" />
+                    <icons:LucideIcon Kind="ChevronRight" Width="11" Height="11" VerticalAlignment="Center"
+                                      motion:Turn.IsOn="{Binding IsExpanded}" />
+                </StackPanel>
+            </Button>
+            <motion:Reveal IsOpen="{Binding IsExpanded}">
+                <Border Background="{DynamicResource TKCode.CodeBg}" CornerRadius="6" Padding="10,8" Margin="22,4,0,0">
+                    <arc:ScrollArea MaxHeight="240">
+                        <SelectableTextBlock Text="{Binding Body}" FontSize="12" TextWrapping="Wrap"
+                                             Foreground="{DynamicResource TKCode.TextSecondary}" />
+                    </arc:ScrollArea>
+                </Border>
+            </motion:Reveal>
+        </StackPanel>
+    </DataTemplate>
+    <!-- 上下文压缩：分隔线中间一行状态（压缩中 / 已压缩 N → M / 失败），点击展开摘要 -->
+    <DataTemplate DataType="vm:CompactionItemViewModel">
+        <StackPanel Margin="0,8">
+            <Grid ColumnDefinitions="*,Auto,*">
+                <Border Height="1" Background="{DynamicResource TKCode.Divider}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Theme="{StaticResource TKCode.ChipButton}" Padding="8,0" Margin="8,0"
+                        Command="{Binding ToggleCommand}" Cursor="{Binding HasSummary, Converter={x:Static vm:CompactionCursors.Of}}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <controls:DotSpinner Width="10" Height="10" VerticalAlignment="Center" IsVisible="{Binding IsRunning}" />
+                        <icons:LucideIcon Kind="{Binding Icon}" Width="12" Height="12" VerticalAlignment="Center"
+                                          StrokeBrush="{DynamicResource TKCode.TextTertiary}"
+                                          IsVisible="{Binding !IsRunning}" />
+                        <TextBlock Classes="secondary" Text="{Binding Header}" FontSize="12" VerticalAlignment="Center"
+                                   TextWrapping="Wrap" MaxWidth="520" />
+                        <icons:LucideIcon Kind="ChevronRight" Width="11" Height="11" VerticalAlignment="Center"
+                                          IsVisible="{Binding HasSummary}" motion:Turn.IsOn="{Binding IsExpanded}" />
+                    </StackPanel>
+                </Button>
+                <Border Grid.Column="2" Height="1" Background="{DynamicResource TKCode.Divider}" VerticalAlignment="Center" />
+            </Grid>
+            <motion:Reveal IsOpen="{Binding IsExpanded}">
+                <Border Background="{DynamicResource TKCode.CodeBg}" CornerRadius="6" Padding="10,8" Margin="0,6,0,0">
+                    <arc:ScrollArea MaxHeight="320">
+                        <SelectableTextBlock Text="{Binding Summary}" FontSize="12" TextWrapping="Wrap"
+                                             Foreground="{DynamicResource TKCode.TextSecondary}" />
+                    </arc:ScrollArea>
+                </Border>
+            </motion:Reveal>
+        </StackPanel>
+    </DataTemplate>
+    <DataTemplate DataType="vm:UserMessageItemViewModel">
+        <StackPanel HorizontalAlignment="Right" MaxWidth="560" Margin="0,8,0,4" Spacing="6"
+                    motion:Entrance.Effect="SlideUp" motion:Entrance.Distance="14">
+            <!-- 附图：点击全屏查看；附件文件已删除时显示占位 -->
+            <ItemsControl ItemsSource="{Binding Images}" IsVisible="{Binding HasImages}" HorizontalAlignment="Right">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" HorizontalAlignment="Right" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ImageAttachmentViewModel">
+                        <Border CornerRadius="10" ClipToBounds="True" Margin="6,0,0,6"
+                                BorderBrush="{DynamicResource TKCode.ComposerBorder}" BorderThickness="1"
+                                Background="{DynamicResource TKCode.UserBubble}"
+                                Cursor="Hand" ToolTip.Tip="{Binding FileName}" Tapped="OnMessageImageTapped">
+                            <Panel>
+                                <Image Source="{Binding Thumbnail}" MaxHeight="160" MaxWidth="240" Stretch="Uniform"
+                                       IsVisible="{Binding HasThumbnail}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,8" IsVisible="{Binding !HasThumbnail}">
+                                    <icons:LucideIcon Kind="Image" Width="14" Height="14" VerticalAlignment="Center"
+                                                      StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
+                                    <TextBlock Classes="tertiary" FontSize="12" VerticalAlignment="Center"
+                                               Text="{loc:TKCodeLangResource ImageMissing}" />
+                                </StackPanel>
+                            </Panel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <!-- 太长时默认收起，点按钮展开；短消息不显示按钮 -->
+            <views:UserMessageBubble />
+        </StackPanel>
+    </DataTemplate>
+    <!-- 会话顶部：还有更早的消息（滚动到顶部时自动加载） -->
+    <DataTemplate DataType="vm:EarlierHistoryViewModel">
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,4,0,8">
+            <controls:DotSpinner Width="10" Height="10" VerticalAlignment="Center" IsVisible="{Binding Session.IsLoadingEarlier}" />
+            <icons:LucideIcon Kind="ArrowUp" Width="12" Height="12" VerticalAlignment="Center"
+                              StrokeBrush="{DynamicResource TKCode.TextTertiary}" IsVisible="{Binding !Session.IsLoadingEarlier}" />
+            <TextBlock Classes="tertiary" FontSize="12" VerticalAlignment="Center" Text="{loc:TKCodeLangResource EarlierMessages}" />
+        </StackPanel>
+    </DataTemplate>
+    <!-- 单独的一段思考（其后紧跟正文）：› 思考过程 -->
+    <DataTemplate DataType="vm:ThinkingBlockViewModel">
+        <StackPanel motion:Entrance.Effect="SlideUp" motion:Entrance.Distance="6">
+            <Button Theme="{StaticResource TKCode.TextButton}" Padding="4,0,8,0" Command="{Binding ToggleCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:LucideIcon Kind="ChevronRight" Width="11" Height="11" VerticalAlignment="Center"
+                                      motion:Turn.IsOn="{Binding IsExpanded}" />
+                    <controls:StatusShimmer Text="{Binding Header}" IsActive="{Binding IsStreaming}" FontSize="13" VerticalAlignment="Center"
+                                            Foreground="{Binding $parent[Button].Foreground}" BaseForeground="{DynamicResource TKCode.TextTertiary}" />
+                    <TextBlock Classes="tertiary" Text="{Binding Stats}" FontSize="12" VerticalAlignment="Center">
+                        <TextBlock.RenderTransform><TranslateTransform Y="1" /></TextBlock.RenderTransform>
+                    </TextBlock>
+                </StackPanel>
+            </Button>
+            <motion:Reveal IsOpen="{Binding IsExpanded}">
+            <Grid ColumnDefinitions="Auto,*" Margin="9,2,0,4">
+                <Border Width="1" Background="{DynamicResource TKCode.TreeLine}" />
+                <!-- 固定最大高度，超出在框内滚动，流式时贴底 -->
+                <arc:ScrollArea Grid.Column="1" MaxHeight="240" Margin="18,2,0,2" controls:FollowTail.IsEnabled="True">
+                    <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="12" LineHeight="19"
+                                         Foreground="{DynamicResource TKCode.TextSecondary}" Margin="0,0,8,0" />
+                </arc:ScrollArea>
+            </Grid>
+            </motion:Reveal>
+        </StackPanel>
+    </DataTemplate>
+    <!-- 活动组：› 思考 2 次 · 运行 4 条命令；展开后引导线串起每个步骤 -->
+    <DataTemplate DataType="vm:ActivityGroupViewModel">
+        <StackPanel motion:Entrance.Effect="SlideUp" motion:Entrance.Distance="6">
+            <StackPanel.Styles>
+                <Style Selector="SelectableTextBlock.output.failed">
+                    <Setter Property="Foreground" Value="{DynamicResource TKCode.Danger}" />
+                </Style>
+            </StackPanel.Styles>
+            <Button Theme="{StaticResource TKCode.TextButton}" Padding="4,0,8,0" Command="{Binding ToggleCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <icons:LucideIcon Kind="ChevronRight" Width="11" Height="11" VerticalAlignment="Center"
+                                      motion:Turn.IsOn="{Binding IsExpanded}" />
+                    <TextBlock Text="{Binding Summary}" FontSize="13" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <!-- 展开时显示全部步骤；进行中只显示正在进行的步骤，没有时整组收起 -->
+            <motion:Reveal IsOpen="{Binding ShowSteps}">
+            <Grid ColumnDefinitions="Auto,*" Margin="9,2,0,0">
+                <Border Width="1" Margin="0,0,0,15" Background="{DynamicResource TKCode.TreeLine}" />
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding Steps}">
+                    <!-- 每个步骤：正在进行或组已展开时显示，完成后带动画收起（内容按需创建，按下面的类型模板显示） -->
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AssistantBlockViewModel">
+                            <motion:Reveal>
+                                <motion:Reveal.IsOpen>
+                                    <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                        <Binding Path="IsLive" />
+                                        <Binding Path="$parent[ItemsControl].((vm:ActivityGroupViewModel)DataContext).IsExpanded" FallbackValue="False" />
+                                    </MultiBinding>
+                                </motion:Reveal.IsOpen>
+                                <motion:Reveal.ContentTemplate>
+                                    <DataTemplate x:DataType="vm:AssistantBlockViewModel">
+                                        <ContentControl Content="{Binding}" />
+                                    </DataTemplate>
+                                </motion:Reveal.ContentTemplate>
+                            </motion:Reveal>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                    <ItemsControl.DataTemplates>
+                        <!-- 工具步骤：⌘ 运行  git status …（单行），展开后显示完整参数与输出 -->
+                        <DataTemplate DataType="vm:ToolCallBlockViewModel">
+<views:ToolStepView />
+</DataTemplate>
+                        <!-- 工作空间里的正文（中间段落）：纯文本，最后一段正文在外面用 Markdown 渲染 -->
+                        <DataTemplate DataType="vm:TextBlockViewModel">
+                            <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13" LineHeight="21"
+                                                 Foreground="{DynamicResource TKCode.TextSecondary}" Margin="10,4,8,6" />
+                        </DataTemplate>
+                        <!-- 查阅组：› 查阅 · 1 搜索, 4 文件；默认收起，执行中展开，完成后收起 -->
+                        <DataTemplate DataType="vm:ExploreStepViewModel">
+                            <StackPanel>
+                                <Button Theme="{StaticResource TKCode.TextButton}" HorizontalAlignment="Stretch" MinHeight="30" Padding="0,0,6,0" Command="{Binding ToggleCommand}">
+                                    <Grid ColumnDefinitions="10,Auto,*,Auto">
+                                        <Border Height="1" Background="{DynamicResource TKCode.TreeLine}" VerticalAlignment="Center" />
+                                        <icons:LucideIcon Grid.Column="1" Kind="Search" Width="14" Height="14" Margin="6,0,8,0"
+                                                          VerticalAlignment="Center" StrokeBrush="{Binding $parent[Button].Foreground}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Summary}" FontSize="13" VerticalAlignment="Center" />
+                                        <icons:LucideIcon Grid.Column="3" Kind="ChevronDown" Width="12" Height="12" Margin="8,0,0,0"
+                                                          motion:Turn.IsOn="{Binding IsExpanded}" StrokeBrush="{Binding $parent[Button].Foreground}" />
+                                    </Grid>
+                                </Button>
+                                <motion:Reveal IsOpen="{Binding IsExpanded}">
+                                <!-- 组内步骤限高，超出在框内滚动 -->
+                                <arc:ScrollArea MaxHeight="320" Margin="9,2,0,4">
+                                    <ItemsControl ItemsSource="{Binding Calls}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ToolCallBlockViewModel">
+                                                <views:ToolStepView />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </arc:ScrollArea>
+                                </motion:Reveal>
+                            </StackPanel>
+                        </DataTemplate>
+                        <!-- 思考步骤：💬 思考过程，展开后就地显示思考内容 -->
+                        <DataTemplate DataType="vm:ThinkingBlockViewModel">
+                            <StackPanel>
+                                <Button Theme="{StaticResource TKCode.TextButton}" HorizontalAlignment="Stretch" MinHeight="30" Padding="0,0,6,0" Command="{Binding ToggleCommand}">
+                                    <Grid ColumnDefinitions="10,Auto,*,Auto,Auto">
+                                        <Border Height="1" Background="{DynamicResource TKCode.TreeLine}" VerticalAlignment="Center" />
+                                        <icons:LucideIcon Grid.Column="1" Kind="Brain" Width="14" Height="14" Margin="6,0,8,0"
+                                                          VerticalAlignment="Center" StrokeBrush="{Binding $parent[Button].Foreground}" />
+                                        <controls:StatusShimmer Grid.Column="2" Text="{Binding Header}" IsActive="{Binding IsStreaming}" FontSize="13" VerticalAlignment="Center"
+                                                                Foreground="{Binding $parent[Button].Foreground}" BaseForeground="{DynamicResource TKCode.TextTertiary}" />
+                                        <!-- 右侧：耗时 · 估算 token 数 -->
+                                        <TextBlock Grid.Column="3" Classes="tertiary" Text="{Binding Stats}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock.RenderTransform><TranslateTransform Y="1" /></TextBlock.RenderTransform>
+                                        </TextBlock>
+                                        <icons:LucideIcon Grid.Column="4" Kind="ChevronDown" Width="12" Height="12" Margin="8,0,0,0"
+                                                          motion:Presence.IsPresent="{Binding IsExpanded}" motion:Presence.Effect="Pop" StrokeBrush="{Binding $parent[Button].Foreground}" />
+                                    </Grid>
+                                </Button>
+                                <motion:Reveal IsOpen="{Binding IsExpanded}">
+                                <arc:ScrollArea MaxHeight="240" Margin="38,2,8,10"
+                                                controls:FollowTail.IsEnabled="True">
+                                    <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13" LineHeight="21"
+                                                         Foreground="{DynamicResource TKCode.TextSecondary}" Margin="0,0,8,0" />
+                                </arc:ScrollArea>
+                                </motion:Reveal>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.DataTemplates>
+                </ItemsControl>
+            </Grid>
+            </motion:Reveal>
+        </StackPanel>
+    </DataTemplate>
+    <DataTemplate DataType="vm:AssistantMessageItemViewModel">
+        <StackPanel Spacing="8" motion:Entrance.Effect="Fade">
+            <!-- 错误卡片：长错误（如服务端返回的 JSON）自动换行，可选中复制，过长时在卡片内滚动 -->
+            <Border IsVisible="{Binding HasError}" CornerRadius="8" Padding="12,10" BorderThickness="1"
+                    Background="{DynamicResource TKCode.DiffRemoveBg}" BorderBrush="{DynamicResource TKCode.DangerBorder}">
+                <Grid ColumnDefinitions="Auto,*">
+                    <icons:LucideIcon Kind="CircleAlert" Width="14" Height="14" Margin="0,2,10,0" VerticalAlignment="Top"
+                                      StrokeBrush="{DynamicResource TKCode.Danger}" />
+                    <arc:ScrollArea Grid.Column="1" MaxHeight="220">
+                        <SelectableTextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="12" LineHeight="18"
+                                             FontFamily="{StaticResource TKCode.MonoFont}" Foreground="{DynamicResource TKCode.Danger}" />
+                    </arc:ScrollArea>
+                </Grid>
+            </Border>
+            <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding ShowFooter}">
+                <TextBlock Classes="tertiary" Text="{Binding TimestampText}" VerticalAlignment="Center" />
+                <Button Theme="{StaticResource TKCode.RowButton}" Width="24" MinHeight="24" Padding="0"
+                        HorizontalContentAlignment="Center" Foreground="{DynamicResource TKCode.TextTertiary}"
+                        ToolTip.Tip="{loc:TKCodeLangResource CopyMessage}" Click="OnCopyMessageClick">
+                    <icons:LucideIcon Kind="Copy" Width="12" Height="12" />
+                </Button>
+            </StackPanel>
+        </StackPanel>
+    </DataTemplate>
+    <!-- 等待输出：Thinking 扫光文字 + 计时 -->
+    <DataTemplate DataType="vm:SessionViewModel">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4" motion:Entrance.Effect="SlideRight" motion:Entrance.Distance="8">
+            <controls:StatusShimmer Text="{loc:TKCodeLangResource Thinking}" IsActive="{Binding IsPondering}" FontSize="13" VerticalAlignment="Center"
+                                    Foreground="{DynamicResource TKCode.TextSecondary}" BaseForeground="{DynamicResource TKCode.TextTertiary}" />
+            <!-- Smaller elapsed text needs a 1 DIP optical baseline correction beside Arc's text layout. -->
+            <TextBlock Classes="tertiary" Text="{Binding PonderText}" FontSize="12" VerticalAlignment="Center">
+                <TextBlock.RenderTransform><TranslateTransform Y="1" /></TextBlock.RenderTransform>
+            </TextBlock>
+        </StackPanel>
+    </DataTemplate>
+</DataTemplates>

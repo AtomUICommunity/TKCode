@@ -114,39 +114,73 @@ public sealed class AgentHostServer(
     {
         var external = runtimes.FindModel(request.ModelId);
         var model = external?.Model ?? catalog.Get(request.ModelId);
-        var session = external is var (runtime, _) ? sessions.CreateExternal(request.Cwd, runtime, model) : sessions.Create(request.Cwd, model);
+        var session = await sessions.CreateAsync(request.Cwd, model, external?.Runtime, request.ProjectId, request.Directories, cancellationToken);
         SessionOptions.Initialize(session);
         await session.Store.AppendModelChangeAsync(model.Provider, model.Id, cancellationToken);
         var options = SessionOptions.Apply(session, request.Options, sessions.Assets.Get(session.Cwd));
         // 会话文件在第一条消息时才创建；这条参数记录先缓存在 SessionStore 中，随第一条消息写入。
         await session.Store.AppendOptionsChangeAsync(session.Agent.ThinkingLevel, session.Agent.FastMode, session.ContextWindow, cancellationToken,
             session.Agent.PermissionMode, session.Role.Name);
-        return new SessionDto(session.Id, session.Cwd, ModelCatalog.RefOf(model), session.Store.FilePath, options, session.External?.RuntimeId);
+        return ToDto(session, options);
     }
 
-    public Task<IReadOnlyList<SessionSummaryDto>> ListSessionsAsync(string? cwd, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<SessionSummaryDto>>(Filter(index.Refresh(), cwd).Take(MaxListedSessions).Select(ToSummary).ToArray());
+    private static SessionDto ToDto(AgentSession session, SessionOptionsDto options) =>
+        new(session.Id, session.Cwd, ModelCatalog.RefOf(session.Agent.Model), session.Store.FilePath, options, session.External?.RuntimeId,
+            session.Store.ProjectId, session.Store.SessionDirectories);
 
-    public Task<SessionPageDto> QuerySessionsAsync(string? cwd, int offset, int limit, CancellationToken cancellationToken = default)
+    public async Task<SessionDto> AddSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default)
     {
-        var all = Filter(index.Refresh(), cwd).ToArray();
+        var session = await sessions.AddSessionDirectoryAsync(sessionId, path, cancellationToken);
+        return ToDto(session, SessionOptions.Current(session));
+    }
+
+    public async Task<SessionDto> RemoveSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default)
+    {
+        var session = await sessions.RemoveSessionDirectoryAsync(sessionId, path, cancellationToken);
+        return ToDto(session, SessionOptions.Current(session));
+    }
+
+    public Task<IReadOnlyList<SessionSummaryDto>> ListSessionsAsync(string? cwd, CancellationToken cancellationToken = default)
+    {
+        var projects = sessions.Projects.Projects;
+        return Task.FromResult<IReadOnlyList<SessionSummaryDto>>(Filter(index.Refresh(), cwd, null, projects).Take(MaxListedSessions)
+            .Select(e => ToSummary(e, projects)).ToArray());
+    }
+
+    public Task<SessionPageDto> QuerySessionsAsync(string? cwd, int offset, int limit, string? projectId = null, CancellationToken cancellationToken = default)
+    {
+        var projects = sessions.Projects.Projects;
+        var all = Filter(index.Refresh(), cwd, projectId, projects).ToArray();
         offset = Math.Max(0, offset);
         limit = Math.Clamp(limit, 1, MaxQuerySessions);
-        var page = all.Skip(offset).Take(limit).Select(ToSummary).ToArray();
+        var page = all.Skip(offset).Take(limit).Select(e => ToSummary(e, projects)).ToArray();
         var next = offset + page.Length < all.Length ? offset + page.Length : (int?)null;
         return Task.FromResult(new SessionPageDto(page, all.Length, next));
     }
 
-    private static IEnumerable<SessionIndexEntry> Filter(IEnumerable<SessionIndexEntry> entries, string? cwd) =>
-        cwd is null ? entries : entries.Where(e => SamePath(e.Cwd, cwd));
+    /// <summary>按 cwd 与所属项目（docs/design/projects.md §5.3）筛选。</summary>
+    private static IEnumerable<SessionIndexEntry> Filter(IEnumerable<SessionIndexEntry> entries, string? cwd, string? projectId,
+        IReadOnlyList<Project> projects)
+    {
+        if (cwd is not null)
+        {
+            entries = entries.Where(e => PathRules.SamePath(e.Cwd, cwd));
+        }
+        if (projectId is not null)
+        {
+            var wanted = projectId == ProjectCatalog.NoProjectFilter ? null : projectId;
+            entries = entries.Where(e => ProjectCatalog.Resolve(projects, e.ProjectId, e.Cwd)?.Id == wanted);
+        }
+        return entries;
+    }
 
-    private SessionSummaryDto ToSummary(SessionIndexEntry e)
+    private SessionSummaryDto ToSummary(SessionIndexEntry e, IReadOnlyList<Project> projects)
     {
         var provider = e.ModelRef is { } model && model.IndexOf('/') is var slash and > 0 ? model[..slash] : null;
         var runtime = e.Runtime ?? runtimes.Find(provider)?.Id;
         return new SessionSummaryDto(e.SessionId, e.FilePath, e.Cwd, e.CustomTitle ?? e.FirstMessageTitle, e.ModelRef,
             new DateTimeOffset(e.LastWriteTicks, TimeSpan.Zero), sessions.IsRunning(e.SessionId), runtime, e.Pinned,
-            e.CustomTitle is not null, e.NativeSessionId);
+            e.CustomTitle is not null, e.NativeSessionId, ProjectCatalog.Resolve(projects, e.ProjectId, e.Cwd)?.Id);
     }
 
     public async Task RenameSessionAsync(string filePath, string title, CancellationToken cancellationToken = default)
@@ -182,8 +216,15 @@ public sealed class AgentHostServer(
             open.Agent.Abort();
             await sessions.CloseAsync(open.Id);
         }
+        var sessionId = SessionStore.ReadSummary(path).SessionId;
         File.Delete(path);
         index.Forget(path);
+        // 子 Agent 的转录随会话删除（docs/design/subagent-view.md §5.1）
+        var subagents = SubagentHub.DirectoryOf(sessionId);
+        if (sessionId.Length > 0 && Directory.Exists(subagents))
+        {
+            Directory.Delete(subagents, recursive: true);
+        }
         logger.LogInformation("Session file {File} deleted", path);
     }
 
@@ -199,9 +240,14 @@ public sealed class AgentHostServer(
         {
             throw new InvalidOperationException("The session has no messages to continue from.");
         }
-        var store = SessionStore.Create(snapshot.Cwd);
+        var store = SessionStore.Create(snapshot.Cwd, projectId: snapshot.ProjectId);
+        if (snapshot.SessionDirectories.Count > 0)
+        {
+            await store.AppendDirectoriesAsync(snapshot.SessionDirectories, cancellationToken);
+        }
         // 计划文件跟着会话走（docs/design/plan-mode.md §6）
         TKCode.Agent.Coding.Tools.Plan.PlanFiles.CopyFor(filePath, store.FilePath);
+        CopySubagents(snapshot.SessionId, store.SessionId);
         if (snapshot.ModelId is not null)
         {
             await store.AppendModelChangeAsync(snapshot.ModelProvider ?? "", snapshot.ModelId, cancellationToken);
@@ -369,13 +415,34 @@ public sealed class AgentHostServer(
 
     public Task CloseSessionAsync(string sessionId, CancellationToken cancellationToken = default) => sessions.CloseAsync(sessionId);
 
+    public Task<SubagentOpenResult> OpenSubagentAsync(string sessionId, string toolCallId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(sessions.Subagents.Open(sessionId, toolCallId, () => ParentHistory(sessionId),
+            messages => ToHistory(messages, 0, messages.Count)));
+
+    private IReadOnlyList<Message>? ParentHistory(string sessionId)
+    {
+        try
+        {
+            return sessions.Get(sessionId).History;
+        }
+        catch (KeyNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    public Task CloseSubagentAsync(string sessionId, string toolCallId, CancellationToken cancellationToken = default)
+    {
+        sessions.Subagents.Close(sessionId, toolCallId);
+        return Task.CompletedTask;
+    }
+
     private OpenSessionResult Describe(AgentSession session, int? turnLimit = null)
     {
         var messages = session.History;
         var start = turnLimit is { } limit ? HistoryPaging.StartOfRecentTurns(messages, messages.Count, Math.Max(1, limit)) : 0;
         return new OpenSessionResult(
-            new SessionDto(session.Id, session.Cwd, ModelCatalog.RefOf(session.Agent.Model), session.Store.FilePath, SessionOptions.Current(session),
-                session.External?.RuntimeId),
+            ToDto(session, SessionOptions.Current(session)),
             ToHistory(messages, start, messages.Count),
             session.Agent.IsRunning,
             start);
@@ -420,9 +487,28 @@ public sealed class AgentHostServer(
         _ => null,
     };
 
-    private static bool SamePath(string a, string b) =>
-        string.Equals(Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar), Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar),
-            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    /// <summary>分叉会话时复制子 Agent 的转录：复制过去的工具调用 id 不变，卡片仍能打开（docs/design/subagent-view.md §5.1）。</summary>
+    private void CopySubagents(string fromSessionId, string toSessionId)
+    {
+        var from = SubagentHub.DirectoryOf(fromSessionId);
+        if (!Directory.Exists(from))
+        {
+            return;
+        }
+        try
+        {
+            var to = SubagentHub.DirectoryOf(toSessionId);
+            Directory.CreateDirectory(to);
+            foreach (var file in Directory.EnumerateFiles(from))
+            {
+                File.Copy(file, Path.Combine(to, Path.GetFileName(file)), overwrite: true);
+            }
+        }
+        catch (IOException ex)
+        {
+            logger.LogWarning(ex, "Failed to copy subagent transcripts of {SessionId}", fromSessionId);
+        }
+    }
 
     public Task<McpServersDto> ListMcpServersAsync(string? cwd, CancellationToken cancellationToken = default) => Task.FromResult(mcp.List(cwd));
 

@@ -26,7 +26,7 @@ public sealed class BashTool(ToolContext context) : IAgentTool
         {
             // 不写具体的 shell：工具集在会话开始时冻结，而用户可以随时改 shell；当前的 shell 在系统提示的 environment 节里，会随之更新。
             return $"Execute a shell command on {(OperatingSystem.IsWindows() ? "Windows" : OperatingSystem.IsMacOS() ? "macOS" : "Linux")} " +
-                   "in the workspace root and return its combined stdout/stderr. Write the command in the syntax of the shell named on the Shell line of the environment section. " +
+                   "in the primary working directory and return its combined stdout/stderr. Write the command in the syntax of the shell named on the Shell line of the environment section. " +
                    "Each call runs in a fresh process: `cd` and environment variables do not persist between calls, so use `cd dir && command`. " +
                    $"timeout is in milliseconds (default {DefaultTimeoutMs}, max {MaxTimeoutMs}). " +
                    $"Output is truncated to the last {OutputCapture.MaxLines} lines or {OutputCapture.MaxBytes / 1024}KB; the full output is saved to a file whose path is included when truncated. " +

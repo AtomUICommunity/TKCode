@@ -1,13 +1,14 @@
 <!--
   TKCode 复合控件的主题与文字层级。
-  可交互的通用按钮使用 AtomUI 的 atom:Button；这里只为侧栏行、磁贴、标签页、分割条等
-  AtomUI 没有对应形态的表面提供 ControlTheme。
+  可交互的通用按钮使用 Arc 的 arc:Button；这里只为侧栏行、磁贴、标签页、分割条等
+  Arc 没有对应形态的表面提供 ControlTheme。
 -->
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:motion="using:TKCode.Desktop.Motion"
         xmlns:controls="using:TKCode.Desktop.Controls"
-        xmlns:composer="using:TKCode.Desktop.Controls.Composer">
+        xmlns:composer="using:TKCode.Desktop.Controls.Composer"
+        xmlns:arc="https://github.com/AIDotNet/TKCode.Arc">
     <Styles.Resources>
         <!-- 侧栏导航、列表行、菜单行：透明背景，悬停/选中时填充 -->
         <ControlTheme x:Key="TKCode.RowButton" TargetType="Button">
@@ -360,6 +361,32 @@
         <Setter Property="Background" Value="{DynamicResource TKCode.MenuInputBg}" />
         <Setter Property="CornerRadius" Value="6" />
     </Style>
+    <!-- 只有图标的 Arc 按钮（标题栏、工具栏、卡片角上的关闭）：正方形，与原来的小号图标按钮同高 -->
+    <Style Selector="arc|Button.icon">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <!-- Windows / Linux 自绘的窗口按钮：贴边的矩形，按下不缩放 -->
+    <Style Selector="arc|Button.caption">
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="IsPressScaleEnabled" Value="False" />
+    </Style>
+    <!-- 嵌在自绘外框里的 Arc 输入框（菜单与面板里的搜索、“其他”输入、计划编辑）：去掉 Arc 自己的边框与底色，
+         高度跟随文字而不是 Arc 的控件尺寸，外框的高度由所在的行决定 -->
+    <Style Selector=":is(arc|FieldTextBox).bare /template/ arc|FieldFrame#PART_Frame">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Height" Value="NaN" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="8,4" />
+    </Style>
 
     <!-- 键位提示：⌘1、esc、↵ -->
     <Style Selector="Border.kbd">
@@ -395,6 +422,25 @@
     </Style>
     <Style Selector="TextBlock.strong">
         <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- 侧栏项目行（docs/design/projects.md §8.3）：悬停或菜单打开时显示行内操作，名称在操作前截断 -->
+    <Style Selector="Grid.projectRow StackPanel.rowActions">
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector="Grid.projectRow:pointerover StackPanel.rowActions, Grid.projectRow.menuOpen StackPanel.rowActions">
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+    <Style Selector="Grid.projectRow:pointerover Button.projectRowButton, Grid.projectRow.menuOpen Button.projectRowButton">
+        <Setter Property="Background" Value="{DynamicResource TKCode.HoverBg}" />
+    </Style>
+    <Style Selector="Grid.projectRow:pointerover Button.projectRowButton.selected, Grid.projectRow.menuOpen Button.projectRowButton.selected">
+        <Setter Property="Background" Value="{DynamicResource TKCode.SelectedBg}" />
+    </Style>
+    <Style Selector="Grid.projectRow:pointerover StackPanel.projectMarks, Grid.projectRow.menuOpen StackPanel.projectMarks">
+        <Setter Property="Margin" Value="6,0,44,0" />
     </Style>
     <Style Selector="TextBlock.title">
         <Setter Property="FontSize" Value="15" />

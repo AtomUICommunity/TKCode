@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TKCode.Desktop.Services;
@@ -45,6 +46,32 @@ public sealed class SettingsSnapshotTests
             await vm.OpenSettingsCommand.ExecuteAsync(null);
             await Settle();
             HeadlessApp.Save(window, "settings-general");
+
+            // 左侧导航是 Arc 的静态菜单面板：勾始终跟着选中的分区（用户点击，或别处经视图模型切换，都一样）
+            var navMenu = window.GetVisualDescendants().OfType<TKCode.Arc.MenuSurface>().Single(m => m.Name == "NavMenu");
+            var navEntries = navMenu.Items.OfType<TKCode.Arc.MenuEntry>().Skip(1).ToList(); // 第一项是「返回」
+            Assert.Equal(vm.Settings.Nav.Count, navEntries.Count);
+            for (var i = 0; i < navEntries.Count; i++)
+            {
+                Assert.Same(vm.Settings.NavigateCommand, navEntries[i].Command);
+                Assert.Same(vm.Settings.Nav[i], navEntries[i].CommandParameter);
+            }
+            Assert.Equal([true, false, false, false, false, false], navEntries.Select(e => e.IsChecked).ToArray());
+            navEntries[3].PerformClick(); // 用户点「MCP 服务器」
+            await Settle();
+            Assert.True(vm.Settings.IsMcp);
+            Assert.Equal([false, false, false, true, false, false], navEntries.Select(e => e.IsChecked).ToArray());
+            vm.Settings.NavigateCommand.Execute(vm.Settings.Nav[5]); // 托盘「检查更新」之类的入口直接切到「关于」
+            await Settle();
+            Assert.Equal([false, false, false, false, false, true], navEntries.Select(e => e.IsChecked).ToArray());
+            navEntries[1].PerformClick();
+            await Settle();
+            Assert.True(vm.Settings.IsProviders);
+
+            // 还没有任何厂商：左栏与右栏都是空状态
+            vm.Settings.NavigateCommand.Execute(vm.Settings.Nav[1]);
+            await Settle();
+            HeadlessApp.Save(window, "settings-providers-empty");
 
             // 本地 OpenAI 兼容服务：GET /v1/models 返回两个模型（其中一个在目录中有元数据）
             using var server = new System.Net.HttpListener();
@@ -121,8 +148,17 @@ public sealed class SettingsSnapshotTests
             var anthropic = vm.Settings.Selected!;
             await Settle();
             HeadlessApp.Save(window, "settings-providers");
-            anthropic.ToggleModelCommand.Execute(anthropic.Models.Single(m => m.Id == "claude-haiku-5-5"));
+            var haiku = anthropic.Models.Single(m => m.Id == "claude-haiku-5-5");
+            var themeChoices = vm.Settings.Themes.ToList();
+            anthropic.ToggleModelCommand.Execute(haiku);
             await WaitUntil(() => !vm.Conversation.Picker.AllModels.Any(m => m.Ref == "anthropic/claude-haiku-5-5"), "model disabled", 15_000);
+            await Settle();
+            // 写设置后的刷新（写入本身、文件监视、Host 推来的新快照）原地更新：行和选项还是原来的对象，开关不会被重建
+            Assert.Same(anthropic, vm.Settings.Selected);
+            Assert.Same(haiku, anthropic.Models.Single(m => m.Id == "claude-haiku-5-5"));
+            Assert.Contains(haiku, anthropic.VisibleModels);
+            Assert.False(haiku.IsEnabled);
+            Assert.Equal(themeChoices, vm.Settings.Themes);
             var text = File.ReadAllText(settingsPath);
             Assert.Contains("\"claude-opus-5-5\": {}", text);
             Assert.DoesNotContain("claude-haiku-5-5", text);
@@ -139,7 +175,7 @@ public sealed class SettingsSnapshotTests
             await WaitUntil(() => vm.Settings.Selected?.Models.FirstOrDefault(m => m.Id == "claude-opus-5-5")?.Model.ContextWindow == 200_000, "override applied");
             anthropic = vm.Settings.Selected!;
             anthropic.EditModelCommand.Execute(anthropic.Models.Single(m => m.Id == "claude-opus-5-5"));
-            anthropic.Editing!.ChooseApiCommand.Execute("chat");
+            anthropic.Editing!.ChooseApiCommand.Execute(anthropic.Editing.ApiChoices.Single(c => c.Value == "chat"));
             anthropic.Editing.SaveCommand.Execute(null);
             await WaitUntil(() => File.ReadAllText(settingsPath).Contains("\"api\": \"chat\""), "api override written");
             Assert.Contains("\"contextWindow\": 200000", File.ReadAllText(settingsPath));
@@ -153,10 +189,18 @@ public sealed class SettingsSnapshotTests
             Assert.Contains(vm.Settings.TemplateGroups, g => g.Items.Any(t => t.Id == "custom-messages"));
             Assert.DoesNotContain(vm.Settings.TemplateGroups.SelectMany(g => g.Items), t => t.Id == "anthropic"); // 已添加的不再列出
             HeadlessApp.Save(window, "settings-add-provider");
+            // 模板选择是 Arc 模态框；用户自己关闭（Esc、遮罩、关闭按钮走同一条路径）后视图模型的状态随之还原
+            var picker = Assert.Single(window.GetVisualDescendants().OfType<ProviderTemplateDialog>());
+            picker.Close();
+            await WaitUntil(() => !vm.Settings.IsPickingTemplate, "picker dismissed");
+            await WaitUntil(() => !window.GetVisualDescendants().OfType<ProviderTemplateDialog>().Any(), "picker removed");
+            vm.Settings.OpenTemplatePickerCommand.Execute(null);
+            await Settle();
+            Assert.Single(window.GetVisualDescendants().OfType<ProviderTemplateDialog>());
 
             // 选内置厂商：成为草稿，保存前不写文件；保存后写入
             vm.Settings.PickTemplateCommand.Execute(vm.Settings.TemplateGroups.SelectMany(g => g.Items).First(t => t.Id == "deepseek"));
-            await Settle();
+            await WaitUntil(() => !window.GetVisualDescendants().OfType<ProviderTemplateDialog>().Any(), "picker closed after picking");
             var draft = vm.Settings.Selected!;
             Assert.True(draft.IsDraft);
             Assert.Equal("deepseek", vm.Settings.ConfiguredList[0].Id);
@@ -173,6 +217,14 @@ public sealed class SettingsSnapshotTests
             vm.Settings.PickTemplateCommand.Execute(vm.Settings.TemplateGroups.SelectMany(g => g.Items).First(t => t.Id == "custom-messages"));
             Assert.True(vm.Settings.IsCreatingCustom);
             Assert.Equal("messages", vm.Settings.Protocols.Single(p => p.IsSelected).Value);
+            await Settle();
+            HeadlessApp.Save(window, "settings-custom-provider");
+            // 没填厂商 id 就创建：表单里用 Alert 显示原因，不创建
+            vm.Settings.CreateCustomProviderCommand.Execute(null);
+            await Settle();
+            Assert.NotNull(vm.Settings.CustomError);
+            Assert.True(vm.Settings.IsCreatingCustom);
+            HeadlessApp.Save(window, "settings-custom-provider-error");
 
             // 从 “models.dev” 同步目录：Anthropic 的模型元数据随之更新
             vm.Settings.NavigateCommand.Execute(vm.Settings.Nav[0]);
