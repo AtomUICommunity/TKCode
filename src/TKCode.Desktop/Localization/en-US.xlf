@@ -822,7 +822,6 @@
     <unit id="NoProjects"><segment><source>No projects yet</source></segment></unit>
     <unit id="SessionsInProjectFormat"><segment><source>Sessions · {0}</source></segment></unit>
     <unit id="SessionsNoProject"><segment><source>Sessions · No project</source></segment></unit>
-    <unit id="ClearProjectFilter"><segment><source>Show all sessions</source></segment></unit>
     <unit id="ShowMoreProjectsFormat"><segment><source>Show more ({0})</source></segment></unit>
     <unit id="Collapse"><segment><source>Show less</source></segment></unit>
     <unit id="FolderMissing"><segment><source>Not found</source></segment></unit>

@@ -543,7 +543,6 @@ Arc 的弹出层通过 `ArcZoom` 跟随 uiScale，不需要再包一层 `ZoomHos
 | `ProjectNewSessionFormat` | New session in {0} | 在 {0} 中新建会话 |
 | `NoProjects` | No projects yet | 还没有项目 |
 | `SessionsInProjectFormat` | Sessions · {0} | 会话 · {0} |
-| `ClearProjectFilter` | Show all sessions | 显示全部会话 |
 | `FolderMissing` | Not found | 不存在 |
 | `PrimaryFolderMissing` | The primary folder doesn't exist | 主文件夹不存在 |
 | `NestedFolderWarningFormat` | {0} is inside {1} | {0} 位于 {1} 之内 |

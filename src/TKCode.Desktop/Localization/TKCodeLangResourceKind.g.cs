@@ -827,7 +827,6 @@ public enum TKCodeLangResourceKind
     NoProjects,
     SessionsInProjectFormat,
     SessionsNoProject,
-    ClearProjectFilter,
     ShowMoreProjectsFormat,
     Collapse,
     FolderMissing,

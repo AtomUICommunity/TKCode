@@ -209,24 +209,17 @@
                             <StackPanel DockPanel.Dock="Top">
                                 <TextBlock Classes="secondary" Text="{loc:TKCodeLangResource NoSessions}" FontSize="12" Margin="8,8,0,0"
                                            IsVisible="{Binding Sidebar.HasNoSessions}" />
-                                <!-- 会话区标题：筛选中为「会话 · 项目名」，✕ 清除筛选 -->
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,2">
-                                    <Button Theme="{StaticResource TKCode.RowButton}" MinHeight="28" Padding="8,0" Command="{Binding Sidebar.ToggleSessionsCommand}">
-                                        <Grid ColumnDefinitions="Auto,*">
-                                            <TextBlock x:Name="SessionsTitle" Classes="section" Text="{Binding Sidebar.SessionsTitle}" VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis" />
-                                            <icons:LucideIcon Grid.Column="1" Kind="ChevronDown" Width="12" Height="12" Margin="4,0,0,0" HorizontalAlignment="Left"
-                                                              motion:Turn.IsOn="{Binding !Sidebar.IsSessionsExpanded}" motion:Turn.Angle="-90"
-                                                              StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
-                                        </Grid>
-                                    </Button>
-                                    <Button x:Name="ClearProjectFilterButton" Grid.Column="1" Theme="{StaticResource TKCode.RowButton}" Width="24" MinHeight="24" Padding="0"
-                                            Margin="2,0,0,0" HorizontalContentAlignment="Center" IsVisible="{Binding Sidebar.IsFiltered}"
-                                            Command="{Binding Sidebar.ClearFilterCommand}" arc:Tooltip.Tip="{loc:TKCodeLangResource ClearProjectFilter}"
-                                            AutomationProperties.Name="{loc:TKCodeLangResource ClearProjectFilter}">
-                                        <icons:LucideIcon Kind="X" Width="13" Height="13" StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
-                                    </Button>
-                                </Grid>
+                                <!-- 会话区标题：筛选中为「会话 · 项目名」 -->
+                                <Button Theme="{StaticResource TKCode.RowButton}" MinHeight="28" Padding="8,0" Margin="0,8,0,2"
+                                        Command="{Binding Sidebar.ToggleSessionsCommand}">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <TextBlock x:Name="SessionsTitle" Classes="section" Text="{Binding Sidebar.SessionsTitle}" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <icons:LucideIcon Grid.Column="1" Kind="ChevronDown" Width="12" Height="12" Margin="4,0,0,0" HorizontalAlignment="Left"
+                                                          motion:Turn.IsOn="{Binding !Sidebar.IsSessionsExpanded}" motion:Turn.Angle="-90"
+                                                          StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
+                                    </Grid>
+                                </Button>
                             </StackPanel>
                             <motion:Reveal IsOpen="{Binding Sidebar.IsSessionsExpanded}" Offset="-10">
                             <!-- 分页：默认显示 20 条；Host 多返回一条说明还有下一页，列表底部固定显示“展开更多”。 -->

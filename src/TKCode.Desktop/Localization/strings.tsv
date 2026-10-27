@@ -822,7 +822,6 @@ ProjectMoreActionsFormat	More actions for {0}	{0} 的更多操作
 NoProjects	No projects yet	还没有项目
 SessionsInProjectFormat	Sessions · {0}	会话 · {0}
 SessionsNoProject	Sessions · No project	会话 · 无项目
-ClearProjectFilter	Show all sessions	显示全部会话
 ShowMoreProjectsFormat	Show more ({0})	展开更多（{0}）
 Collapse	Show less	收起
 FolderMissing	Not found	不存在

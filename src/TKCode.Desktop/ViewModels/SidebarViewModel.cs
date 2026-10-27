@@ -200,8 +200,7 @@ public sealed partial class SidebarViewModel : ObservableObject
     [RelayCommand]
     private void SelectProject(ProjectRowViewModel row) => SetFilter(Filter?.Id == row.Id ? null : row.Project);
 
-    [RelayCommand]
-    private void ClearFilter() => SetFilter(null);
+    public void ClearFilter() => SetFilter(null);
 
     /// <summary>项目行的「⊕」：选中这个项目，并在其中新建会话。</summary>
     [RelayCommand]

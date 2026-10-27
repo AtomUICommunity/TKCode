@@ -103,7 +103,7 @@ public sealed class ProjectSidebarTests
             Assert.Equal("会话 · CoWork", sidebar.SessionsTitle);
             Assert.True(cowork.IsSelected);
             Assert.Equal(coworkProject.Id, vm.Conversation.Workspace?.Id);
-            Assert.True(window.FindControl<Avalonia.Controls.Button>("ClearProjectFilterButton")!.IsVisible);
+            Assert.True(sidebar.IsFiltered);
 
             // 悬停在项目行上：显示「…」和「新建会话」
             var row = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Classes.Contains("projectRow") && g.DataContext == cowork);
@@ -150,7 +150,7 @@ public sealed class ProjectSidebarTests
             Assert.Equal("CoWork", sidebar.Projects[0].Name);
             sidebar.RemoveProject(coworkProject);
             Assert.DoesNotContain(sidebar.Projects, p => p.Name == "CoWork");
-            sidebar.ClearFilterCommand.Execute(null);
+            sidebar.ClearFilter();
             await WaitUntil(() => sidebar.VisibleSessions.Count == 5, "sessions after removing a project");
             Assert.False(sidebar.VisibleSessions.Single(s => s.DisplayTitle == "共享库升级").HasProject);
             window.Close();

@@ -27,7 +27,7 @@
         <motion:Popover x:Name="Popup" PlacementTarget="{Binding #Trigger}" Placement="BottomEdgeAlignedLeft" VerticalOffset="6" MinWidth="240"
                IsLightDismissEnabled="True" Opened="OnPopupOpened" Closed="OnPopupClosed">
             <controls:ZoomHost>
-            <Border Classes="menu" Margin="0,0,16,16">
+            <Border Classes="menu" Width="320" Margin="0,0,16,16">
                 <StackPanel Margin="4">
                     <Border Background="{DynamicResource TKCode.MenuInputBg}" CornerRadius="6" Margin="0,0,0,4">
                         <arc:Input x:Name="SearchBox" Classes="bare"

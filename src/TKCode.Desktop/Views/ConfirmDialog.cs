@@ -26,6 +26,7 @@ public static class ConfirmDialog
             ShowCloseButton = true,
             CloseButtonName = Strings.Get(TKCodeLangResourceKind.Close),
             Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+            ContentTemplate = null,
             Actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { cancel, confirm } },
         };
         var modal = new ScaledModal(surface);

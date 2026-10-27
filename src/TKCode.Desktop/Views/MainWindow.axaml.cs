@@ -140,24 +140,13 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
         }
     }
 
-    /// <summary>危险操作确认框（AtomUI MessageBox，确定按钮为“删除”）。</summary>
+    /// <summary>危险操作确认框（Arc 按钮，确定按钮为“删除”）。</summary>
     private Task<bool> ConfirmDangerAsync(string title, string message) =>
-        ConfirmAsync(title, message, Strings.Get(TKCodeLangResourceKind.SessionDelete));
+        ConfirmDialog.ShowAsync(this, title, message, Strings.Get(TKCodeLangResourceKind.SessionDelete), danger: true);
 
-    private async Task<bool> ConfirmAsync(string title, string message, string okText)
-    {
-        var result = await MessageBox.ShowMessageBoxModalAsync(
-            new Avalonia.Controls.TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 360 },
-            options: new MessageBoxOptions
-            {
-                Title = title,
-                Style = MessageBoxStyle.Confirm,  // Warning 只有确定按钮；Confirm 才带取消（Esc 也是取消）
-                OkButtonText = okText,
-                CancelButtonText = Strings.Get(TKCodeLangResourceKind.Cancel),
-            },
-            topLevel: this);
-        return result is DialogCode.Accepted;
-    }
+    /// <summary>通用确认框（Arc 按钮）。</summary>
+    private Task<bool> ConfirmAsync(string title, string message, string okText) =>
+        ConfirmDialog.ShowAsync(this, title, message, okText);
 
     /// <summary>
     /// 会话中的相对图片按会话的 cwd 解析；本地图片只允许读取已添加的项目的各个文件夹（以及当前会话追加的文件夹）之下的文件。

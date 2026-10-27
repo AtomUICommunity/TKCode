@@ -822,7 +822,6 @@
     <unit id="NoProjects"><segment><source>No projects yet</source><target state="translated">还没有项目</target></segment></unit>
     <unit id="SessionsInProjectFormat"><segment><source>Sessions · {0}</source><target state="translated">会话 · {0}</target></segment></unit>
     <unit id="SessionsNoProject"><segment><source>Sessions · No project</source><target state="translated">会话 · 无项目</target></segment></unit>
-    <unit id="ClearProjectFilter"><segment><source>Show all sessions</source><target state="translated">显示全部会话</target></segment></unit>
     <unit id="ShowMoreProjectsFormat"><segment><source>Show more ({0})</source><target state="translated">展开更多（{0}）</target></segment></unit>
     <unit id="Collapse"><segment><source>Show less</source><target state="translated">收起</target></segment></unit>
     <unit id="FolderMissing"><segment><source>Not found</source><target state="translated">不存在</target></segment></unit>
