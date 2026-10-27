@@ -1,4 +1,4 @@
-# 终端组件（docs/terminal）的 CI：原生库（libghostty-vt、libtkcodepty）→ 三平台测试 → AOT 发布与自检。
+# 终端组件（docs/terminal）的 CI：原生库（libtkcodepty；libghostty-vt 随 TKCode.Arc.Terminal 包发布）→ 三平台测试 → AOT 发布与自检。
 # 原生库在 Linux 上用 zig 交叉编译 linux / windows 目标；macOS 目标需要 Apple SDK，在 macOS runner 上构建。
 name: terminal
 
@@ -30,11 +30,9 @@ jobs:
         include:
           - host: linux
             os: ubuntu-24.04
-            rids: linux-x64 linux-arm64 win-x64 win-arm64
             pty_rids: linux-x64 linux-arm64
           - host: macos
             os: macos-15
-            rids: osx-arm64 osx-x64
             pty_rids: osx-arm64 osx-x64
     env:
       ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache-global
@@ -49,9 +47,7 @@ jobs:
           path: |
             ~/.cache/tkcode/zig
             ${{ github.workspace }}/.zig-cache-global
-          key: zig-${{ matrix.host }}-${{ hashFiles('native/toolchain.json', 'native/ghostty/ghostty-upstream.json') }}
-      - name: Build libghostty-vt
-        run: for rid in ${{ matrix.rids }}; do tools/terminal/build-ghostty.sh "$rid"; done
+          key: zig-${{ matrix.host }}-${{ hashFiles('native/toolchain.json') }}
       - name: Build libtkcodepty and spawn helper
         run: for rid in ${{ matrix.pty_rids }}; do native/tkcodepty/build.sh "$rid"; done
       - name: Check Linux glibc floor (2.28)
@@ -66,10 +62,8 @@ jobs:
         with:
           name: native-${{ matrix.host }}
           path: |
-            artifacts/native/*/*ghostty-vt.*
             artifacts/native/*/*tkcodepty.*
             artifacts/native/*/tkcode-pty-spawn
-            artifacts/native/*/ghostty-commit.txt
           if-no-files-found: error
 
   test:

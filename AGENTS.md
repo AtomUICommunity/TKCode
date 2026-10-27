@@ -14,7 +14,7 @@ AtomUI 6.2.6's isolated build tools require a .NET 10 Runtime (also included in 
 
 1. `git submodule update --init` — pulls `external/StreamMark`.
 2. `tools/streammark/pack.sh` — packs `TKCode.StreamMark.*` (the nuget.org package IDs, which `TKCode.Arc` also depends on) into `packages/streammark` (the local NuGet feed in `nuget.config`). Needs a Rust toolchain once, for the RaTeX native lib. After bumping the submodule, keep `StreamMarkVersion` in `Directory.Packages.props` in sync.
-3. Terminal work only: Zig 0.16.0 exactly — do not use a package-manager Zig. `tools/terminal/build-ghostty.sh` auto-installs the pinned version via `tools/terminal/install-zig.sh`.
+3. Terminal work only: Zig 0.16.0 exactly — do not use a package-manager Zig. `native/tkcodepty/build.sh` auto-installs the pinned version via `tools/terminal/install-zig.sh`.
 
 ## Commands
 
@@ -32,7 +32,7 @@ AtomUI 6.2.6's isolated build tools require a .NET 10 Runtime (also included in 
 
 Terminal native libraries (only for `TKCode.Terminal.*` / `native/` work):
 
-- `tools/terminal/build-ghostty.sh [rid]` builds `libghostty-vt` into `artifacts/native/<rid>/`; `native/tkcodepty/build.sh [rid]` builds the Unix PTY lib + spawn helper.
+- `native/tkcodepty/build.sh [rid]` builds the Unix PTY lib + spawn helper. `libghostty-vt` (pin, overlays, build script, bindings generator) now lives in the Arc repo and arrives with the `TKCode.Arc.Terminal` package.
 - MSBuild picks the libs up via `native/TerminalNative.targets`; a build without them only warns — run the scripts if terminal tests fail to load natives.
 
 ## Layout
@@ -41,7 +41,7 @@ Terminal native libraries (only for `TKCode.Terminal.*` / `native/` work):
 - `src/TKCode.Rpc.Contracts`: hand-written JSON-RPC 2.0 over stdio (replaced StreamJsonRpc, which breaks under AOT). `src/TKCode.AgentHost`: session-host process. `src/TKCode.Config`: settings shared by Host and Desktop.
 - `src/TKCode.Shell`: BCL-only shell detection and `agent.shell.profile` / `terminal.defaultProfile` resolution, shared by the agent `bash` tool and the pty host; platform access goes through `IShellSystem` so Windows rules are tested on any OS.
 - `src/TKCode.Runtimes`: external agent runtimes (Claude Code, Codex, ACP). `src/TKCode.Mcp`: MCP client.
-- `src/TKCode.Terminal.*`: Core (libghostty-vt bindings/facade), Pty, Protocol, Host (the `tkcode-ptyhost` process), Avalonia view.
+- `src/TKCode.Terminal.*`: Pty, Protocol, Host (the `tkcode-ptyhost` process). The libghostty-vt bindings/facade and the Avalonia `TerminalView` live in the `TKCode.Arc.Terminal` NuGet package (Arc repo, `src/TKCode.Arc.Terminal`; namespaces still `TKCode.Terminal.Core` / `TKCode.Terminal.Avalonia`). The native build (`tools/terminal/build-ghostty.sh`) and `gen-ghostty-bindings.sh` are in the Arc repo.
 - `src/TKCode.Desktop`: the Avalonia app. `native/`: Zig/C sources and toolchain pins. `tools/`: build/gen/package scripts. `bench/`: memory harness. `docs/`: architecture and design docs. `external/StreamMark`: submodule, do not commit changes from this repo into it casually.
 
 ## Hard rules

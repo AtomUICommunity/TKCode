@@ -10,11 +10,9 @@
     <Project Path="src/TKCode.Runtimes/TKCode.Runtimes.csproj" />
     <Project Path="src/TKCode.Mcp/TKCode.Mcp.csproj" />
     <Project Path="src/TKCode.Desktop/TKCode.Desktop.csproj" />
-    <Project Path="src/TKCode.Terminal.Core/TKCode.Terminal.Core.csproj" />
     <Project Path="src/TKCode.Terminal.Pty/TKCode.Terminal.Pty.csproj" />
     <Project Path="src/TKCode.Terminal.Protocol/TKCode.Terminal.Protocol.csproj" />
     <Project Path="src/TKCode.Terminal.Host/TKCode.Terminal.Host.csproj" />
-    <Project Path="src/TKCode.Terminal.Avalonia/TKCode.Terminal.Avalonia.csproj" />
   </Folder>
   <Folder Name="/bench/">
     <Project Path="bench/TKCode.MemoryHarness/TKCode.MemoryHarness.csproj" />

@@ -12,7 +12,7 @@ public sealed class RuntimeTests
     public void ReportsVersionAndBuildId()
     {
         Assert.False(string.IsNullOrEmpty(GhosttyRuntime.Version));
-        var library = Directory.GetFiles(AppContext.BaseDirectory, "*ghostty-vt.*").Single(f => !f.EndsWith(".txt"));
+        var library = Directory.GetFiles(AppContext.BaseDirectory, "*ghostty-vt.*", SearchOption.AllDirectories).Single(f => !f.EndsWith(".txt") && (!f.Contains("runtimes") || f.Contains(System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier)));
         Assert.Matches("\\+sha256:[0-9a-f]{64}$", GhosttyRuntime.ComputeBuildId(library));
     }
 

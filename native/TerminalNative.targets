@@ -1,7 +1,6 @@
 <Project>
     <!--
-      终端原生库：libghostty-vt（tools/terminal/build-ghostty.sh），以及 Unix 的 libtkcodepty 与 tkcode-pty-spawn（native/tkcodepty/build.sh）。
-      由 tools/terminal/build-*.sh 构建到 artifacts/native/<rid>/。
+      Unix 的 libtkcodepty 与 tkcode-pty-spawn（native/tkcodepty/build.sh）。libghostty-vt 随 TKCode.Arc.Terminal 包发布（Arc 仓库的 tools/terminal/sync-native.sh 从 artifacts/native/<rid>/ 取）。
       开发构建复制本机 RID 的库到输出目录根部（NativeLibrary 默认在应用目录查找）；
       带 -r 发布时复制目标 RID 的库。引用本项目的项目会经 ProjectReference 传递得到这些文件。
     -->
@@ -12,15 +11,9 @@
     </PropertyGroup>
     <ItemGroup>
         <!-- 通配符只匹配已存在的文件 -->
-        <None Include="$(TerminalNativeDir)*ghostty-vt.dylib;$(TerminalNativeDir)*ghostty-vt.so;$(TerminalNativeDir)*ghostty-vt.dll"
-              Link="%(Filename)%(Extension)"
-              CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
         <!-- Unix PTY：libtkcodepty 与 spawn helper（native/tkcodepty/build.sh） -->
         <None Include="$(TerminalNativeDir)*tkcodepty.dylib;$(TerminalNativeDir)*tkcodepty.so;$(TerminalNativeDir)tkcode-pty-spaw?"
               Link="%(Filename)%(Extension)"
               CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
     </ItemGroup>
-    <Target Name="WarnMissingTerminalNative" BeforeTargets="Build" Condition="!Exists('$(TerminalNativeDir)libghostty-vt.dylib') and !Exists('$(TerminalNativeDir)libghostty-vt.so') and !Exists('$(TerminalNativeDir)ghostty-vt.dll')">
-        <Warning Text="libghostty-vt for $(TerminalNativeRid) not found in $(TerminalNativeDir). Run tools/terminal/build-ghostty.sh $(TerminalNativeRid)." />
-    </Target>
 </Project>

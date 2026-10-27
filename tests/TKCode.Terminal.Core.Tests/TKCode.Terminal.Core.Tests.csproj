@@ -15,6 +15,6 @@
         <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\src\TKCode.Terminal.Core\TKCode.Terminal.Core.csproj" />
+        <PackageReference Include="TKCode.Arc.Terminal" />
     </ItemGroup>
 </Project>

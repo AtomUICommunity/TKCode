@@ -3,8 +3,8 @@
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <AtomUIVersion>6.2.8</AtomUIVersion>
         <AvaloniaVersion>12.1.4</AvaloniaVersion>
-        <StreamMarkVersion>0.1.0</StreamMarkVersion>
-        <ArcVersion>0.3.0-preview.5</ArcVersion>
+        <StreamMarkVersion>0.1.1</StreamMarkVersion>
+        <ArcVersion>0.3.1-preview.4</ArcVersion>
         <MicrosoftExtensionsVersion>11.0.0-rc.2.26504.105</MicrosoftExtensionsVersion>
     </PropertyGroup>
     <ItemGroup>
@@ -19,6 +19,7 @@
         <!-- 组件库：TKCode.Arc（Arc 风格，基于 AtomUI；精确依赖 AtomUI 与 Avalonia 版本，升级 AtomUI 时一起升） -->
         <PackageVersion Include="TKCode.Arc" Version="$(ArcVersion)" />
         <PackageVersion Include="TKCode.Arc.Icons.Lucide" Version="$(ArcVersion)" />
+        <PackageVersion Include="TKCode.Arc.Terminal" Version="$(ArcVersion)" />
         <!-- Markdown 渲染：StreamMark（独立仓库，包 ID 与 nuget.org 一致；TKCode.Arc 依赖同名包，见 nuget.config） -->
         <PackageVersion Include="TKCode.StreamMark.Avalonia" Version="$(StreamMarkVersion)" />
         <PackageVersion Include="TKCode.StreamMark.RaTeX" Version="$(StreamMarkVersion)" />

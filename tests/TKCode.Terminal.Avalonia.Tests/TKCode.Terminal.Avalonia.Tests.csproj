@@ -12,6 +12,6 @@
         <PackageReference Include="xunit.runner.visualstudio" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\src\TKCode.Terminal.Avalonia\TKCode.Terminal.Avalonia.csproj" />
+        <PackageReference Include="TKCode.Arc.Terminal" />
     </ItemGroup>
 </Project>

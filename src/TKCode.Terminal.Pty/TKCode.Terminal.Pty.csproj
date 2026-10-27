@@ -5,7 +5,8 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\TKCode.Terminal.Core\TKCode.Terminal.Core.csproj" />
+        <PackageReference Include="TKCode.Arc.Terminal" />
         <InternalsVisibleTo Include="TKCode.Terminal.Pty.Tests" />
     </ItemGroup>
+    <Import Project="..\..\native\TerminalNative.targets" />
 </Project>

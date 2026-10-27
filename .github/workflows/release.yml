@@ -162,17 +162,14 @@ jobs:
           path: |
             ~/.cache/tkcode/zig
             ${{ github.workspace }}/.zig-cache-global
-          key: zig-linux-${{ hashFiles('native/toolchain.json', 'native/ghostty/ghostty-upstream.json') }}
-      - run: for rid in linux-x64 win-x64; do tools/terminal/build-ghostty.sh "$rid"; done
+          key: zig-linux-${{ hashFiles('native/toolchain.json') }}
       - run: native/tkcodepty/build.sh linux-x64
       - uses: actions/upload-artifact@v4
         with:
           name: native-linux
           path: |
-            artifacts/native/*/*ghostty-vt.*
             artifacts/native/*/*tkcodepty.*
             artifacts/native/*/tkcode-pty-spawn
-            artifacts/native/*/ghostty-commit.txt
           if-no-files-found: error
 
   native-macos:
@@ -188,16 +185,14 @@ jobs:
           path: |
             ~/.cache/tkcode/zig
             ${{ github.workspace }}/.zig-cache-global
-          key: zig-macos-${{ hashFiles('native/toolchain.json', 'native/ghostty/ghostty-upstream.json') }}
-      - run: for rid in osx-arm64 osx-x64; do tools/terminal/build-ghostty.sh "$rid"; native/tkcodepty/build.sh "$rid"; done
+          key: zig-macos-${{ hashFiles('native/toolchain.json') }}
+      - run: for rid in osx-arm64 osx-x64; do native/tkcodepty/build.sh "$rid"; done
       - uses: actions/upload-artifact@v4
         with:
           name: native-macos
           path: |
-            artifacts/native/*/*ghostty-vt.*
             artifacts/native/*/*tkcodepty.*
             artifacts/native/*/tkcode-pty-spawn
-            artifacts/native/*/ghostty-commit.txt
           if-no-files-found: error
 
   windows:

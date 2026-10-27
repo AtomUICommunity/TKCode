@@ -29,6 +29,7 @@
         <PackageReference Include="TKCode.StreamMark.Theme.AtomUI" />
         <PackageReference Include="TKCode.Arc" />
         <PackageReference Include="TKCode.Arc.Icons.Lucide" />
+        <PackageReference Include="TKCode.Arc.Terminal" />
         <PackageReference Include="CommunityToolkit.Mvvm" />
         <PackageReference Include="Microsoft.Extensions.Hosting" />
     </ItemGroup>
@@ -39,7 +40,6 @@
         <!-- Agent Host 作为独立进程运行；引用它只为保证先构建并把产物复制到 agenthost/ 目录 -->
         <ProjectReference Include="..\TKCode.AgentHost\TKCode.AgentHost.csproj" ReferenceOutputAssembly="false" />
         <!-- 终端：视图与协议库；pty host 作为独立进程（04 §1.1），同样只为先构建并复制产物到 ptyhost/ 目录 -->
-        <ProjectReference Include="..\TKCode.Terminal.Avalonia\TKCode.Terminal.Avalonia.csproj" />
         <ProjectReference Include="..\TKCode.Terminal.Protocol\TKCode.Terminal.Protocol.csproj" />
         <ProjectReference Include="..\TKCode.Terminal.Host\TKCode.Terminal.Host.csproj" ReferenceOutputAssembly="false" />
     </ItemGroup>
