@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.7
+
+The terminal view and its libghostty-vt bindings now come from the `TKCode.Arc.Terminal` NuGet package, and the app moves to Arc 0.3.1-preview.4 and StreamMark 0.1.1. Delete confirmations use the same buttons as the rest of the app.
+
+### Changed
+
+- **Terminal component.** The terminal view and the managed libghostty-vt facade moved out of this repository into the Arc component library (`TKCode.Arc.Terminal`), which also carries the native library for Windows, macOS and Linux. The pty host, its protocol and the terminal features themselves are unchanged.
+- **Dependencies.** TKCode.Arc and TKCode.Arc.Icons.Lucide 0.3.1-preview.4, and StreamMark 0.1.1.
+- **Confirmation dialogs.** Confirming a destructive action, such as deleting a session, uses the Arc buttons, and the delete button is marked as dangerous.
+- **Project sidebar.** The sessions heading no longer has a separate ✕ button, and the project menu has a fixed width of 320.
+
+### Fixed
+
+- Starting a terminal from a development build no longer fails with "the pty host belongs to a different installation (build mismatch)": the app and the pty host now locate `libghostty-vt` the same way, including in the `runtimes/<rid>/native` layout of a package.
+
+**Full Changelog**: https://github.com/AtomUICommunity/TKCode/compare/v0.1.6...v0.1.7
+
 ## 0.1.6
 
 Adds projects: a project list in the sidebar, a dialog to create and edit projects, and projects with several folders that the agent can read and edit. Subagents get their own card in the transcript and a tab on the right that shows their full messages. The file explorer gains a context menu with rename, create and move to Trash.
