@@ -34,8 +34,8 @@ public sealed class PtyHostService(ILogger<PtyHostService> logger, UserSettingsS
     {
         get
         {
-            var lib = Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "ghostty-vt.dll" : OperatingSystem.IsMacOS() ? "libghostty-vt.dylib" : "libghostty-vt.so");
-            return File.Exists(lib) ? GhosttyRuntime.ComputeBuildId(lib) : GhosttyRuntime.Version;
+            var lib = PtyHostPaths.FindGhosttyLibrary(AppContext.BaseDirectory);
+            return lib is not null ? GhosttyRuntime.ComputeBuildId(lib) : GhosttyRuntime.Version;
         }
     }
 

@@ -131,8 +131,7 @@ internal static partial class HostMain
     /// <summary>ghosttyBuildId = 版本 + 库文件 SHA-256（02 §3、04 §2.4）。</summary>
     internal static string GhosttyBuildId()
     {
-        var dir = AppContext.BaseDirectory;
-        var lib = new[] { "libghostty-vt.dylib", "libghostty-vt.so", "ghostty-vt.dll" }.Select(n => Path.Combine(dir, n)).FirstOrDefault(File.Exists);
+        var lib = PtyHostPaths.FindGhosttyLibrary(AppContext.BaseDirectory);
         return lib is null ? GhosttyRuntime.Version : GhosttyRuntime.ComputeBuildId(lib);
     }
 

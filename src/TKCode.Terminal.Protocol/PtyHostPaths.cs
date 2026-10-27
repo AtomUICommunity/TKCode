@@ -21,6 +21,28 @@ public static class PtyHostPaths
 
     public static string LogDirectory(string home) => Path.Combine(home, "logs", "ptyhost");
 
+    /// <summary>
+    /// 目录里的 libghostty-vt：先找根目录（带 -r 发布 / 旧布局），再找 NuGet 包的 <c>runtimes/&lt;rid&gt;/native/</c>（不带 RID 的开发构建）。
+    /// Desktop 与 host 必须用同一套规则，否则两边算出的构建 ID 不一致（build mismatch）。
+    /// </summary>
+    public static string? FindGhosttyLibrary(string directory)
+    {
+        string[] names = ["libghostty-vt.dylib", "libghostty-vt.so", "ghostty-vt.dll"];
+        var rid = System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
+        foreach (var dir in new[] { directory, Path.Combine(directory, "runtimes", rid, "native") })
+        {
+            foreach (var name in names)
+            {
+                var path = Path.Combine(dir, name);
+                if (File.Exists(path))
+                {
+                    return path;
+                }
+            }
+        }
+        return null;
+    }
+
     /// <summary><c>hex(SHA-256(protocolMajor ‖ appVersion ‖ ghosttyBuildId))[0..12]</c>。</summary>
     public static string ComputeBuild(string appVersion, string ghosttyBuildId, int protocolMajor = 1) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{protocolMajor}\n{appVersion}\n{ghosttyBuildId}")))[..12];
