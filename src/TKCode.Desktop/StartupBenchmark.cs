@@ -19,7 +19,7 @@ internal static class StartupBenchmark
             .UseSkia()
             .UseHarfBuzz()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
-            .UseTKCodeAtomUI()
+            .UseTKCodeArc()
             .SetupWithoutStarting();
 
         var vm = App.Services!.GetRequiredService<MainWindowViewModel>();

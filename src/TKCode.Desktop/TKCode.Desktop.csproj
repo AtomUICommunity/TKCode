@@ -19,14 +19,14 @@
         <AvaloniaResource Include="Assets\**" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="AtomUI.Desktop.Controls" />
         <!-- 冒烟模式（TKCode smoke 参数）在发布后的二进制中以无头平台运行真实界面 -->
+        <PackageReference Include="Avalonia.Desktop" />
+        <PackageReference Include="Svg.Controls.Avalonia" />
         <PackageReference Include="Avalonia.Headless" />
         <PackageReference Include="TKCode.StreamMark.Avalonia" />
         <PackageReference Include="TKCode.StreamMark.RaTeX" />
         <PackageReference Include="TKCode.StreamMark.Highlighting.TextMate" />
         <PackageReference Include="TKCode.StreamMark.Mermaid" />
-        <PackageReference Include="TKCode.StreamMark.Theme.AtomUI" />
         <PackageReference Include="TKCode.Arc" />
         <PackageReference Include="TKCode.Arc.Icons.Lucide" />
         <PackageReference Include="TKCode.Arc.Terminal" />

@@ -1,12 +1,9 @@
-using AtomUI;
-using AtomUI.Desktop.Controls;
-using AtomUI.Localization;
-using AtomUI.Theme.Definitions;
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TKCode.Arc;
+using TKCode.Arc.Localization;
 using TKCode.Config;
 using TKCode.Desktop.Services;
 using TKCode.Desktop.Updates;
@@ -90,37 +87,28 @@ internal static class Program
     // XAML 预览器也会调用此方法（不经过 Main）。
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>()
-                  .UseAtomUIPlatformDetect()
-                  .WithAtomUIDefaultOptions()
-                  .UseTKCodeAtomUI()
+                  .UsePlatformDetect()
+                  .UseTKCodeArc()
                   .LogToTrace();
 
     /// <summary>
-    /// AtomUI 6.2.6 的配置回调在平台初始化之前执行，只能声明包与设置。
+    /// 注册 Arc：控件、语言、初始明暗。
     /// 无头测试、冒烟模式和首帧基准各自构建 AppBuilder，必须走同一入口。
     /// </summary>
-    internal static AppBuilder UseTKCodeAtomUI(this AppBuilder builder) =>
-        builder.UseAtomUI(static atom =>
+    internal static AppBuilder UseTKCodeArc(this AppBuilder builder) =>
+        builder.UseArc(static arc =>
         {
-            atom.WithApplicationId("TKCode");
             var settings = App.Services?.GetRequiredService<UserSettingsService>();
             var themes = App.Services?.GetRequiredService<ThemeService>();
             var language = LanguageTag.TryParse(settings?.Current.Language, out var tag) && (tag == LanguageTags.EnUS || tag == LanguageTags.ZhCN)
                 ? tag
                 : LanguageTags.ZhCN;
-            atom.UseLanguages(language, [LanguageTags.EnUS, LanguageTags.ZhCN]);
-            atom.AddThemeDefinitionResolver(new AvaloniaAssetThemeDefinitionResolver(
-                "TKCode.Themes",
-                [
-                    new Uri("avares://TKCode/Assets/Themes/TKCodeDark.theme.xml"),
-                    new Uri("avares://TKCode/Assets/Themes/TKCodeLight.theme.xml"),
-                ],
-                typeof(App).Assembly.GetName().Version?.ToString() ?? "1"));
-            atom.WithInitialTheme(themes?.ResolveInitialThemeId() ?? ThemeService.DarkThemeId);
-            atom.WithDefaultFontFamily("$Default");
-            atom.UseDesktopControls();
-            // Arc 组件库（TKCode.Arc）：设置页等处的表单控件；主题令牌随 TKCodeDark / TKCodeLight 的明暗算法生成
-            atom.UseArc();
+            arc.UseArcControls();
+            // 应用自己的文案目录（Localization/*.xlf → TKCodeLangResources）
+            arc.UsePackage(TKCode.Arc.Generated.TKCode.ArcGeneratedAssets.PackageId,
+                static package => TKCode.Arc.Generated.TKCode.ArcGeneratedAssets.AddTo(package.DependsOn(static b => b.UseArcControls())));
+            arc.UseLanguages(language, [LanguageTags.EnUS, LanguageTags.ZhCN]);
+            arc.WithTheme(t => t.Appearance(themes?.InitialAppearance ?? ArcAppearance.Dark));
         });
 
     internal static void ConfigureServices(IServiceCollection services)

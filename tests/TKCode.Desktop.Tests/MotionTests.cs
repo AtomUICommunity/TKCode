@@ -10,10 +10,10 @@ namespace TKCode.Desktop.Tests;
 /// <summary>动效基础件：过程连续、可中途反向、结束状态与无动效时一致。</summary>
 public sealed partial class MotionTests
 {
-    private static (AtomUI.Desktop.Controls.Window Window, StackPanel Root) CreateWindow()
+    private static (Avalonia.Controls.Window Window, StackPanel Root) CreateWindow()
     {
         var root = new StackPanel { Width = 300, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
-        var window = new AtomUI.Desktop.Controls.Window { Width = 400, Height = 400, Content = root, Background = Brushes.Black };
+        var window = new Avalonia.Controls.Window { Width = 400, Height = 400, Content = root, Background = Brushes.Black };
         window.Show();
         Dispatcher.UIThread.RunJobs();
         return (window, root);
@@ -205,7 +205,7 @@ public sealed partial class MotionTests
         {
             var composer = new TKCode.Desktop.Views.ComposerView { Width = 640, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
             composer.Classes.Add("compact");
-            var window = new AtomUI.Desktop.Controls.Window { Width = 700, Height = 400, Content = composer, Background = Brushes.Black };
+            var window = new Avalonia.Controls.Window { Width = 700, Height = 400, Content = composer, Background = Brushes.Black };
             window.Show();
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
@@ -309,7 +309,7 @@ public sealed partial class MotionTests
             Entrance.SetEffect(oldView, PresenceEffect.SlideUp);
             Entrance.SetEffect(newView, PresenceEffect.SlideUp);
             var root = new StackPanel { Children = { oldView, newView } };
-            var window = new AtomUI.Desktop.Controls.Window { Width = 300, Height = 200, Content = root };
+            var window = new Avalonia.Controls.Window { Width = 300, Height = 200, Content = root };
             window.Show();
             Dispatcher.UIThread.RunJobs();
             HeadlessApp.Step(window, 30);
@@ -331,7 +331,7 @@ public sealed partial class MotionTests
                 row.Children.Add(item);
             }
             var panel = new IndicatorPanel { IndicatorBrush = Brushes.Purple, Child = row, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left };
-            var window = new AtomUI.Desktop.Controls.Window { Width = 300, Height = 120, Content = panel, Background = Brushes.Black };
+            var window = new Avalonia.Controls.Window { Width = 300, Height = 120, Content = panel, Background = Brushes.Black };
             window.Show();
             IndicatorPanel.SetIsCurrent(items[0], true);
             Dispatcher.UIThread.RunJobs();
@@ -364,7 +364,7 @@ public sealed partial class MotionTests
             var target = new Border { Width = 260, Height = 50, Margin = new Thickness(20, 0, 0, 20), IsVisible = false,
                                       HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
             var container = new Grid { Children = { source, target } };
-            var window = new AtomUI.Desktop.Controls.Window { Width = 400, Height = 400, Content = container };
+            var window = new Avalonia.Controls.Window { Width = 400, Height = 400, Content = container };
             window.Show();
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();

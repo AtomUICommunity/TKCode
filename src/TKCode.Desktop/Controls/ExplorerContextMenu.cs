@@ -352,7 +352,7 @@ public sealed class ExplorerContextMenu : IDisposable
             }
         }
 
-        protected override void AdjustPlacementAnchor(CustomPopupPlacement placement, ref bool flipX, ref bool flipY)
+        protected override void AdjustPlacementAnchor(CustomPopupPlacement placement)
         {
             if (PlacementTarget is { } target && TopLevel.GetTopLevel(target) is { } topLevel &&
                 target.TranslatePoint(position, topLevel) is { } client)
@@ -360,9 +360,6 @@ public sealed class ExplorerContextMenu : IDisposable
                 client = new Point(Math.Clamp(client.X, 8, Math.Max(8, topLevel.ClientSize.Width - 8)),
                     Math.Clamp(client.Y, 8, Math.Max(8, topLevel.ClientSize.Height - 8)));
                 placement.AnchorRectangle = new Rect(client, new Size(1, 1));
-                var size = placement.PopupSize.Deflate(placement.Deflate);
-                flipX = client.X + size.Width > topLevel.ClientSize.Width && client.X >= size.Width;
-                flipY = client.Y + size.Height > topLevel.ClientSize.Height && client.Y >= size.Height;
             }
         }
 

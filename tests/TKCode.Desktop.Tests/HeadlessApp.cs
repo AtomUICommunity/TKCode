@@ -17,7 +17,7 @@ public static class HeadlessApp
         return AppBuilder.Configure<App>()
                   .UseSkia()
                   .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
-                  .UseTKCodeAtomUI();
+                  .UseTKCodeArc();
     }
 
     /// <summary>在手动动效时钟下运行：打开动效，结束时把残留动画推进完并恢复关闭。</summary>

@@ -66,7 +66,7 @@ internal static class SmokeMode
                 .UseSkia()
                 .UseHarfBuzz()
                 .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
-                .UseTKCodeAtomUI()
+                .UseTKCodeArc()
                 .SetupWithoutStarting();
 
             var vm = provider.GetRequiredService<MainWindowViewModel>();

@@ -107,7 +107,7 @@ public sealed class ContextUsageCardTests
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
                 Margin = new Thickness(0, 0, 40, 40),
             };
-            var window = new AtomUI.Desktop.Controls.Window { Width = 400, Height = 300, Background = Brushes.Black, Content = hover };
+            var window = new Avalonia.Controls.Window { Width = 400, Height = 300, Background = Brushes.Black, Content = hover };
             window.Show();
             Dispatcher.UIThread.RunJobs();
             hover.Popup!.ShouldUseOverlayLayer = true;
@@ -165,7 +165,7 @@ public sealed class ContextUsageCardTests
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
                 Margin = new Thickness(0, 0, 40, 40),
             };
-            var window = new AtomUI.Desktop.Controls.Window { Width = 400, Height = 300, Background = Brushes.Black, Content = hover };
+            var window = new Avalonia.Controls.Window { Width = 400, Height = 300, Background = Brushes.Black, Content = hover };
             window.Show();
             Dispatcher.UIThread.RunJobs();
             hover.Popup!.ShouldUseOverlayLayer = true;

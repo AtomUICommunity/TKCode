@@ -4,7 +4,6 @@
 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
              xmlns:sm="using:StreamMark.Avalonia.Transcript"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:controls="using:TKCode.Desktop.Controls"
@@ -12,8 +11,7 @@
              x:Class="TKCode.Desktop.Views.SubagentTabView"
              x:DataType="vm:SubagentTabViewModel">
     <Panel>
-        <sm:TranscriptView x:Name="Transcript" MaxContentWidth="760" Padding="24,12,24,16" EntrySpacing="12"
-                           atom:ScrollViewer.IsLiteMode="True" />
+        <sm:TranscriptView x:Name="Transcript" MaxContentWidth="760" Padding="24,12,24,16" EntrySpacing="12" />
         <controls:DotSpinner Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsLoading}" />
         <TextBlock Classes="secondary" Text="{Binding Error}" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="360"
                    HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />

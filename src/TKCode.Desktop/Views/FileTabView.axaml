@@ -1,7 +1,6 @@
 <!-- 文件标签：面包屑 + 查看方式切换（预览 / 源码……）+ 预览器内容（每种 FilePreviewViewModel 一个模板）。 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
              xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:smv="using:StreamMark.Avalonia"
              xmlns:smx="using:StreamMark.Avalonia.Extensions"
@@ -63,7 +62,7 @@
             <ContentControl Content="{Binding Preview}" IsVisible="{Binding !HasNotice}">
                 <ContentControl.DataTemplates>
                     <DataTemplate DataType="previews:CodePreviewViewModel">
-                        <ScrollViewer HorizontalScrollBarVisibility="Auto" atom:ScrollViewer.IsLiteMode="True">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto">
                             <controls:CodeView Text="{Binding Text}" Language="{Binding Language}"
                                                FontFamily="{StaticResource TKCode.MonoFont}" FontSize="12.5" LineHeight="20"
                                                Foreground="{DynamicResource TKCode.TextPrimary}"

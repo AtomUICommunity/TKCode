@@ -1,5 +1,3 @@
-using AtomUI;
-using AtomUI.Theme;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -93,16 +91,15 @@ public sealed class MermaidThemeSnapshotTests
 
     /// <summary>其它测试默认运行在暗色主题下，用完恢复。</summary>
     private static Task RestoreDarkTheme() =>
-        Application.Current!.GetThemeManager()!.ApplyThemeAsync(new ThemeRequest(ThemeService.DarkThemeId, null, ThemeTransitionReason.UserRequest));
+        TestTheme.ApplyAsync(TestTheme.DarkId);
 
-    private static async Task<AtomUI.Desktop.Controls.Window> Show(bool dark, MarkdownServices services, string source)
+    private static async Task<Avalonia.Controls.Window> Show(bool dark, MarkdownServices services, string source)
     {
-        var manager = Application.Current!.GetThemeManager()!;
-        await manager.ApplyThemeAsync(new ThemeRequest(dark ? ThemeService.DarkThemeId : ThemeService.LightThemeId, null, ThemeTransitionReason.UserRequest));
+        await TestTheme.ApplyAsync(dark ? TestTheme.DarkId : TestTheme.LightId);
         var view = new MarkdownView();
         MarkdownServices.SetServices(view, services);
         view.Markdown = "```mermaid\n" + source + "\n```\n";
-        var window = new AtomUI.Desktop.Controls.Window
+        var window = new Avalonia.Controls.Window
         {
             Width = 1100,
             Height = 720,

@@ -1,5 +1,3 @@
-using AtomUI;
-using AtomUI.Theme;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
@@ -604,12 +602,9 @@ public sealed class ArcFileExplorerTreeTests
         await WithTree(["src/Controls/Button.cs", "src/App.cs", "assets/logo.svg", "empty/", "README.md", "package.json", ".env"], async fixture =>
         {
             var oldScale = UiZoom.Scale;
-            var manager = Application.Current!.GetThemeManager()!;
             try
             {
-                var theme = await manager.ApplyThemeAsync(new ThemeRequest(
-                    light ? ThemeService.LightThemeId : ThemeService.DarkThemeId, null, ThemeTransitionReason.UserRequest));
-                Assert.NotEqual(ThemeTransitionStatus.Failed, theme.Status);
+                await TestTheme.ApplyAsync(light ? TestTheme.LightId : TestTheme.DarkId);
                 UiZoom.Scale = scale;
                 await fixture.Explorer.RevealAsync(Path.Combine(fixture.Root, "src", "Controls", "Button.cs"));
                 await fixture.Explorer.ExpandAsync(fixture.Explorer.RootNodes.Single(n => n.Name == "empty"));
@@ -623,7 +618,7 @@ public sealed class ArcFileExplorerTreeTests
             finally
             {
                 UiZoom.Scale = oldScale;
-                await manager.ApplyThemeAsync(new ThemeRequest(ThemeService.DarkThemeId, null, ThemeTransitionReason.UserRequest));
+                await TestTheme.ApplyAsync(TestTheme.DarkId);
             }
         });
     }
@@ -744,7 +739,7 @@ public sealed class ArcFileExplorerTreeTests
             Grid.SetRow(Tree, 1);
             layout.Children.Add(Tree);
             Zoom = new ZoomHost { Child = layout };
-            Window = new AtomUI.Desktop.Controls.Window { Width = 420, Height = 460, Content = Zoom };
+            Window = new Avalonia.Controls.Window { Width = 420, Height = 460, Content = Zoom };
             Window.Show();
             Dispatcher.UIThread.RunJobs();
             Window.UpdateLayout();

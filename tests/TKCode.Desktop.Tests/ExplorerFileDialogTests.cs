@@ -1,5 +1,3 @@
-using AtomUI;
-using AtomUI.Theme;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -279,13 +277,10 @@ public sealed class ExplorerFileDialogTests
     public Task Dialogs_RenderInputValidationAndTrashWarning_InDarkAndLightThemes(bool light) => OnUi(async () =>
     {
         var suffix = light ? "light" : "dark";
-        var manager = Application.Current!.GetThemeManager()!;
-        var previousTheme = manager.CurrentTheme!.ThemeId;
+        var previousTheme = TestTheme.CurrentId;
         try
         {
-            var transition = await manager.ApplyThemeAsync(new ThemeRequest(
-                light ? ThemeService.LightThemeId : ThemeService.DarkThemeId, null, ThemeTransitionReason.UserRequest));
-            Assert.NotEqual(ThemeTransitionStatus.Failed, transition.Status);
+            await TestTheme.ApplyAsync(light ? TestTheme.LightId : TestTheme.DarkId);
             using (var rename = new DialogHarness(new ExplorerFileDialogRequest(
                 ExplorerAction.Rename, Path.Combine(Path.GetTempPath(), "project", "Agent.cs"), false, "Agent.cs",
                 _ => Task.FromException(new IOException("A file with this name already exists."))), light))
@@ -321,7 +316,7 @@ public sealed class ExplorerFileDialogTests
         }
         finally
         {
-            await manager.ApplyThemeAsync(new ThemeRequest(previousTheme, null, ThemeTransitionReason.UserRequest));
+            await TestTheme.ApplyAsync(previousTheme);
         }
     });
 
@@ -389,7 +384,7 @@ public sealed class ExplorerFileDialogTests
 
         public DialogHarness(Func<Window, Task> show, bool light = false)
         {
-            Owner = new AtomUI.Desktop.Controls.Window
+            Owner = new Avalonia.Controls.Window
             {
                 Width = 1400,
                 Height = 1000,

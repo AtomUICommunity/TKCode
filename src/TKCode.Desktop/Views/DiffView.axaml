@@ -1,7 +1,6 @@
 <!-- 统一 diff：双行号列、整行着色、左侧色条；块头为分隔行。工具步骤与变更面板共用。 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              x:Class="TKCode.Desktop.Views.DiffView">
     <UserControl.Styles>
@@ -43,7 +42,7 @@
         </Style>
     </UserControl.Styles>
     <Border Background="{DynamicResource TKCode.CodeBg}" CornerRadius="8" ClipToBounds="True">
-        <ScrollViewer x:Name="Scroller" atom:ScrollViewer.IsLiteMode="True"
+        <ScrollViewer x:Name="Scroller"
                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
             <ItemsControl x:Name="Rows" Padding="0,6">
                 <ItemsControl.ItemTemplate>

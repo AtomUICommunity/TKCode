@@ -2,7 +2,6 @@
      文件超过预览数量时默认只列前几个，底部“还有 N 个文件”展开其余。 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:icons="using:TKCode.Desktop.Icons"
              xmlns:loc="using:TKCode.Desktop.Localization"

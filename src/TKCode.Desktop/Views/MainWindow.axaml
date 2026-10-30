@@ -1,6 +1,5 @@
-<atom:Window xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
              xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:lucide="https://github.com/AIDotNet/TKCode.Arc/lucide"
              xmlns:motion="using:TKCode.Desktop.Motion"
@@ -16,7 +15,7 @@
              Title="TKCode"
              Icon="avares://TKCode/Assets/app-logo.png"
              Width="1280" Height="800" MinWidth="880" MinHeight="560"
-             IsTitleBarVisible="False"
+             ExtendClientAreaToDecorationsHint="True"
              Background="{DynamicResource TKCode.WindowBg}"
              Foreground="{DynamicResource TKCode.TextPrimary}">
     <!-- 界面缩放：整个窗口内容等比缩放（弹层各自包一层 ZoomHost） -->
@@ -561,8 +560,7 @@
                             <!-- 会话：StreamMark 虚拟化会话视图（正文块按顶层 Markdown 块虚拟化，可跨消息选择）；
                                  其余条目（用户消息、思考、工具调用、消息底栏、等待指示）使用 Views/TranscriptTemplates.axaml 的数据模板 -->
                             <Panel>
-                            <sm:TranscriptView x:Name="Transcript" MaxContentWidth="760" Padding="32,8,32,16" EntrySpacing="12"
-                                               atom:ScrollViewer.IsLiteMode="True" />
+                            <sm:TranscriptView x:Name="Transcript" MaxContentWidth="760" Padding="32,8,32,16" EntrySpacing="12" />
                             <!-- 任务球（右上角）：收起是一个球，展开是 Agent / Shell / 任务清单 / 更改 -->
                             <views:TaskOrbView x:Name="TaskOrb" DataContext="{Binding Conversation.Active, FallbackValue={x:Null}}"
                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,20,0" />
@@ -904,4 +902,4 @@
         </StackPanel>
     </Grid>
     </controls:ZoomHost>
-</atom:Window>
+</Window>

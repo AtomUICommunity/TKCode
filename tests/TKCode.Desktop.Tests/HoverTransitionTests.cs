@@ -53,7 +53,7 @@ public sealed class HoverTransitionTests
             Width = 50, Height = 20, Background = Brushes.Transparent,
             Transitions = [new Avalonia.Animation.BrushTransition { Property = Border.BackgroundProperty, Duration = TimeSpan.FromMilliseconds(140) }],
         };
-        var window = new AtomUI.Desktop.Controls.Window { Width = 300, Height = 200, Content = new StackPanel { Children = { button, builtIn } } };
+        var window = new Avalonia.Controls.Window { Width = 300, Height = 200, Content = new StackPanel { Children = { button, builtIn } } };
         window.Show();
         Dispatcher.UIThread.RunJobs();
 

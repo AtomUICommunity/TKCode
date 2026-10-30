@@ -1,5 +1,4 @@
-using AtomUI;
-using AtomUI.Localization;
+using TKCode.Arc.Localization;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -158,7 +157,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Sidebar.OpenProject(path);
     }
 
-    public bool IsChinese => Application.Current?.GetLanguageManager()?.Current.CurrentLanguage == LanguageTags.ZhCN;
+    public bool IsChinese => ArcLanguage.Current == LanguageTags.ZhCN;
 
     [ObservableProperty]
     public partial bool IsSidebarOpen { get; set; } = true;
@@ -185,16 +184,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void ZoomReset() => userSettings.SetUiScale(UiScaleLevels.Default);
 
-    /// <summary>在中文与英文之间切换；AtomUI 内置控件文案随之切换，选择保存到 settings.json。</summary>
+    /// <summary>在中文与英文之间切换；Arc 内置控件文案随之切换，选择保存到 settings.json。</summary>
     [RelayCommand]
     private Task ToggleLanguage() => SetLanguageAsync(IsChinese ? "en-US" : "zh-CN");
 
     private Task SetLanguageAsync(string language)
     {
-        if (Application.Current?.GetLanguageManager() is { } manager && LanguageTag.TryParse(language, out var tag) &&
+        if (ArcLanguageManager.Current is { } manager && LanguageTag.TryParse(language, out var tag) &&
             (tag == LanguageTags.EnUS || tag == LanguageTags.ZhCN))
         {
-            manager.ChangeLanguage(tag);
+            manager.Set(tag);
             userSettings.SetLanguage(tag.Value);
             OnPropertyChanged(nameof(IsChinese));
         }

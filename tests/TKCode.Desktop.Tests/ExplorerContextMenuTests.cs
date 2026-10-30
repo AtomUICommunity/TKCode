@@ -1,5 +1,3 @@
-using AtomUI;
-using AtomUI.Theme;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -250,11 +248,9 @@ public sealed class ExplorerContextMenuTests
         await WithTree(["folder/a.cs"], async fixture =>
         {
             var oldScale = UiZoom.Scale;
-            var manager = Application.Current!.GetThemeManager()!;
             try
             {
-                await manager.ApplyThemeAsync(new ThemeRequest(light ? ThemeService.LightThemeId : ThemeService.DarkThemeId,
-                    null, ThemeTransitionReason.UserRequest));
+                await TestTheme.ApplyAsync(light ? TestTheme.LightId : TestTheme.DarkId);
                 UiZoom.Scale = scale;
                 await Settle(fixture.Window);
                 using var menu = new ExplorerContextMenu(fixture.Explorer, fixture.Window, Fail);
@@ -276,7 +272,7 @@ public sealed class ExplorerContextMenuTests
             finally
             {
                 UiZoom.Scale = oldScale;
-                await manager.ApplyThemeAsync(new ThemeRequest(ThemeService.DarkThemeId, null, ThemeTransitionReason.UserRequest));
+                await TestTheme.ApplyAsync(TestTheme.DarkId);
             }
         });
     }

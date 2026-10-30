@@ -1,7 +1,6 @@
 <!-- 工具步骤展开后的内容：完整参数；有 diff 时显示着色 diff，否则显示输出（命令的实时输出 / 子 Agent 的当前动作）。 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
              xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:controls="using:TKCode.Desktop.Controls"

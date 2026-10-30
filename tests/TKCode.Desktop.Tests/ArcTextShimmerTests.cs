@@ -1,6 +1,4 @@
-using AtomUI;
-using AtomUI.Localization;
-using AtomUI.Theme;
+using TKCode.Arc.Localization;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -262,8 +260,8 @@ public sealed class ArcTextShimmerTests
     {
         await HeadlessApp.Session.Dispatch(() =>
         {
-            var manager = Application.Current!.GetLanguageManager()!;
-            var language = manager.Current.CurrentLanguage;
+            var manager = ArcLanguageManager.Current!;
+            var language = manager.Language;
             var session = new SessionViewModel(new SessionDto("shimmer", "/tmp/project", "test", "/tmp/session.jsonl", new SessionOptionsDto(), "codex"));
             session.Apply(new AgentStarted());
             var root = BuildTemplate(session);
@@ -280,7 +278,7 @@ public sealed class ArcTextShimmerTests
                 Assert.Equal(1, Assert.IsType<TranslateTransform>(elapsed.RenderTransform).Y);
                 foreach (var tag in new[] { LanguageTags.EnUS, LanguageTags.ZhCN })
                 {
-                    manager.ChangeLanguage(tag);
+                    manager.Set(tag);
                     Flush(window);
                     Assert.Equal("Thinking", Strings.Get(TKCodeLangResourceKind.Thinking));
                     Assert.Equal("Thinking", shimmer.Text);
@@ -296,7 +294,7 @@ public sealed class ArcTextShimmerTests
             {
                 session.Apply(new AgentEnded());
                 Close(window);
-                manager.ChangeLanguage(language);
+                manager.Set(language);
             }
         }, TestContext.Current.CancellationToken);
     }
@@ -308,9 +306,7 @@ public sealed class ArcTextShimmerTests
     {
         await HeadlessApp.Session.Dispatch(async () =>
         {
-            var manager = Application.Current!.GetThemeManager()!;
-            await manager.ApplyThemeAsync(new ThemeRequest(light ? ThemeService.LightThemeId : ThemeService.DarkThemeId,
-                null, ThemeTransitionReason.UserRequest));
+            await TestTheme.ApplyAsync(light ? TestTheme.LightId : TestTheme.DarkId);
             var session = new SessionViewModel(new SessionDto("preview", "/tmp/project", "test", "/tmp/session.jsonl", new SessionOptionsDto(), "codex"));
             session.Apply(new AgentStarted());
             var standalone = new ThinkingBlockViewModel(2100)
@@ -355,7 +351,7 @@ public sealed class ArcTextShimmerTests
                 session.Apply(new AgentEnded());
                 Close(window);
                 clock.Advance(TimeSpan.FromSeconds(2));
-                await manager.ApplyThemeAsync(new ThemeRequest(ThemeService.DarkThemeId, null, ThemeTransitionReason.UserRequest));
+                await TestTheme.ApplyAsync(TestTheme.DarkId);
             }
             return true;
         }, TestContext.Current.CancellationToken);

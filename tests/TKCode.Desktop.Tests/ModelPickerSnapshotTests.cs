@@ -40,7 +40,7 @@ public sealed class ModelPickerSnapshotTests
             Assert.EndsWith("200K · 关", picker.Summary);
 
             var view = new ModelPickerView { DataContext = picker, Margin = new Thickness(40), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left };
-            var window = new AtomUI.Desktop.Controls.Window { Width = 900, Height = 560, Content = view, Background = Avalonia.Media.Brushes.Black };
+            var window = new Avalonia.Controls.Window { Width = 900, Height = 560, Content = view, Background = Avalonia.Media.Brushes.Black };
             window.Show();
             Dispatcher.UIThread.RunJobs();
             HeadlessApp.Save(window, "model-picker-chip");
@@ -76,7 +76,7 @@ public sealed class ModelPickerSnapshotTests
             picker.Load(Enumerable.Range(1, 9).Select(i => new ModelDto($"glm-{i}", $"GLM-5.{i}", "zai", "openai-completions", true, null,
                 ["Off", "High"], "High", [128_000], i == 1, $"zai/glm-{i}", "Z.ai")).ToArray());
             var view = new ModelPickerView { DataContext = picker, Margin = new Thickness(40), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left };
-            var window = new AtomUI.Desktop.Controls.Window { Width = 900, Height = 560, Content = view, Background = Avalonia.Media.Brushes.Black };
+            var window = new Avalonia.Controls.Window { Width = 900, Height = 560, Content = view, Background = Avalonia.Media.Brushes.Black };
             window.Show();
             view.GetVisualDescendants().OfType<Popup>().Single().ShouldUseOverlayLayer = true;
             view.Toggle();

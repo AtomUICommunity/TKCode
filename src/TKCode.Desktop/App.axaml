@@ -1,11 +1,8 @@
 <Application xmlns:smt="using:StreamMark.Avalonia.Themes"
-             xmlns:sma="using:StreamMark.Theme.AtomUI"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="TKCode.Desktop.App"
              Name="TKCode">
-    <!-- 只放合并字典。Application.Resources 会替换 6.2.6 已提交的语言字典，
-         App.Initialize 再把这些合并项挪回去。不要在这里直接加键。 -->
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -15,8 +12,7 @@
     </Application.Resources>
     <Application.Styles>
         <StyleInclude Source="avares://TKCode/Styling/Controls.axaml" />
-        <!-- StreamMark：默认 Markdown 外观，再映射到 AtomUI 设计 token -->
+        <!-- StreamMark：默认 Markdown 外观；Arc 的 Markdown 控件按主题映射 Md.* 资源 -->
         <smt:StreamMarkTheme />
-        <sma:AtomUIMarkdownTheme />
     </Application.Styles>
 </Application>

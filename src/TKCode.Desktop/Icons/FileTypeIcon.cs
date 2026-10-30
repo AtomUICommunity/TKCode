@@ -1,4 +1,3 @@
-using AtomUI.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml.MarkupExtensions;
@@ -44,7 +43,7 @@ public sealed class FileTypeIcon : Decorator
         var icon = new LucideIcon(Kind);
         if (ColorKey is { } key)
         {
-            icon[!Icon.StrokeBrushProperty] = new DynamicResourceExtension(key);
+            icon[!GlyphIcon.StrokeBrushProperty] = new DynamicResourceExtension(key);
         }
         Child = icon;
     }

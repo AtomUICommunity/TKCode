@@ -1,6 +1,4 @@
 using System.Text.Json.Nodes;
-using AtomUI;
-using AtomUI.Theme;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -480,18 +478,17 @@ public sealed class PlanReviewPanelTests
     /// <summary>暗色与亮色各存一张（暗色是测试默认主题，结束时切回暗色）。</summary>
     private static async Task SaveBothThemesAsync(Window window, string name)
     {
-        var manager = Application.Current!.GetThemeManager()!;
         await Settle();
         HeadlessApp.Save(window, name);
         try
         {
-            await manager.ApplyThemeAsync(new ThemeRequest(ThemeService.LightThemeId, null, ThemeTransitionReason.UserRequest));
+            await TestTheme.ApplyAsync(TestTheme.LightId);
             await Settle();
             HeadlessApp.Save(window, name + "-light");
         }
         finally
         {
-            await manager.ApplyThemeAsync(new ThemeRequest(ThemeService.DarkThemeId, null, ThemeTransitionReason.UserRequest));
+            await TestTheme.ApplyAsync(TestTheme.DarkId);
             await Settle();
         }
     }

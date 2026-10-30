@@ -160,7 +160,7 @@ public sealed class UiZoomTests
                 // 每个弹层都要把内容包进 ZoomHost：弹层是独立窗口，窗口根部的缩放覆盖不到
                 var popovers = window.GetLogicalDescendants().OfType<Popover>().ToList();
                 Assert.True(popovers.Count >= 8, $"found only {popovers.Count} popovers");
-                Assert.All(popovers, p => Assert.IsType<ZoomHost>(p.Child));
+                Assert.All(popovers, p => Assert.IsType<ZoomHost>(p.Surface));
 
                 // ⌘+（⇧⌘= 与 ⌘= 都算）放大一档
                 window.KeyPress(Key.OemPlus, CommandModifier | RawInputModifiers.Shift, PhysicalKey.Equal, "+");
@@ -255,7 +255,7 @@ public sealed class UiZoomTests
                     PlacementTarget = trigger, Placement = PlacementMode.BottomEdgeAlignedLeft, VerticalOffset = 6,
                     Child = new ZoomHost { Child = menu }, ShouldUseOverlayLayer = true,
                 };
-                var window = new AtomUI.Desktop.Controls.Window { Width = 600, Height = 500, Background = Brushes.Black, Content = new Panel { Children = { trigger, popover } } };
+                var window = new Avalonia.Controls.Window { Width = 600, Height = 500, Background = Brushes.Black, Content = new Panel { Children = { trigger, popover } } };
                 window.Show();
 
                 UiZoom.Scale = 1.5;
@@ -266,7 +266,7 @@ public sealed class UiZoomTests
 
                 // 菜单仍按 200×120 排版，渲染时放大到 300×180，位置贴着触发按钮下沿
                 Assert.Equal(new Size(200, 120), menu.Bounds.Size);
-                var size = ((ZoomHost)popover.Child!).Bounds.Size;
+                var size = ((ZoomHost)popover.Surface!).Bounds.Size;
                 Assert.Equal(300, size.Width, 1);
                 Assert.Equal(180, size.Height, 1);
                 var origin = menu.TranslatePoint(default, window)!.Value;

@@ -1,4 +1,3 @@
-using AtomUI.Controls;
 using Avalonia;
 using Avalonia.Media;
 
@@ -17,15 +16,15 @@ public enum LucideKind
 }
 
 /// <summary>
-/// Lucide 风格的线性图标（24×24、2px 圆头描边），基于 AtomUI <see cref="Icon"/>，
-/// 因此能作为 atom:Button.Icon 使用并跟随按钮前景色（悬停/禁用）。
+/// Lucide 风格的线性图标（24×24、2px 圆头描边），基于 <see cref="GlyphIcon"/>，
+/// 未指定 StrokeBrush 时跟随继承的前景色（按钮悬停 / 禁用）。
 /// </summary>
-public sealed class LucideIcon : Icon
+public sealed class LucideIcon : GlyphIcon
 {
     public static readonly StyledProperty<LucideKind> KindProperty =
         AvaloniaProperty.Register<LucideIcon, LucideKind>(nameof(Kind));
 
-    private static readonly Dictionary<LucideKind, DrawingInstruction[]> Cache = new();
+    private static readonly Dictionary<LucideKind, GlyphPath[]> Cache = new();
 
     static LucideIcon()
     {
@@ -34,11 +33,6 @@ public sealed class LucideIcon : Icon
 
     public LucideIcon()
     {
-        IconTheme = IconThemeType.Outlined;
-        ViewBox = new Rect(0, 0, 24, 24);
-        StrokeWidth = 2;
-        StrokeLineCap = PenLineCap.Round;
-        StrokeLineJoin = PenLineJoin.Round;
     }
 
     public LucideIcon(LucideKind kind) : this() => Kind = kind;
@@ -49,11 +43,9 @@ public sealed class LucideIcon : Icon
         set => SetValue(KindProperty, value);
     }
 
-    protected override IList<DrawingInstruction> DrawingInstructions => Get(Kind);
+    internal override IReadOnlyList<GlyphPath> Paths => Get(Kind);
 
-    public override Icon CreateInstance() => new LucideIcon(Kind);
-
-    private static DrawingInstruction[] Get(LucideKind kind)
+    private static GlyphPath[] Get(LucideKind kind)
     {
         lock (Cache)
         {
@@ -66,18 +58,9 @@ public sealed class LucideIcon : Icon
         }
     }
 
-    private static DrawingInstruction Create(string data)
+    private static GlyphPath Create(string data)
     {
         var filled = data.StartsWith('#');
-        return new PathDrawingInstruction
-        {
-            Data = StreamGeometry.Parse(filled ? data[1..] : data),
-            StrokeBrush = IconBrushType.Stroke,
-            FillBrush = filled ? IconBrushType.Stroke : null,
-            IsStrokeEnabled = true,
-            IsStrokeWidthCustomizable = true,
-            IsStrokeLinecapCustomizable = true,
-            IsStrokeLinejoinCustomizable = true,
-        };
+        return new GlyphPath(StreamGeometry.Parse(filled ? data[1..] : data), filled);
     }
 }

@@ -18,7 +18,7 @@ public sealed class ArcPopupZoomTests
         {
             var probe = new Border { Name = "Probe", Width = 120, Height = 40, Background = Avalonia.Media.Brushes.Gray };
             var popover = new Popover { Trigger = new Avalonia.Controls.Button { Content = "Open" }, Content = probe };
-            var window = new AtomUI.Desktop.Controls.Window { Width = 500, Height = 400, Content = new ZoomHost { Child = new Border { Padding = new Thickness(20), Child = popover } } };
+            var window = new Avalonia.Controls.Window { Width = 500, Height = 400, Content = new ZoomHost { Child = new Border { Padding = new Thickness(20), Child = popover } } };
             TKCode.Arc.Motion.ArcMotion.SetLevel(window, TKCode.Arc.Motion.ArcMotionLevel.Off);
             window.Show();
             Dispatcher.UIThread.RunJobs();

@@ -1,0 +1,5 @@
+# 2026-10-30T11:51:10Z osx-arm64 aafeb1d
+idle               footprint=   92.8MB  delta=  -6.3MB  peak=  173.4MB  gcHeap=  19.7MB  gcCommitted=  21.0MB  quietCpu=  1.3%
+markdown-cold      footprint=  176.3MB  delta=  73.2MB  peak=  250.6MB  gcHeap=  22.8MB  gcCommitted=  23.8MB  quietCpu=  0.1%
+markdown-warm      footprint=  125.6MB  delta=  25.8MB  peak=  200.9MB  gcHeap=  21.9MB  gcCommitted=  25.0MB  quietCpu=  0.0%
+chat               footprint=  119.8MB  delta=  22.2MB  peak=  194.6MB  gcHeap=  24.2MB  gcCommitted=  28.9MB  quietCpu=  0.0%

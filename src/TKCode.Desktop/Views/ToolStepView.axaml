@@ -1,7 +1,6 @@
 <!-- 工具步骤行：read 只显示一行，点击在工作区打开文件；其他工具点击展开完整参数与输出。活动组与查阅组共用。 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:atom="https://atomui.net"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:icons="using:TKCode.Desktop.Icons"
              xmlns:controls="using:TKCode.Desktop.Controls"

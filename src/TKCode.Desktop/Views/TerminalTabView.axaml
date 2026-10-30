@@ -4,7 +4,6 @@
              xmlns:vm="using:TKCode.Desktop.ViewModels"
              xmlns:tv="using:TKCode.Terminal.Avalonia"
              xmlns:loc="using:TKCode.Desktop.Localization"
-             xmlns:atom="https://atomui.net"
              xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
              xmlns:icons="using:TKCode.Desktop.Icons"
              x:Class="TKCode.Desktop.Views.TerminalTabView"

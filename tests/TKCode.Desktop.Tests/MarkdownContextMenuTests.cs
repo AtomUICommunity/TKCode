@@ -37,7 +37,7 @@ public sealed class MarkdownContextMenuTests
         await HeadlessApp.Session.Dispatch(async () =>
         {
             var tab = new FileTabViewModel(Path.Combine(root, "README.md"), root);
-            var window = new AtomUI.Desktop.Controls.Window { Width = 760, Height = 480, Content = new FileTabView { DataContext = tab } };
+            var window = new Avalonia.Controls.Window { Width = 760, Height = 480, Content = new FileTabView { DataContext = tab } };
             // 与 MainWindow 相同：整个窗口共用 TKCode 的 Markdown 服务
             MarkdownServices.SetServices(window, MarkdownSetup.Services);
             window.Show();

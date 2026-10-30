@@ -1,5 +1,3 @@
-using AtomUI;
-using AtomUI.Theme;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -44,14 +42,13 @@ public sealed class MarkdownSelectionThemeTests
     {
         await HeadlessApp.Session.Dispatch(async () =>
         {
-            var manager = Application.Current!.GetThemeManager()!;
             try
             {
-                await manager.ApplyThemeAsync(new ThemeRequest(dark ? ThemeService.DarkThemeId : ThemeService.LightThemeId, null, ThemeTransitionReason.UserRequest));
+                await TestTheme.ApplyAsync(dark ? TestTheme.DarkId : TestTheme.LightId);
                 var view = new MarkdownView();
                 MarkdownServices.SetServices(view, MarkdownSetup.Services);
                 view.Markdown = Source;
-                var window = new AtomUI.Desktop.Controls.Window
+                var window = new Avalonia.Controls.Window
                 {
                     Width = 760,
                     Height = 420,
@@ -80,7 +77,7 @@ public sealed class MarkdownSelectionThemeTests
             finally
             {
                 // 其它测试默认运行在暗色主题下
-                await manager.ApplyThemeAsync(new ThemeRequest(ThemeService.DarkThemeId, null, ThemeTransitionReason.UserRequest));
+                await TestTheme.ApplyAsync(TestTheme.DarkId);
             }
 
             return true;

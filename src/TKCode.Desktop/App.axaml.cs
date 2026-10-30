@@ -1,11 +1,10 @@
-using AtomUI;
-using AtomUI.Localization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using TKCode.Arc.Localization;
 using TKCode.Desktop.Controls;
 using TKCode.Desktop.Localization;
 using TKCode.Desktop.Services;
@@ -14,54 +13,22 @@ using TKCode.Desktop.Views;
 
 namespace TKCode.Desktop;
 
-public partial class App : Application
+public class App : Application
 {
     /// <summary>由 Program 在 Avalonia 启动前设置；XAML 预览器下为 null。</summary>
     public static IServiceProvider? Services { get; set; }
 
-    public override void RegisterServices()
-    {
-        base.RegisterServices();
-        // 6.2.6 起内核在 Initialize 之前提交；配置在 Program.UseTKCodeAtomUI。
-        ApplicationStartup.Attach(this);
-    }
+    public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
-    public override void Initialize()
-    {
-        // 6.2.6 在 Load 之前把 LanguageResourceProvider 放进 Resources。
-        // App.axaml 的 Application.Resources 会换成一张新表，{loc:} 因此全部落空。
-        // 运行时 new ResourceInclude 加载调色板不经过 XAML 编译，AOT 不安全，所以只挪已编译的合并项。
-        var committed = Resources;
-        AvaloniaXamlLoader.Load(this);
-        if (ReferenceEquals(Resources, committed) ||
-            Resources is not ResourceDictionary loaded ||
-            committed is not ResourceDictionary target)
-        {
-            return;
-        }
-
-        var merged = new IResourceProvider[loaded.MergedDictionaries.Count];
-        for (var i = 0; i < merged.Length; i++)
-        {
-            merged[i] = loaded.MergedDictionaries[i];
-        }
-
-        // 先摘掉所有者，否则 AddOwner 会抛 “already has a parent”。
-        for (var i = merged.Length - 1; i >= 0; i--)
-        {
-            loaded.MergedDictionaries.RemoveAt(i);
-        }
-
-        Resources = target;
-        foreach (var provider in merged)
-        {
-            target.MergedDictionaries.Add(provider);
-        }
-    }
+    private static void ApplyArcMotionLevel() =>
+        TKCode.Arc.ArcTheme.Apply(t => t.MotionLevel(TKCode.Desktop.Motion.MotionSettings.IsEnabled ? TKCode.Arc.Motion.ArcMotionLevel.Full : TKCode.Arc.Motion.ArcMotionLevel.Off));
 
     public override void OnFrameworkInitializationCompleted()
     {
         Strings.Attach(this);
+        // 减少动态效果 / 系统设置 / 测试强制关闭：同步给 Arc 的全局动效等级（弹层等从主题继承）
+        ApplyArcMotionLevel();
+        TKCode.Desktop.Motion.MotionSettings.Changed += ApplyArcMotionLevel;
         // UI 线程上未处理的异常：先写崩溃日志，不标记 Handled，行为与之前一致（随后进程终止）
         Dispatcher.UIThread.UnhandledException += (_, e) => TKCode.Config.CrashLog.Write(e.Exception, "ui thread");
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && Services is not null)
@@ -76,10 +43,10 @@ public partial class App : Application
             {
                 TKCode.Desktop.Motion.MotionSettings.UserReduceMotion = userSettings.Current.ReduceMotion == true;
                 MarkdownSetup.OriginalImages = userSettings.Current.OriginalImages == true;
-                if (this.GetLanguageManager() is { } manager && LanguageTag.TryParse(userSettings.Current.Language, out var wanted) &&
-                    (wanted == LanguageTags.EnUS || wanted == LanguageTags.ZhCN) && manager.Current.CurrentLanguage != wanted)
+                if (ArcLanguageManager.Current is { } manager && LanguageTag.TryParse(userSettings.Current.Language, out var wanted) &&
+                    (wanted == LanguageTags.EnUS || wanted == LanguageTags.ZhCN) && manager.Language != wanted)
                 {
-                    manager.ChangeLanguage(wanted);
+                    manager.Set(wanted);
                 }
             };
             var mainViewModel = Services.GetRequiredService<MainWindowViewModel>();

@@ -1,7 +1,6 @@
 using System.Globalization;
-using AtomUI;
-using AtomUI.Localization;
 using Avalonia;
+using TKCode.Arc.Localization;
 
 namespace TKCode.Desktop.Localization;
 
@@ -12,27 +11,27 @@ namespace TKCode.Desktop.Localization;
 public static class Strings
 {
     public static string Get(TKCodeLangResourceKind key) =>
-        Application.Current?.GetLocalizer()?.Get(key) ?? key.ToString();
+        TKCodeLangResources.Get(key);
 
     public static string Format(TKCodeLangResourceKind key, params object?[] args) =>
-        Application.Current?.GetLocalizer()?.Format(key, args) ?? key.ToString();
+        TKCodeLangResources.Format(key, args);
 
     public static event EventHandler? LanguageChanged;
 
     internal static void Attach(Application app)
     {
-        if (app.GetLanguageManager() is { } manager)
+        if (ArcLanguageManager.Current is { } manager)
         {
-            ApplyCulture(manager.Current.CurrentLanguage);
-            manager.LanguageChanged += (_, _) =>
+            ApplyCulture(manager.Language);
+            manager.Changed += (_, _) =>
             {
-                ApplyCulture(manager.Current.CurrentLanguage);
+                ApplyCulture(manager.Language);
                 LanguageChanged?.Invoke(null, EventArgs.Empty);
             };
         }
     }
 
-    /// <summary>AtomUI 不修改 CultureInfo；日期等格式化跟随界面语言需要自己设置。</summary>
+    /// <summary>Arc 不修改 CultureInfo；日期等格式化跟随界面语言需要自己设置。</summary>
     private static void ApplyCulture(LanguageTag language)
     {
         try

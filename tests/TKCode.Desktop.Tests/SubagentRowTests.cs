@@ -1,5 +1,3 @@
-using AtomUI;
-using AtomUI.Theme;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -26,14 +24,12 @@ public sealed class SubagentRowTests
     public Task SubagentGroup_ListsAgentsCompactly_AndRowsAreClickable(bool light, double scale) =>
         HeadlessApp.Session.Dispatch(async () =>
         {
-            var manager = Application.Current!.GetThemeManager()!;
-            var previousTheme = manager.CurrentTheme.ThemeId;
+            var previousTheme = TestTheme.CurrentId;
             var previousScale = UiZoom.Scale;
             Window? window = null;
             try
             {
-                await manager.ApplyThemeAsync(new ThemeRequest(light ? ThemeService.LightThemeId : ThemeService.DarkThemeId,
-                    null, ThemeTransitionReason.UserRequest));
+                await TestTheme.ApplyAsync(light ? TestTheme.LightId : TestTheme.DarkId);
                 UiZoom.Scale = scale;
                 var call = new ToolCallBlockViewModel("actual-tool-call", "agent")
                 {
@@ -57,7 +53,7 @@ public sealed class SubagentRowTests
                     Spacing = 8,
                     Children = { new TextBlock { Text = "Adjacent transcript text" }, view }
                 };
-                window = new AtomUI.Desktop.Controls.Window
+                window = new Avalonia.Controls.Window
                 {
                     Width = 760,
                     Height = 260,
@@ -101,7 +97,7 @@ public sealed class SubagentRowTests
             {
                 window?.Close();
                 UiZoom.Scale = previousScale;
-                await manager.ApplyThemeAsync(new ThemeRequest(previousTheme, null, ThemeTransitionReason.UserRequest));
+                await TestTheme.ApplyAsync(previousTheme);
             }
             return true;
         }, TestContext.Current.CancellationToken);

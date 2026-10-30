@@ -1,22 +1,20 @@
 <Project>
     <PropertyGroup>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-        <AtomUIVersion>6.2.8</AtomUIVersion>
         <AvaloniaVersion>12.1.4</AvaloniaVersion>
         <StreamMarkVersion>0.1.1</StreamMarkVersion>
-        <ArcVersion>0.3.1-preview.4</ArcVersion>
+        <ArcVersion>0.3.2-preview.1</ArcVersion>
         <MicrosoftExtensionsVersion>11.0.0-rc.2.26504.105</MicrosoftExtensionsVersion>
     </PropertyGroup>
     <ItemGroup>
-        <!-- UI：AtomUI 必须通过 NuGet 引用，版本与其依赖的 Avalonia 保持一致 -->
-        <PackageVersion Include="AtomUI.Desktop.Controls" Version="$(AtomUIVersion)" />
+        <!-- UI：Avalonia 版本需与 TKCode.Arc 精确依赖的版本一致 -->
         <PackageVersion Include="Avalonia" Version="$(AvaloniaVersion)" />
         <PackageVersion Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
         <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" />
         <PackageVersion Include="Avalonia.Headless" Version="$(AvaloniaVersion)" />
         <PackageVersion Include="Avalonia.Skia" Version="$(AvaloniaVersion)" />
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-        <!-- 组件库：TKCode.Arc（Arc 风格，基于 AtomUI；精确依赖 AtomUI 与 Avalonia 版本，升级 AtomUI 时一起升） -->
+        <!-- 组件库：TKCode.Arc（Arc 风格，只依赖 Avalonia 与 TKCode.Arc.Foundation；精确依赖 Avalonia 版本） -->
         <PackageVersion Include="TKCode.Arc" Version="$(ArcVersion)" />
         <PackageVersion Include="TKCode.Arc.Icons.Lucide" Version="$(ArcVersion)" />
         <PackageVersion Include="TKCode.Arc.Terminal" Version="$(ArcVersion)" />
@@ -25,7 +23,8 @@
         <PackageVersion Include="TKCode.StreamMark.RaTeX" Version="$(StreamMarkVersion)" />
         <PackageVersion Include="TKCode.StreamMark.Highlighting.TextMate" Version="$(StreamMarkVersion)" />
         <PackageVersion Include="TKCode.StreamMark.Mermaid" Version="$(StreamMarkVersion)" />
-        <PackageVersion Include="TKCode.StreamMark.Theme.AtomUI" Version="$(StreamMarkVersion)" />
+        <!-- 品牌图标的彩色 SVG（Avalonia.Svg.Svg 控件） -->
+        <PackageVersion Include="Svg.Controls.Avalonia" Version="12.0.0.15" />
         <!-- 网页工具：HTML 解析（web_fetch 的正文提取与 Markdown 转换为自写代码，见 docs/design/builtin-agent-tools.md §8） -->
         <PackageVersion Include="AngleSharp" Version="1.8.5" />
         <!-- MCP 客户端（官方 C# SDK，AOT 实测 0 警告，见 docs/protocols/mcp.md §11） -->

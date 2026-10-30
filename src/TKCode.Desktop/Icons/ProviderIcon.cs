@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using AtomUI.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -9,25 +8,19 @@ using Avalonia.Platform;
 namespace TKCode.Desktop.Icons;
 
 /// <summary>
-/// LobeHub 单色品牌图标（24×24 填充路径），基于 AtomUI <see cref="Icon"/>，跟随前景色。
+/// LobeHub 单色品牌图标（24×24 填充路径），基于 <see cref="GlyphIcon"/>，跟随前景色。
 /// 路径数据由 tools/gen_provider_icons.py 生成。
 /// </summary>
-public sealed class ProviderGlyph : Icon
+public sealed class ProviderGlyph : GlyphIcon
 {
     public static readonly StyledProperty<string?> KeyProperty =
         AvaloniaProperty.Register<ProviderGlyph, string?>(nameof(Key));
 
-    private static readonly Dictionary<string, DrawingInstruction[]> Cache = new();
+    private static readonly Dictionary<string, GlyphPath[]> Cache = new();
 
     static ProviderGlyph()
     {
         AffectsRender<ProviderGlyph>(KeyProperty);
-    }
-
-    public ProviderGlyph()
-    {
-        IconTheme = IconThemeType.Filled;
-        ViewBox = new Rect(0, 0, 24, 24);
     }
 
     public string? Key
@@ -36,11 +29,9 @@ public sealed class ProviderGlyph : Icon
         set => SetValue(KeyProperty, value);
     }
 
-    protected override IList<DrawingInstruction> DrawingInstructions => Get(Key);
+    internal override IReadOnlyList<GlyphPath> Paths => Get(Key);
 
-    public override Icon CreateInstance() => new ProviderGlyph { Key = Key };
-
-    private static DrawingInstruction[] Get(string? key)
+    private static GlyphPath[] Get(string? key)
     {
         if (key is null || !ProviderIconPaths.Mono.TryGetValue(key, out var paths))
         {
@@ -50,12 +41,7 @@ public sealed class ProviderGlyph : Icon
         {
             if (!Cache.TryGetValue(key, out var instructions))
             {
-                instructions = paths.Select(p => (DrawingInstruction)new PathDrawingInstruction
-                {
-                    Data = StreamGeometry.Parse(p.Data),
-                    FillBrush = IconBrushType.Stroke,
-                    Opacity = p.Opacity,
-                }).ToArray();
+                instructions = paths.Select(p => new GlyphPath(StreamGeometry.Parse(p.Data), true, p.Opacity)).ToArray();
                 Cache[key] = instructions;
             }
             return instructions;

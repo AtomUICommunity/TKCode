@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using AtomUI.Desktop.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -18,7 +17,7 @@ using TKCode.Desktop.ViewModels;
 
 namespace TKCode.Desktop.Views;
 
-public partial class MainWindow : AtomUI.Desktop.Controls.Window
+public partial class MainWindow : Window
 {
     private const double HeaderHeight = 44;
     // 与 MainWindow.axaml 中的 MinWidth / MinHeight 一致；窗口最小尺寸随界面缩放按比例放大，内容的可用逻辑尺寸才不会小于设计下限
@@ -403,21 +402,21 @@ public partial class MainWindow : AtomUI.Desktop.Controls.Window
     }
 
     /// <summary>
-    /// Cursor 式窗口：不显示 AtomUI 标题栏，内容延伸到窗口顶部。
+    /// Cursor 式窗口：不显示系统标题栏，内容延伸到窗口顶部。
     /// macOS 保留原生红绿灯并移到侧栏顶部；Windows / Linux 在右上角自绘窗口按钮。
     /// </summary>
     private void ConfigureChrome()
     {
         if (OperatingSystem.IsMacOS())
         {
-            // IsTitleBarVisible=False 时 AtomUI 主题会切到 BorderOnly（连红绿灯一起去掉），这里用本地值恢复。
+            // 保留系统装饰（红绿灯），内容延伸到标题栏区域。
             WindowDecorations = WindowDecorations.Full;
             ExtendClientAreaTitleBarHeightHint = HeaderHeight;
-            MacStandardWindowButtons.SetOffsetX(this, 16);
-            MacStandardWindowButtons.SetSpacing(this, 20);
         }
         else
         {
+            // 只留调整大小的边框，标题栏与窗口按钮由界面自绘
+            WindowDecorations = WindowDecorations.BorderOnly;
             CaptionButtons.IsVisible = true;
         }
     }

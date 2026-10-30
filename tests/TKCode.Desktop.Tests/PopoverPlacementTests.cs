@@ -1,4 +1,4 @@
-using AtomUI.MotionScene;
+using TKCode.Arc.Primitives;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -19,7 +19,7 @@ namespace TKCode.Desktop.Tests;
 /// </summary>
 public sealed class PopoverPlacementTests
 {
-    private static (AtomUI.Desktop.Controls.Window Window, Button Trigger, Popover Popover) Create(string theme)
+    private static (Avalonia.Controls.Window Window, Button Trigger, Popover Popover) Create(string theme)
     {
         var trigger = new Button
         {
@@ -33,7 +33,7 @@ public sealed class PopoverPlacementTests
             Child = new Border { Classes = { "menu" }, Width = 200, Height = 120 },
             ShouldUseOverlayLayer = true,
         };
-        var window = new AtomUI.Desktop.Controls.Window
+        var window = new Avalonia.Controls.Window
         {
             Width = 400, Height = 300, Background = Brushes.Black, Content = new Panel { Children = { trigger, popover } },
         };
@@ -80,7 +80,7 @@ public sealed class PopoverPlacementTests
         for (var i = 0; i < 24; i++)
         {
             Tick(1);
-            if (popover.Child?.FindAncestorOfType<BaseMotionActor>() is { } actor)
+            if (popover.Child is ArcPopupFrame actor)
             {
                 opacities.Add(actor.Opacity);
             }

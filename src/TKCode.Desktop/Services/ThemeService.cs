@@ -1,15 +1,12 @@
-using AtomUI;
-using AtomUI.Theme;
 using Avalonia;
-using Avalonia.Platform;
-using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
+using TKCode.Arc;
 
 namespace TKCode.Desktop.Services;
 
 /// <summary>
-/// 在 TKCodeDark / TKCodeLight 两套 AtomUI 主题之间切换，支持跟随系统。
-/// 主题定义在 Assets/Themes/*.theme.xml；应用专属颜色在 Styling/Palette.axaml 的 ThemeDictionaries 中随之切换。
+/// 在 Arc 的明 / 暗外观之间切换，支持跟随系统。
+/// 应用专属颜色在 Styling/Palette.axaml 的 ThemeDictionaries 中随之切换。
 /// </summary>
 public sealed partial class ThemeService : ObservableObject
 {
@@ -32,9 +29,6 @@ public sealed partial class ThemeService : ObservableObject
         };
     }
 
-    public const string DarkThemeId = "TKCodeDark";
-    public const string LightThemeId = "TKCodeLight";
-
     private Application? _app;
 
     public ThemeMode Mode => _settings.Theme;
@@ -42,11 +36,14 @@ public sealed partial class ThemeService : ObservableObject
     [ObservableProperty]
     public partial bool IsDark { get; private set; } = true;
 
-    public string ResolveInitialThemeId()
+    /// <summary>启动时传给 <c>UseArc</c> 的外观；System 由 Arc 自己跟随系统。</summary>
+    public ArcAppearance InitialAppearance
     {
-        var id = Resolve(Mode, Application.Current?.PlatformSettings);
-        IsDark = id == DarkThemeId;
-        return id;
+        get
+        {
+            IsDark = Resolve(Mode, Application.Current);
+            return ToAppearance(Mode);
+        }
     }
 
     public void Attach(Application app)
@@ -76,22 +73,25 @@ public sealed partial class ThemeService : ObservableObject
 
     private async Task ApplyAsync()
     {
-        if (_app?.GetThemeManager() is not { } manager)
+        if (_app is null)
         {
             return;
         }
-        var id = Resolve(Mode, _app.PlatformSettings);
-        var result = await manager.ApplyThemeAsync(new ThemeRequest(id, null, ThemeTransitionReason.UserRequest));
-        if (result.Status != ThemeTransitionStatus.Failed)
-        {
-            IsDark = id == DarkThemeId;
-        }
+        await ArcTheme.Manager.ApplyAsync(t => t.Appearance(ToAppearance(Mode)));
+        IsDark = Resolve(Mode, _app);
     }
 
-    private static string Resolve(ThemeMode mode, IPlatformSettings? platform) => mode switch
+    private static ArcAppearance ToAppearance(ThemeMode mode) => mode switch
     {
-        ThemeMode.Dark => DarkThemeId,
-        ThemeMode.Light => LightThemeId,
-        _ => platform?.GetColorValues().ThemeVariant == PlatformThemeVariant.Light ? LightThemeId : DarkThemeId,
+        ThemeMode.Dark => ArcAppearance.Dark,
+        ThemeMode.Light => ArcAppearance.Light,
+        _ => ArcAppearance.System,
+    };
+
+    private static bool Resolve(ThemeMode mode, Application? app) => mode switch
+    {
+        ThemeMode.Dark => true,
+        ThemeMode.Light => false,
+        _ => app?.PlatformSettings?.GetColorValues().ThemeVariant != Avalonia.Platform.PlatformThemeVariant.Light,
     };
 }

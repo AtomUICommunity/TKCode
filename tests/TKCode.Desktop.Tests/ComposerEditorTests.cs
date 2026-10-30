@@ -300,7 +300,7 @@ public sealed class ComposerEditorTests
         await HeadlessApp.Session.Dispatch(() =>
         {
             var view = new Views.ComposerView();
-            var window = new AtomUI.Desktop.Controls.Window { Width = 600, Height = 300, Content = view };
+            var window = new Avalonia.Controls.Window { Width = 600, Height = 300, Content = view };
             TKCode.Arc.Motion.ArcMotion.SetLevel(window, TKCode.Arc.Motion.ArcMotionLevel.Off);
             window.Show();
             Dispatcher.UIThread.RunJobs();

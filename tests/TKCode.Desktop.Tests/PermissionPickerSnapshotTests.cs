@@ -27,7 +27,7 @@ public sealed class PermissionPickerSnapshotTests
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             };
-            var window = new AtomUI.Desktop.Controls.Window { Width = 520, Height = 420, Content = view, Background = Avalonia.Media.Brushes.Black };
+            var window = new Avalonia.Controls.Window { Width = 520, Height = 420, Content = view, Background = Avalonia.Media.Brushes.Black };
             window.Show();
             view.GetVisualDescendants().OfType<Popup>().Single().ShouldUseOverlayLayer = true;
             Dispatcher.UIThread.RunJobs();

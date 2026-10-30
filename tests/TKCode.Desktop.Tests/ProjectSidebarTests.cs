@@ -1,5 +1,3 @@
-using AtomUI;
-using AtomUI.Theme;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -168,13 +166,11 @@ public sealed class ProjectSidebarTests
 
         await HeadlessApp.Session.Dispatch(async () =>
         {
-            var manager = Avalonia.Application.Current!.GetThemeManager()!;
-            var previousTheme = manager.CurrentTheme!.ThemeId;
+            var previousTheme = TestTheme.CurrentId;
             foreach (var light in new[] { false, true })
             {
-                await manager.ApplyThemeAsync(new ThemeRequest(light ? ThemeService.LightThemeId : ThemeService.DarkThemeId, null,
-                    ThemeTransitionReason.UserRequest));
-                var owner = new AtomUI.Desktop.Controls.Window
+                await TestTheme.ApplyAsync(light ? TestTheme.LightId : TestTheme.DarkId);
+                var owner = new Avalonia.Controls.Window
                 {
                     Width = 1100,
                     Height = 720,
@@ -226,7 +222,7 @@ public sealed class ProjectSidebarTests
                 Assert.Empty(ModalPresence.GetModals(owner));
                 owner.Close();
             }
-            await manager.ApplyThemeAsync(new ThemeRequest(previousTheme, null, ThemeTransitionReason.UserRequest));
+            await TestTheme.ApplyAsync(previousTheme);
             return true;
         }, TestContext.Current.CancellationToken);
     }
@@ -241,7 +237,7 @@ public sealed class ProjectSidebarTests
 
         await HeadlessApp.Session.Dispatch(async () =>
         {
-            var owner = new AtomUI.Desktop.Controls.Window { Width = 1100, Height = 720 };
+            var owner = new Avalonia.Controls.Window { Width = 1100, Height = 720 };
             ArcMotion.SetLevel(owner, ArcMotionLevel.Off);
             owner.Show();
             Pump(owner);
