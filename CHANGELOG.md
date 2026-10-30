@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.8
+
+TKCode no longer depends on AtomUI. The UI now runs on TKCode.Arc 0.3.2-preview.1, which only needs Avalonia, and uses Arc's default theme.
+
+### Changed
+
+- **AtomUI removed.** The app, headless tests, smoke mode and startup benchmark start through `UseTKCodeArc()`; the window is a plain Avalonia `Window`. Colors of the app itself live in `Styling/Palette.axaml` and follow the theme variant.
+- **Dependencies.** TKCode.Arc and TKCode.Arc.Icons.Lucide 0.3.2-preview.1. The `TKCode.StreamMark.Theme.AtomUI` package is no longer built or used. Colored brand icons use `Svg.Controls.Avalonia`.
+- **Window chrome.** The macOS traffic-light buttons sit at the system default position, because the AtomUI offset API is gone.
+
+**Full Changelog**: https://github.com/AtomUICommunity/TKCode/compare/v0.1.7...v0.1.8
+
 ## 0.1.7
 
 The terminal view and its libghostty-vt bindings now come from the `TKCode.Arc.Terminal` NuGet package, and the app moves to Arc 0.3.1-preview.4 and StreamMark 0.1.1. Delete confirmations use the same buttons as the rest of the app.
