@@ -267,6 +267,53 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- 通知（docs/design/notifications.md §4.8）：回合结束 / 需要你处理的档位、提示音、测试通知 -->
+                        <Border x:Name="NotificationsCard" Classes="card">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto" Margin="16,12,16,0">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Classes="strong" Text="{loc:TKCodeLangResource NotificationsTitle}" />
+                                        <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource NotificationsHint}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <arc:Button x:Name="TestNotificationButton" Grid.Column="1" Variant="Secondary" Size="Small" VerticalAlignment="Center"
+                                                Command="{Binding TestNotificationCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <lucide:LucideIcon Kind="Bell" Size="14" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:TKCodeLangResource NotifyTestButton}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </arc:Button>
+                                </Grid>
+                                <!-- 回合结束 -->
+                                <Grid ColumnDefinitions="*,Auto" Margin="16,12">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Classes="strong" Text="{loc:TKCodeLangResource NotifyTurnCompletedLabel}" />
+                                        <TextBlock Classes="tertiary" Text="{Binding NotifyTurnHint}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <arc:SegmentedControl x:Name="NotifyTurnModes" Grid.Column="1" VerticalAlignment="Center" ItemsSource="{Binding NotifyTurnModes}"
+                                                          controls:ChoiceSelection.Command="{Binding ChooseNotifyTurnCommand}" />
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
+                                <!-- 需要你处理 -->
+                                <Grid ColumnDefinitions="*,Auto" Margin="16,12">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Classes="strong" Text="{loc:TKCodeLangResource NotifyNeedsInputLabel}" />
+                                        <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource NotifyNeedsInputHint}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <arc:SegmentedControl x:Name="NotifyInputModes" Grid.Column="1" VerticalAlignment="Center" ItemsSource="{Binding NotifyInputModes}"
+                                                          controls:ChoiceSelection.Command="{Binding ChooseNotifyInputCommand}" />
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource TKCode.Divider}" />
+                                <!-- 播放提示音 -->
+                                <Grid ColumnDefinitions="*,Auto" Margin="16,12">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="strong" Text="{loc:TKCodeLangResource NotifySoundLabel}" />
+                                        <TextBlock Classes="tertiary" Text="{loc:TKCodeLangResource NotifySoundHint}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <arc:Switch x:Name="NotificationSoundSwitch" Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding NotificationSound}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                         <!-- 模型目录：手动检查更新 → 查看差异 → 应用 -->
                         <Border Classes="card" Padding="16,12">
                             <StackPanel Spacing="8">

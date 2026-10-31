@@ -55,7 +55,8 @@ public sealed class ProviderTester(ModelCatalog catalog, ModelDiscovery discover
             {
                 return new ProviderTestResult(false, null, watch.Elapsed.TotalMilliseconds, error.Message.ErrorMessage ?? "request failed");
             }
-            if (e is not StartEvent)
+            // 自动重试的通知不算连通：等它真正开始返回内容或报错
+            if (e is not StartEvent and not RetryEvent)
             {
                 // 收到首个内容即视为连通，不必等待完整回复
                 timeout.Cancel();

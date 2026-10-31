@@ -10,10 +10,69 @@ namespace TKCode.Desktop.ViewModels;
 
 public abstract class TranscriptItemViewModel : ObservableObject;
 
+/// <summary>用户消息上的操作（docs/design/message-rewind.md §4）。</summary>
+public enum MessageAction
+{
+    /// <summary>编辑并重发：回填到输入框，发送时在这条消息处分叉成新会话。</summary>
+    Edit,
+
+    /// <summary>恢复对话和代码：回退这条消息起改过的文件，再分叉，原提示回填到输入框。</summary>
+    RewindAll,
+
+    /// <summary>只恢复对话：分叉，原提示回填到输入框。</summary>
+    RewindConversation,
+
+    /// <summary>只恢复代码：只回退文件，留在当前会话。</summary>
+    RewindCode,
+}
+
+/// <summary>分叉出来的会话顶部：「分叉自「原标题」」，点击打开原会话（docs/design/message-rewind.md §4.5）。</summary>
+public sealed partial class ForkOriginViewModel(ForkedFromDto origin) : TranscriptItemViewModel
+{
+    public ForkedFromDto Origin { get; } = origin;
+
+    public string Text => Strings.Format(TKCodeLangResourceKind.ForkedFromBanner, Origin.Title ?? "…");
+
+    internal Action<ForkedFromDto>? OpenRequested { get; set; }
+
+    [RelayCommand]
+    private void Open() => OpenRequested?.Invoke(Origin);
+
+    public void RefreshLanguage() => OnPropertyChanged(nameof(Text));
+}
+
 /// <param name="segments">输入框里的样子（含 tag）；没有 tag 时为 null。</param>
-public sealed partial class UserMessageItemViewModel(string text, IReadOnlyList<string>? images = null, IReadOnlyList<PromptSegmentDto>? segments = null)
+/// <param name="timestamp">发送时间；为 null 时取创建时刻（实时消息）。</param>
+public sealed partial class UserMessageItemViewModel(string text, IReadOnlyList<string>? images = null, IReadOnlyList<PromptSegmentDto>? segments = null,
+    DateTimeOffset? timestamp = null)
     : TranscriptItemViewModel
 {
+    public DateTimeOffset Timestamp { get; } = timestamp ?? DateTimeOffset.Now;
+
+    /// <summary>在会话完整历史中的位置（Host 给出，分叉的截止点）；未知时为 -1。</summary>
+    public int Index { get; init; } = -1;
+
+    /// <summary>可以编辑、回退（内置 Agent、空闲、在最近一次压缩之后，见 <see cref="SessionViewModel"/>）。</summary>
+    [ObservableProperty]
+    public partial bool CanRewind { get; set; }
+
+    internal Action<UserMessageItemViewModel, MessageAction>? ActionRequested { get; set; }
+
+    [RelayCommand]
+    private void Act(MessageAction action) => ActionRequested?.Invoke(this, action);
+
+    /// <summary>悬停操作条上的时间，格式随界面语言。</summary>
+    public string TimestampText => Timestamp.ToLocalTime().ToString("g", CultureInfo.CurrentUICulture);
+
+    /// <summary>复制按钮的内容：显示的文字（图片引用折叠为「[图片 #N]」）。</summary>
+    public string CopyText => DisplayText;
+
+    /// <summary>会话内查找的当前结果落在这条消息上（气泡描边高亮）。</summary>
+    [ObservableProperty]
+    public partial bool IsSearchHit { get; set; }
+
+    public void RefreshLanguage() => OnPropertyChanged(nameof(TimestampText));
+
     /// <summary>发送的原文（含「[Image #N: 路径]」引用；command 已展开）。</summary>
     public string Text { get; } = text;
 
@@ -63,6 +122,28 @@ public sealed partial class AssistantMessageItemViewModel(string messageId, Date
 
     public bool HasError => ErrorMessage is not null;
 
+    /// <summary>请求出错（不是用户中止）：错误卡片上可以重试。</summary>
+    [ObservableProperty]
+    public partial bool IsRequestFailed { get; set; }
+
+    /// <summary>可以重试：会话最后一条消息、请求出错、内置 Agent、空闲（docs/design/message-features-report.md R1）。</summary>
+    [ObservableProperty]
+    public partial bool CanRetry { get; set; }
+
+    internal Action<AssistantMessageItemViewModel>? RetryRequested { get; set; }
+
+    [RelayCommand]
+    private void Retry() => RetryRequested?.Invoke(this);
+
+    /// <summary>可以「从这里分叉」（内置 Agent、空闲、在最近一次压缩之后）。</summary>
+    [ObservableProperty]
+    public partial bool CanFork { get; set; }
+
+    internal Action<AssistantMessageItemViewModel>? ForkRequested { get; set; }
+
+    [RelayCommand]
+    private void ForkHere() => ForkRequested?.Invoke(this);
+
     partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
 
     partial void OnIsStreamingChanged(bool value) => OnPropertyChanged(nameof(ShowFooter));
@@ -100,6 +181,7 @@ public sealed partial class AssistantMessageItemViewModel(string messageId, Date
             block.IsStreaming = false;
         }
         OnPropertyChanged(nameof(ShowFooter));
+        OnPropertyChanged(nameof(CopyText));
     }
 
     /// <summary>复制按钮的内容：全部正文块。</summary>
@@ -485,6 +567,7 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
         OnPropertyChanged(nameof(HasSubagent));
         OnPropertyChanged(nameof(SubagentStats));
         OnPropertyChanged(nameof(ShowResult));
+        OnPropertyChanged(nameof(TrailingText));
     }
 
     public bool HasDiff => _parsed is { Kind: "diff", DiffLines.Count: > 0 };
@@ -517,7 +600,28 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
     public partial string? Result { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TrailingText))]
     public partial string? Duration { get; set; }
+
+    /// <summary>行尾的小字（完成后）：耗时；命令以非零退出码结束时再加「退出码 N」。</summary>
+    public string? TrailingText
+    {
+        get
+        {
+            if (IsBusy)
+            {
+                return null;
+            }
+            var exit = _parsed?.ExitCode is { } code and not 0 ? Strings.Format(TKCodeLangResourceKind.ToolExitCode, code) : null;
+            return (Duration, exit) switch
+            {
+                (null, null) => null,
+                ({ } d, null) => d,
+                (null, { } e) => e,
+                ({ } d, { } e) => $"{e} · {d}",
+            };
+        }
+    }
 
     private bool _userToggled;
 
@@ -557,6 +661,7 @@ public sealed partial class ToolCallBlockViewModel(string toolCallId, string too
         OnPropertyChanged(nameof(IsSucceeded));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(IsLive));
+        OnPropertyChanged(nameof(TrailingText));
         UpdateExpanded();
     }
 

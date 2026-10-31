@@ -34,8 +34,15 @@ public sealed class FakeWireApi : IWireApi
         var builder = new AssistantMessageBuilder(model, stream);
         try
         {
+            // 测试用：「fake:fail-once」第一次请求先报一次自动重试，再以 503 失败；按现有历史重试（出错的回复之后）时正常回复
+            if (FailsOnce(context))
+            {
+                stream.Push(new RetryEvent(1, 2, TimeSpan.FromSeconds(2), "503 Service Unavailable (fake)"));
+                await Task.Delay(_chunkDelay, ct);
+                throw new Http.ProviderException("503 Service Unavailable (fake)", System.Net.HttpStatusCode.ServiceUnavailable, isRetryable: true);
+            }
             builder.Start();
-            var last = context.Messages.LastOrDefault();
+            var last = context.Messages.LastOrDefault(m => m is not AssistantMessage { StopReason: StopReason.Error or StopReason.Aborted });
             var hasListTool = context.Tools.Any(t => t.Name == "ls");
 
             if (model.Reasoning)
@@ -105,6 +112,23 @@ public sealed class FakeWireApi : IWireApi
         {
             builder.Fail(ex, ct.IsCancellationRequested);
         }
+    }
+
+    /// <summary>最后一条用户消息是「fake:fail-once」，且它之后还没有出错的回复。</summary>
+    private static bool FailsOnce(LlmContext context)
+    {
+        var index = -1;
+        for (var i = context.Messages.Count - 1; i >= 0; i--)
+        {
+            if (context.Messages[i] is UserMessage)
+            {
+                index = i;
+                break;
+            }
+        }
+        return index >= 0 &&
+               string.Concat(((UserMessage)context.Messages[index]).Content.OfType<TextContent>().Select(t => t.Text)).Trim() == "fake:fail-once" &&
+               !context.Messages.Skip(index + 1).Any(m => m is AssistantMessage { StopReason: StopReason.Error });
     }
 
     private async Task EmitAsync(AssistantMessageBuilder builder, int index, string text, CancellationToken ct)

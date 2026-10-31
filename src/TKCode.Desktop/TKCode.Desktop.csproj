@@ -30,6 +30,7 @@
         <PackageReference Include="TKCode.Arc" />
         <PackageReference Include="TKCode.Arc.Icons.Lucide" />
         <PackageReference Include="TKCode.Arc.Terminal" />
+        <PackageReference Include="TKCode.Arc.Special" />
         <PackageReference Include="CommunityToolkit.Mvvm" />
         <PackageReference Include="Microsoft.Extensions.Hosting" />
     </ItemGroup>

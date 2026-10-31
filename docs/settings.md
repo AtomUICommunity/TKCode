@@ -43,6 +43,12 @@ TKCode 的数据目录默认为 `~/.tkcode`，可以用环境变量 `TKCODE_HOME
   "uiScale": 1,                     // 界面缩放：0.75–2，文字、图标与间距一起缩放（设置页档位 0.8 / 0.9 / 1 / 1.15 / 1.3 / 1.5，⌘+ ⌘- ⌘0 调节）
   "reduceMotion": false,            // true：关闭界面动画（macOS 系统的“减少动态效果”同样生效）
   "closeToTray": true,              // false：关闭窗口即退出；默认隐藏到系统托盘，会话继续运行
+  "notifications": {                // 系统通知（docs/design/notifications.md）
+    "turnCompleted": "background",  // 回合结束：never | background（默认，仅在后台）| always
+    "needsInput": "background",     // 等待审批 / 提问 / 计划审批 / MCP 表单：never | background | always
+    "sound": true,                  // 通知时播放提示音
+    "minTurnSeconds": 30            // 成功的回合至少运行多少秒才通知（出错的总是通知）
+  },
   "autoCompact": true,              // 内置 Agent 接近上下文预算时自动压缩；false 时仍可用 /compact 手动压缩
   "autoMemory": true,               // 内置 Agent 的项目记忆（~/.tkcode/projects/<项目>/memory/）；对之后新建或打开的会话生效
   "originalImages": false,          // true：Markdown 图片按原始清晰度显示；默认按显示尺寸压缩解码以节省内存，点击图片查看的始终是原图
@@ -100,6 +106,7 @@ TKCode 的数据目录默认为 `~/.tkcode`，可以用环境变量 `TKCODE_HOME
 | `mcpServers` | object | `{}` | MCP 服务器，键为服务器名（`[A-Za-z0-9_-]{1,32}`），见 §2.7 |
 | `defaultRole` | string | `agent` | 新会话的模式：`agent`、`plan`、`acp`，或自定义模式（`roles/*.md`）的名字。当前项目没有这个自定义模式时退回 `agent`。见 [design/composer.md](design/composer.md) §10.3 |
 | `skills` | object | 无 | `autoDiscover`（默认 `true`）：在内置 Agent 的系统提示里列出 skill，让模型自己加载。设为 `false` 后只能在输入框里用 `/skill名` 显式调用。skill 的目录约定见 [design/composer.md](design/composer.md) §4 |
+| `notifications` | object | 无 | 系统通知与未读角标：`turnCompleted`（回合结束：成功且运行 ≥ `minTurnSeconds` 秒，或出错）、`needsInput`（工具审批、提问、计划审批、MCP 表单），取值 `never` / `background`（默认：TKCode 不是活动窗口，或该会话不是正在显示的会话）/ `always`；`sound`（默认 `true`）；`minTurnSeconds`（默认 `30`，只能手改）。设置页「通用 → 通知」可改，默认值不写入文件。见 [design/notifications.md](design/notifications.md) |
 | `update` | object | 无 | 应用内更新：`prerelease`（默认 `true`：也接收 GitHub 上标记为 Pre-release 的版本；`false` 时只接收正式版）、`autoCheck`（默认 `true`：启动 60 秒后及之后每 6 小时检查；`false` 时只能在「设置 → 关于」手动检查）。见 [design/auto-update.md](design/auto-update.md) |
 
 设置 → 通用 → 模型配置提供「主模型」与「快速模型」两个选择器。快速模型默认选中「跟随会话」；主模型可以选择外部智能体的模型。修改主模型不切换已有会话，修改快速模型对下一次子代理或标题请求生效。

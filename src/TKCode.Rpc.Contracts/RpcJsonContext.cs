@@ -56,6 +56,7 @@ namespace TKCode.Rpc;
 [JsonSerializable(typeof(RenameSessionParams))]
 [JsonSerializable(typeof(PinSessionParams))]
 [JsonSerializable(typeof(SessionFileParams))]
+[JsonSerializable(typeof(ForkSessionParams))]
 [JsonSerializable(typeof(HistoryPageParams))]
 [JsonSerializable(typeof(HistoryPageDto))]
 [JsonSerializable(typeof(IReadOnlyList<SessionSummaryDto>))]

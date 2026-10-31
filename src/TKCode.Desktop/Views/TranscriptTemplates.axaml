@@ -11,7 +11,23 @@
                xmlns:icons="using:TKCode.Desktop.Icons"
                xmlns:controls="using:TKCode.Desktop.Controls"
                xmlns:loc="using:TKCode.Desktop.Localization"
+               xmlns:lucide="https://github.com/AIDotNet/TKCode.Arc/lucide"
                x:Class="TKCode.Desktop.Views.TranscriptTemplates">
+    <!-- 分叉出来的会话顶部：分叉自「原标题」，点击打开原会话（docs/design/message-rewind.md §4.5） -->
+    <DataTemplate DataType="vm:ForkOriginViewModel">
+        <Grid ColumnDefinitions="*,Auto,*" Margin="0,4,0,8">
+            <Border Height="1" Background="{DynamicResource TKCode.Divider}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Theme="{StaticResource TKCode.ChipButton}" Padding="8,0" Margin="8,0" Command="{Binding OpenCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <icons:LucideIcon Kind="GitFork" Width="12" Height="12" VerticalAlignment="Center"
+                                      StrokeBrush="{DynamicResource TKCode.TextTertiary}" />
+                    <TextBlock Classes="secondary" Text="{Binding Text}" FontSize="12" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" MaxWidth="480" />
+                </StackPanel>
+            </Button>
+            <Border Grid.Column="2" Height="1" Background="{DynamicResource TKCode.Divider}" VerticalAlignment="Center" />
+        </Grid>
+    </DataTemplate>
     <!-- 一轮结束的改动：N 个文件已更改，整轮撤销，逐文件审查 / 打开 -->
     <DataTemplate DataType="vm:TurnChangesItemViewModel">
         <views:TurnChangesView />
@@ -81,8 +97,17 @@
         </StackPanel>
     </DataTemplate>
     <DataTemplate DataType="vm:UserMessageItemViewModel">
-        <StackPanel HorizontalAlignment="Right" MaxWidth="560" Margin="0,8,0,4" Spacing="6"
-                    motion:Entrance.Effect="SlideUp" motion:Entrance.Distance="14">
+        <StackPanel Classes="user-message" HorizontalAlignment="Right" MaxWidth="560" Margin="0,8,0,0" Spacing="6"
+                    Background="Transparent" motion:Entrance.Effect="SlideUp" motion:Entrance.Distance="14">
+            <StackPanel.Styles>
+                <!-- 操作条平时透明（占位不跳动），悬停或键盘聚焦到消息时显示 -->
+                <Style Selector="StackPanel.message-actions">
+                    <Setter Property="Opacity" Value="0" />
+                </Style>
+                <Style Selector="StackPanel.user-message:pointerover StackPanel.message-actions, StackPanel.user-message:focus-within StackPanel.message-actions">
+                    <Setter Property="Opacity" Value="1" />
+                </Style>
+            </StackPanel.Styles>
             <!-- 附图：点击全屏查看；附件文件已删除时显示占位 -->
             <ItemsControl ItemsSource="{Binding Images}" IsVisible="{Binding HasImages}" HorizontalAlignment="Right">
                 <ItemsControl.ItemsPanel>
@@ -112,6 +137,35 @@
             </ItemsControl>
             <!-- 太长时默认收起，点按钮展开；短消息不显示按钮 -->
             <views:UserMessageBubble />
+            <!-- 悬停操作条：时间 · 复制（docs/design/message-features-report.md R3） -->
+            <StackPanel Classes="message-actions" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" Margin="0,-4,0,0">
+                <TextBlock Classes="tertiary" Text="{Binding TimestampText}" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <!-- 编辑并重发 / 回退（docs/design/message-rewind.md §4）：内置 Agent、空闲、在最近一次压缩之后才有 -->
+                <Button Theme="{StaticResource TKCode.RowButton}" Width="26" MinHeight="26" Height="26" Padding="0"
+                        HorizontalContentAlignment="Center" Foreground="{DynamicResource TKCode.TextTertiary}" IsVisible="{Binding CanRewind}"
+                        ToolTip.Tip="{loc:TKCodeLangResource MessageEdit}" AutomationProperties.Name="{loc:TKCodeLangResource MessageEdit}"
+                        Command="{Binding ActCommand}" CommandParameter="{x:Static vm:MessageAction.Edit}">
+                    <icons:LucideIcon Kind="Pencil" Width="13" Height="13" />
+                </Button>
+                <arc:DropdownMenu Side="Bottom" Alignment="End" IsVisible="{Binding CanRewind}">
+                    <arc:DropdownMenu.Trigger>
+                        <Button Theme="{StaticResource TKCode.RowButton}" Width="26" MinHeight="26" Height="26" Padding="0"
+                                HorizontalContentAlignment="Center" Foreground="{DynamicResource TKCode.TextTertiary}"
+                                ToolTip.Tip="{loc:TKCodeLangResource MessageRewind}" AutomationProperties.Name="{loc:TKCodeLangResource MessageRewind}">
+                            <icons:LucideIcon Kind="Undo2" Width="13" Height="13" />
+                        </Button>
+                    </arc:DropdownMenu.Trigger>
+                    <arc:MenuEntry Header="{loc:TKCodeLangResource MessageRewindAll}" Icon="{lucide:LucideGeometry Kind=History}"
+                                   Command="{Binding ActCommand}" CommandParameter="{x:Static vm:MessageAction.RewindAll}" />
+                    <arc:MenuEntry Header="{loc:TKCodeLangResource MessageRewindConversation}" Icon="{lucide:LucideGeometry Kind=MessageSquare}"
+                                   Command="{Binding ActCommand}" CommandParameter="{x:Static vm:MessageAction.RewindConversation}" />
+                    <arc:MenuEntry Header="{loc:TKCodeLangResource MessageRewindCode}" Icon="{lucide:LucideGeometry Kind=FileCode}"
+                                   Command="{Binding ActCommand}" CommandParameter="{x:Static vm:MessageAction.RewindCode}" />
+                </arc:DropdownMenu>
+                <arc:CopyButton IsIconOnly="True" Variant="Plain" Width="26" Height="26" MinWidth="0" MinHeight="0" Padding="0"
+                                Value="{Binding CopyText}" Label="{loc:TKCodeLangResource CopyUserMessage}"
+                                CopiedLabel="{loc:TKCodeLangResource CopyCopied}" FailedLabel="{loc:TKCodeLangResource CopyFailed}" />
+            </StackPanel>
         </StackPanel>
     </DataTemplate>
     <!-- 会话顶部：还有更早的消息（滚动到顶部时自动加载） -->
@@ -265,18 +319,39 @@
                 <Grid ColumnDefinitions="Auto,*">
                     <icons:LucideIcon Kind="CircleAlert" Width="14" Height="14" Margin="0,2,10,0" VerticalAlignment="Top"
                                       StrokeBrush="{DynamicResource TKCode.Danger}" />
-                    <arc:ScrollArea Grid.Column="1" MaxHeight="220">
-                        <SelectableTextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="12" LineHeight="18"
-                                             FontFamily="{StaticResource TKCode.MonoFont}" Foreground="{DynamicResource TKCode.Danger}" />
-                    </arc:ScrollArea>
+                    <StackPanel Grid.Column="1" Spacing="8">
+                        <arc:ScrollArea MaxHeight="220">
+                            <SelectableTextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="12" LineHeight="18"
+                                                 FontFamily="{StaticResource TKCode.MonoFont}" Foreground="{DynamicResource TKCode.Danger}" />
+                        </arc:ScrollArea>
+                        <!-- 重试（按现有历史再请求一次，不注入「继续」消息）与复制错误 -->
+                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsRequestFailed}">
+                            <arc:Button Variant="Secondary" Size="Small" IsVisible="{Binding CanRetry}" Command="{Binding RetryCommand}"
+                                        Content="{loc:TKCodeLangResource RetryRequest}" />
+                            <arc:CopyButton Variant="Plain" Value="{Binding ErrorMessage}" Label="{loc:TKCodeLangResource CopyError}"
+                                            CopiedLabel="{loc:TKCodeLangResource CopyCopied}" FailedLabel="{loc:TKCodeLangResource CopyFailed}" />
+                        </StackPanel>
+                    </StackPanel>
                 </Grid>
             </Border>
             <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding ShowFooter}">
                 <TextBlock Classes="tertiary" Text="{Binding TimestampText}" VerticalAlignment="Center" />
-                <Button Theme="{StaticResource TKCode.RowButton}" Width="24" MinHeight="24" Padding="0"
+                <arc:CopyButton IsIconOnly="True" Variant="Plain" Width="26" Height="26" MinWidth="0" MinHeight="0" Padding="0"
+                                Value="{Binding CopyText}" Label="{loc:TKCodeLangResource CopyMessage}"
+                                CopiedLabel="{loc:TKCodeLangResource CopyCopied}" FailedLabel="{loc:TKCodeLangResource CopyFailed}" />
+                <!-- 从这里分叉：在这一轮结束处另开一个会话继续，原会话不动（docs/design/message-rewind.md §4.4） -->
+                <Button Theme="{StaticResource TKCode.RowButton}" Width="26" MinHeight="26" Padding="0" IsVisible="{Binding CanFork}"
                         HorizontalContentAlignment="Center" Foreground="{DynamicResource TKCode.TextTertiary}"
-                        ToolTip.Tip="{loc:TKCodeLangResource CopyMessage}" Click="OnCopyMessageClick">
-                    <icons:LucideIcon Kind="Copy" Width="12" Height="12" />
+                        ToolTip.Tip="{loc:TKCodeLangResource MessageForkHere}" AutomationProperties.Name="{loc:TKCodeLangResource MessageForkHere}"
+                        Command="{Binding ForkHereCommand}">
+                    <icons:LucideIcon Kind="GitFork" Width="14" Height="14" />
+                </Button>
+                <!-- 回到这一轮的提问（长回合里很有用；由会话视图处理滚动） -->
+                <Button Theme="{StaticResource TKCode.RowButton}" Width="26" MinHeight="26" Padding="0"
+                        HorizontalContentAlignment="Center" Foreground="{DynamicResource TKCode.TextTertiary}"
+                        ToolTip.Tip="{loc:TKCodeLangResource ScrollToPrompt}" AutomationProperties.Name="{loc:TKCodeLangResource ScrollToPrompt}"
+                        Click="OnScrollToPromptClick">
+                    <icons:LucideIcon Kind="ArrowUpToLine" Width="14" Height="14" />
                 </Button>
             </StackPanel>
         </StackPanel>
@@ -288,6 +363,11 @@
                                     Foreground="{DynamicResource TKCode.TextSecondary}" BaseForeground="{DynamicResource TKCode.TextTertiary}" />
             <!-- Smaller elapsed text needs a 1 DIP optical baseline correction beside Arc's text layout. -->
             <TextBlock Classes="tertiary" Text="{Binding PonderText}" FontSize="12" VerticalAlignment="Center">
+                <TextBlock.RenderTransform><TranslateTransform Y="1" /></TextBlock.RenderTransform>
+            </TextBlock>
+            <!-- 请求失败、正在自动重试：原因与倒计时（docs/design/message-features-report.md R1） -->
+            <TextBlock Text="{Binding RetryText}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="520"
+                       Foreground="{DynamicResource TKCode.GitModified}" IsVisible="{Binding RetryText, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <TextBlock.RenderTransform><TranslateTransform Y="1" /></TextBlock.RenderTransform>
             </TextBlock>
         </StackPanel>

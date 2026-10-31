@@ -6,7 +6,17 @@
              xmlns:loc="using:TKCode.Desktop.Localization"
              x:Class="TKCode.Desktop.Views.UserMessageBubble"
              x:DataType="vm:UserMessageItemViewModel">
-    <Border Background="{DynamicResource TKCode.UserBubble}" CornerRadius="14" Padding="14,9" HorizontalAlignment="Right">
+    <UserControl.Styles>
+        <!-- 会话内查找的当前结果落在这条消息上：描边高亮（默认透明描边写在样式里，本地值会盖过样式） -->
+        <Style Selector="Border.bubble">
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.bubble.search-hit">
+            <Setter Property="BorderBrush" Value="{DynamicResource TKCode.Accent}" />
+        </Style>
+    </UserControl.Styles>
+    <Border Classes="bubble" Classes.search-hit="{Binding IsSearchHit}" Background="{DynamicResource TKCode.UserBubble}"
+            BorderThickness="1.5" CornerRadius="14" Padding="13,8" HorizontalAlignment="Right">
         <!-- 超过 8 行默认收起（Arc 的收起 / 展开：按实际排版的行边界裁切，末行淡出，收起时只排到第 9 行） -->
         <arc:ExpandableContent x:Name="Clamp" Lines="{x:Static vm:UserMessageItemViewModel.CollapsedLineLimit}"
                                IsExpanded="{Binding IsExpanded}"

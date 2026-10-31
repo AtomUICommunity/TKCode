@@ -40,4 +40,39 @@ public static class ConfirmDialog
         await modal.Completion;
         return confirmed;
     }
+
+    /// <summary>三选一：取消、次按钮、主按钮（例如「取消 / 保留文件 / 回退文件」）。</summary>
+    /// <returns>主按钮 true，次按钮 false，取消、Esc、点遮罩或关闭窗口 null。</returns>
+    public static async Task<bool?> ChooseAsync(Window owner, string title, string message, string primaryText, string secondaryText)
+    {
+        bool? choice = null;
+        var cancel = new Arc.Button { Variant = ButtonVariant.Ghost, Content = Strings.Get(TKCodeLangResourceKind.Cancel) };
+        var secondary = new Arc.Button { Variant = ButtonVariant.Secondary, Content = secondaryText };
+        var primary = new Arc.Button { Variant = ButtonVariant.Primary, Content = primaryText };
+        var surface = new DialogSurface
+        {
+            Title = title,
+            Size = ControlSize.Small,
+            ShowCloseButton = true,
+            CloseButtonName = Strings.Get(TKCodeLangResourceKind.Close),
+            Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+            ContentTemplate = null,
+            Actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { cancel, secondary, primary } },
+        };
+        var modal = new ScaledModal(surface);
+        cancel.Click += (_, _) => modal.Cancel();
+        secondary.Click += (_, _) =>
+        {
+            choice = false;
+            modal.Close();
+        };
+        primary.Click += (_, _) =>
+        {
+            choice = true;
+            modal.Close();
+        };
+        modal.Show(owner, cancel);
+        await modal.Completion;
+        return choice;
+    }
 }

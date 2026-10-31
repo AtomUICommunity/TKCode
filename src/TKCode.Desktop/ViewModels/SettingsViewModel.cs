@@ -10,6 +10,7 @@ using TKCode.Config;
 using TKCode.Desktop.Icons;
 using TKCode.Desktop.Localization;
 using TKCode.Desktop.Services;
+using TKCode.Desktop.Services.Notifications;
 using TKCode.Rpc;
 using TKCode.Shell;
 
@@ -855,6 +856,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     public ObservableCollection<SettingsChoiceViewModel> Languages { get; } = [];
     public ObservableCollection<SettingsChoiceViewModel> Themes { get; } = [];
     public ObservableCollection<SettingsChoiceViewModel> CacheTtls { get; } = [];
+
+    /// <summary>通知档位：回合结束 / 需要你处理（settings.json 的 notifications.turnCompleted / needsInput）。</summary>
+    public ObservableCollection<SettingsChoiceViewModel> NotifyTurnModes { get; } = [];
+    public ObservableCollection<SettingsChoiceViewModel> NotifyInputModes { get; } = [];
     /// <summary>界面缩放的分段档位（<see cref="UiScaleLevels.Stops"/>）；当前值不在档位上（手改 settings.json）时没有选中项。</summary>
     public ObservableCollection<SettingsChoiceViewModel> UiScales { get; } = [];
     public ObservableCollection<SettingsChoiceViewModel> DefaultModels { get; } = [];
@@ -1207,6 +1212,39 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>提示缓存有效期（settings.json 的 promptCacheTtl）；Host 每次请求读取，进行中的会话也立即生效。</summary>
     [RelayCommand]
     private void ChooseCacheTtl(SettingsChoiceViewModel choice) => _settings.SetPromptCacheTtl(choice.Value);
+
+    // ---- 通知（docs/design/notifications.md §4.8） ----
+
+    private NotificationPreferences Notifications => NotificationPreferences.From(_settings.Current.Notifications);
+
+    [RelayCommand]
+    private void ChooseNotifyTurn(SettingsChoiceViewModel choice) => _settings.SetNotifyTurnCompleted(choice.Value);
+
+    [RelayCommand]
+    private void ChooseNotifyInput(SettingsChoiceViewModel choice) => _settings.SetNotifyNeedsInput(choice.Value);
+
+    /// <summary>通知时播放提示音（默认开启）。</summary>
+    public bool NotificationSound
+    {
+        get => Notifications.Sound;
+        set
+        {
+            if (value != NotificationSound)
+            {
+                _settings.SetNotificationSound(value);
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>「回合结束」的说明，含耗时阈值（notifications.minTurnSeconds）。</summary>
+    public string NotifyTurnHint => Strings.Format(TKCodeLangResourceKind.NotifyTurnCompletedHintFormat, (int)Notifications.MinTurnDuration.TotalSeconds);
+
+    /// <summary>「发送测试通知」（由主窗口接到通知中心；测试中为 null，按钮什么也不做）。</summary>
+    public Action? SendTestNotification { get; set; }
+
+    [RelayCommand]
+    private void TestNotification() => SendTestNotification?.Invoke();
 
     /// <summary>界面缩放（settings.json 的 uiScale）：写回后由 App 同步到窗口，立即生效。</summary>
     [RelayCommand]
@@ -1623,6 +1661,17 @@ public sealed partial class SettingsViewModel : ObservableObject
             ("5m", Strings.Get(TKCodeLangResourceKind.CacheTtl5m)),
             ("1h", Strings.Get(TKCodeLangResourceKind.CacheTtl1h)),
         ], _settings.Current.PromptCacheTtl == "1h" ? "1h" : "5m");
+        var notifications = Notifications;
+        IEnumerable<(string, string)> NotifyModes() =>
+        [
+            ("never", Strings.Get(TKCodeLangResourceKind.NotifyNever)),
+            ("background", Strings.Get(TKCodeLangResourceKind.NotifyInBackground)),
+            ("always", Strings.Get(TKCodeLangResourceKind.NotifyAlways)),
+        ];
+        SettingsChoiceViewModel.Fill(NotifyTurnModes, NotifyModes(), NotificationPreferences.ToValue(notifications.TurnCompleted));
+        SettingsChoiceViewModel.Fill(NotifyInputModes, NotifyModes(), NotificationPreferences.ToValue(notifications.NeedsInput));
+        OnPropertyChanged(nameof(NotificationSound));
+        OnPropertyChanged(nameof(NotifyTurnHint));
         OnPropertyChanged(nameof(UiScaleHint));
         var scale = _settings.UiScale;
         var currentStop = UiScaleLevels.Stops.Where(s => UiScaleLevels.Same(s, scale)).Select(ScaleKey).FirstOrDefault() ?? "";

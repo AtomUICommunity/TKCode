@@ -402,7 +402,8 @@ record PlanReviewResponse(string Outcome /* approved | revise | dismissed */, st
 - Codex（`collaborationMode` / `plan` 条目）和 ACP（`switch_mode` 权限请求、`session/set_mode`）接入审批面板。
 - 计划里的待办一键转成任务清单（Cursor 风格）；目前由模型在执行时用 `task_create` 自己拆。
 - 计划文件放在项目目录、`plansDirectory` 设置。
-- 计划审批的系统通知、托盘角标。
+
+计划审批的系统通知与未读角标已在 [notifications.md](notifications.md) 中实现（属于「需要你处理」）。
 
 ## 18. 实施阶段
 

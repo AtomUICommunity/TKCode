@@ -19,6 +19,17 @@
     "reduceMotion": { "type": "boolean", "description": "Turn off UI animations (the macOS Reduce Motion setting is honored as well)." },
     "autoCompact": { "type": "boolean", "description": "Automatically compact the built-in agent's context when it nears the context budget (default true). /compact still works when disabled." },
     "autoMemory": { "type": "boolean", "description": "Project memory for the built-in agent (default true): the index of ~/.tkcode/projects/<project>/memory/ is loaded at the start of each session, and the agent can read and write memory files there without approval. Applies to sessions created or opened afterwards." },
+    "notifications": {
+      "type": "object",
+      "description": "System notifications when a session needs you (see docs/design/notifications.md).",
+      "properties": {
+        "turnCompleted": { "enum": ["never", "background", "always"], "default": "background", "description": "Notify when a turn finishes successfully after running at least minTurnSeconds, or when a turn fails. background: only when TKCode is not the active window or the session is not the one on screen." },
+        "needsInput": { "enum": ["never", "background", "always"], "default": "background", "description": "Notify when a session waits for you: tool approvals, questions, plan reviews and MCP forms." },
+        "sound": { "type": "boolean", "default": true, "description": "Play a short sound with each notification." },
+        "minTurnSeconds": { "type": "integer", "minimum": 0, "default": 30, "description": "A successful turn must run at least this many seconds before its completion is notified. Failed turns are always notified." }
+      },
+      "additionalProperties": false
+    },
     "closeToTray": { "type": "boolean", "description": "Closing the window hides TKCode to the system tray and keeps sessions running (default true). When false, closing the window quits TKCode." },
     "uiScale": { "type": "number", "minimum": 0.75, "maximum": 2, "default": 1, "description": "Interface zoom: text, icons and spacing scale together (1 = 100%). Settings > General offers 0.8, 0.9, 1, 1.15, 1.3 and 1.5; Cmd/Ctrl + and - step through the same levels, Cmd/Ctrl 0 resets." },
     "originalImages": { "type": "boolean", "description": "Show Markdown images at full resolution. By default they are decoded at their display size to save memory; clicking an image always opens the original." },

@@ -33,6 +33,11 @@ public sealed class AppTray
     private readonly NativeMenu _menu = new();
     private readonly NativeMenu? _dockMenu;
 
+    /// <summary>未读的会话数（docs/design/notifications.md §4.5）：托盘提示文字与图标红点。</summary>
+    private int _unread;
+    private WindowIcon? _plainIcon;
+    private WindowIcon? _dotIcon;
+
     public AppTray(Application app, IClassicDesktopStyleApplicationLifetime desktop, Window window, UserSettingsService settings, UpdatesViewModel updates,
         MainWindowViewModel main, ProjectService projects)
     {
@@ -75,7 +80,11 @@ public sealed class AppTray
                 Rebuild();
             }
         };
-        Strings.LanguageChanged += (_, _) => Rebuild();
+        Strings.LanguageChanged += (_, _) =>
+        {
+            Rebuild();
+            _icon.ToolTipText = ToolTip(_unread);
+        };
         // 切换项目、新建 / 修改 / 移除项目后「最近项目」随之变化
         main.Conversation.WorkspaceChanged += Rebuild;
         projects.Changed += Rebuild;
@@ -83,6 +92,36 @@ public sealed class AppTray
     }
 
     private bool CloseToTray => _settings.Current.CloseToTray != false;
+
+    /// <summary>有会话在后台结束或等待处理、还没打开过：提示文字显示数量，图标右上角加红点。</summary>
+    public void SetUnread(int count)
+    {
+        if (count == _unread)
+        {
+            return;
+        }
+        var hadDot = _unread > 0;
+        _unread = count;
+        _icon.ToolTipText = ToolTip(count);
+        if (hadDot == count > 0)
+        {
+            return;
+        }
+        try
+        {
+            _icon.Icon = count > 0
+                ? _dotIcon ??= new WindowIcon(Notifications.BadgeRenderer.TrayIcon(dot: true))
+                : _plainIcon ??= new WindowIcon(AssetLoader.Open(new Uri("avares://TKCode/Assets/app-logo.png")));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or IOException)
+        {
+            System.Diagnostics.Trace.TraceWarning($"TKCode: updating the tray icon failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>托盘提示文字：「TKCode」，有未读时附上数量。</summary>
+    internal static string ToolTip(int unread) =>
+        unread > 0 ? $"TKCode · {Strings.Format(TKCodeLangResourceKind.TrayUnreadFormat, unread)}" : "TKCode";
 
     /// <summary>只拦截用户点关闭按钮（或 Alt+F4 / ⌘W）；退出程序、系统关机时照常关闭。</summary>
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)

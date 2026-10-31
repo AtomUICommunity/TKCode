@@ -32,11 +32,30 @@ public sealed partial class SessionViewModel : ObservableObject
         ModelId = session.ModelId;
         Options = session.Options;
         Runtime = session.Runtime;
+        if (session.ForkedFrom is { } origin)
+        {
+            ForkOrigin = new ForkOriginViewModel(origin) { OpenRequested = o => OriginRequested?.Invoke(o) };
+        }
         _ponderTimer.Tick += (_, _) => UpdatePonderText();
-        Items.CollectionChanged += (_, _) =>
+        Items.CollectionChanged += (_, e) =>
         {
             OnPropertyChanged(nameof(IsEmpty));
             OnPropertyChanged(nameof(PickerScope));
+            // 消息上的编辑 / 回退 / 分叉（docs/design/message-rewind.md §4）
+            foreach (var item in e.NewItems?.OfType<TranscriptItemViewModel>() ?? [])
+            {
+                switch (item)
+                {
+                    case UserMessageItemViewModel user:
+                        user.ActionRequested = (m, action) => MessageActionRequested?.Invoke(this, m, action);
+                        break;
+                    case AssistantMessageItemViewModel assistant:
+                        assistant.ForkRequested = m => ForkRequested?.Invoke(this, m);
+                        assistant.RetryRequested = _ => RetryRequested?.Invoke(this);
+                        break;
+                }
+            }
+            UpdateMessageActions();
         };
         PendingApprovals.CollectionChanged += (_, _) =>
         {
@@ -322,6 +341,107 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsRunning { get; private set; }
 
+    partial void OnIsRunningChanged(bool value) => UpdateMessageActions();
+
+    // ---- 编辑 / 回退 / 分叉（docs/design/message-rewind.md） ----
+
+    /// <summary>分叉出来的会话：顶部的「分叉自…」；不是分叉的会话为 null。</summary>
+    public ForkOriginViewModel? ForkOrigin { get; }
+
+    /// <summary>用户消息上点了编辑 / 回退。</summary>
+    public event Action<SessionViewModel, UserMessageItemViewModel, MessageAction>? MessageActionRequested;
+
+    /// <summary>助手回合底栏点了「从这里分叉」。</summary>
+    public event Action<SessionViewModel, AssistantMessageItemViewModel>? ForkRequested;
+
+    /// <summary>点了顶部的「分叉自…」。</summary>
+    public event Action<ForkedFromDto>? OriginRequested;
+
+    /// <summary>错误卡片上点了重试。</summary>
+    public event Action<SessionViewModel>? RetryRequested;
+
+    /// <summary>
+    /// 哪些消息可以编辑、回退、分叉：内置 Agent、不是子 Agent、空闲，且在最近一次压缩之后（Host 只能复制压缩之后的部分，§5.2）。
+    /// 助手回合的分叉点是下一条用户消息之前，需要知道它的下标；最后一轮复制整条分支。
+    /// </summary>
+    private void UpdateMessageActions()
+    {
+        var allowed = !IsRunning && !IsExternal && !IsSubagent;
+        var beforeCompaction = false;
+        UserMessageItemViewModel? next = null;
+        // 只有最后一条消息出错时可以重试（Host 按现有历史再请求一次）
+        var last = Items.LastOrDefault(i => i is AssistantMessageItemViewModel or UserMessageItemViewModel);
+        foreach (var assistant in Items.OfType<AssistantMessageItemViewModel>())
+        {
+            assistant.CanRetry = allowed && ReferenceEquals(assistant, last) && assistant.IsRequestFailed;
+        }
+        for (var i = Items.Count - 1; i >= 0; i--)
+        {
+            switch (Items[i])
+            {
+                case CompactionItemViewModel { IsFailed: false }:
+                    beforeCompaction = true;
+                    break;
+                case UserMessageItemViewModel user:
+                    user.CanRewind = allowed && !beforeCompaction && user.Index >= 0;
+                    next = user;
+                    break;
+                case AssistantMessageItemViewModel assistant:
+                    assistant.CanFork = allowed && !beforeCompaction && (next is null || next.Index >= 0);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>助手回合的分叉截止点：其后第一条用户消息的下标；是最后一轮时为 null（整条复制）。</summary>
+    public int? ForkPointAfter(AssistantMessageItemViewModel message)
+    {
+        var start = Items.IndexOf(message);
+        for (var i = start + 1; i < Items.Count; i++)
+        {
+            if (Items[i] is UserMessageItemViewModel user)
+            {
+                return user.Index;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>这条用户消息及之后各轮改过的文件数（编辑重发前询问是否回退）。</summary>
+    public int ChangedFilesFrom(UserMessageItemViewModel message) =>
+        FileChangeSet.Group(EditsIn(Items.Skip(Math.Max(0, Items.IndexOf(message)))), RevertAsync).Count(f => f.CanRevert);
+
+    /// <summary>
+    /// 回退这条用户消息及之后各轮改过的文件（docs/design/message-rewind.md §5.3）：按轮次从后往前，
+    /// 用各轮改动卡片里的文件逐个撤销（每一步期望的指纹正好是后一轮撤销之后的内容），卡片状态随之更新。
+    /// </summary>
+    /// <returns>撤销成功的文件数，以及没能撤销的文件（在外部被改过等）。</returns>
+    public async Task<(int Reverted, IReadOnlyList<string> Failed)> RevertFromAsync(UserMessageItemViewModel message)
+    {
+        var start = Math.Max(0, Items.IndexOf(message));
+        var cards = Items.Skip(start).OfType<TurnChangesItemViewModel>().Reverse().ToArray();
+        var reverted = new HashSet<string>(StringComparer.Ordinal);
+        var failed = new List<string>();
+        foreach (var card in cards)
+        {
+            foreach (var file in card.Files.Where(f => f.CanRevertNow).ToArray())
+            {
+                await file.RevertCoreAsync();
+                if (file.IsReverted)
+                {
+                    reverted.Add(file.Path);
+                }
+                else if (!failed.Contains(file.Path))
+                {
+                    failed.Add(file.Path);
+                }
+            }
+            card.NotifyRevertState();
+        }
+        failed.RemoveAll(reverted.Contains);
+        return (reverted.Count, failed);
+    }
+
     /// <summary>已开始运行、但本轮还没有收到任何输出（等待模型首个 token 或工具后的下一次请求）。</summary>
     [ObservableProperty]
     public partial bool IsPondering { get; private set; }
@@ -359,8 +479,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>点击了子 Agent 卡片：在右侧打开它的转录。</summary>
     public event Action<SessionViewModel, ToolCallBlockViewModel>? SubagentRequested;
 
+    /// <summary>撤销文件改动；带上会话 id，Host 在下一批输入前告诉 Agent（docs/design/message-rewind.md §5.3）。</summary>
     internal Task<RevertFileResult> RevertAsync(RevertFileRequest request) =>
-        RevertFile is { } revert ? revert(request) : Task.FromResult(new RevertFileResult(Strings.Get(TKCodeLangResourceKind.ChangesRevertFailedNoHost)));
+        RevertFile is { } revert
+            ? revert(IsExternal || IsSubagent ? request : request with { SessionId = SessionId })
+            : Task.FromResult(new RevertFileResult(Strings.Get(TKCodeLangResourceKind.ChangesRevertFailedNoHost)));
 
     /// <summary>整个会话的文件改动，按文件合并（最早的快照、最后的指纹）。</summary>
     public IReadOnlyList<FileChangeViewModel> FileChanges() => FileChangeSet.Group(EditsIn(Items), RevertAsync);
@@ -418,6 +541,10 @@ public sealed partial class SessionViewModel : ObservableObject
     // ---- 运行中发送的消息队列 ----
 
     private string? _lastStopReason;
+    private string? _lastErrorMessage;
+
+    /// <summary>本轮开始的时间（通知的耗时阈值用）；打开一个已在运行的会话时从打开的那一刻算。</summary>
+    private DateTimeOffset? _runStartedAt;
 
     /// <summary>Agent 运行中发送的消息：本轮正常结束后按顺序发出。</summary>
     public System.Collections.ObjectModel.ObservableCollection<QueuedPromptViewModel> QueuedPrompts { get; } = [];
@@ -432,6 +559,9 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>一轮结束；参数表示是否正常完成（未被停止、未出错）。</summary>
     public event Action<bool>? RunEnded;
+
+    /// <summary>一轮结束，带停止原因、错误、耗时与最后一段正文（系统通知用，docs/design/notifications.md §4.2）。</summary>
+    public event Action<TurnSummary>? TurnEnded;
 
     /// <summary>会话顶部的“更早的消息”条目（有更早的历史时显示）。</summary>
     public EarlierHistoryViewModel EarlierHistory => _earlier ??= new EarlierHistoryViewModel(this);
@@ -488,7 +618,7 @@ public sealed partial class SessionViewModel : ObservableObject
                         Title ??= ImagePrompt.Title(TitleText(text, message.Segments));
                     }
                     var images = message.Blocks.OfType<HistoryImage>().Select(i => i.Path).ToArray();
-                    items.Add(new UserMessageItemViewModel(text, images, message.Segments));
+                    items.Add(new UserMessageItemViewModel(text, images, message.Segments, message.Timestamp) { Index = message.Index });
                     turnStart = items.Count;
                     break;
                 case "assistant":
@@ -521,6 +651,13 @@ public sealed partial class SessionViewModel : ObservableObject
                     if (message.StopReason is "Error" or "Aborted")
                     {
                         current.ErrorMessage = ErrorText(message.StopReason, message.ErrorMessage);
+                        current.IsRequestFailed = message.StopReason == "Error";
+                    }
+                    else
+                    {
+                        // 出错后重试成功（同一轮里接着的回复）：之前的错误不再显示，与实时显示一致
+                        current.ErrorMessage = null;
+                        current.IsRequestFailed = false;
                     }
                     if (latest && message.Usage is { } usage && HasTokens(usage))
                     {
@@ -604,6 +741,10 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         IsRunning = running;
         SetPondering(running);
+        if (running)
+        {
+            _runStartedAt ??= DateTimeOffset.Now;
+        }
     }
 
     public void Apply(SessionEvent e)
@@ -623,21 +764,31 @@ public sealed partial class SessionViewModel : ObservableObject
                 HostOptionsChanged?.Invoke(previous, c.Options);
                 break;
             case AgentStarted:
+                _runStartedAt = DateTimeOffset.Now;
                 SetRunning(true);
                 _lastStopReason = null;
+                _lastErrorMessage = null;
                 IsQueuePaused = false;
                 break;
             case AgentEnded:
                 SetRunning(false);
+                var summary = new TurnSummary(_lastStopReason, _lastErrorMessage,
+                    _runStartedAt is { } started ? DateTimeOffset.Now - started : TimeSpan.Zero, FinalText(Items))
+                {
+                    // 正常结束且队列里还有消息：马上自动发出下一条，用户不需要过来
+                    ContinuesWithQueue = _lastStopReason is not ("Error" or "Aborted") && QueuedPrompts.Count > 0,
+                };
+                _runStartedAt = null;
                 if (!IsSubagent)
                 {
                     AppendTurnChanges(Items, TurnStart(Items));
                 }
                 NotifyChanges();
                 // 本轮被停止或出错：排队的消息暂停，不自动发出
-                var completed = _lastStopReason is not ("Error" or "Aborted");
+                var completed = summary.Completed;
                 IsQueuePaused = !completed && QueuedPrompts.Count > 0;
                 RunEnded?.Invoke(completed);
+                TurnEnded?.Invoke(summary);
                 break;
             case CompactionStarted c:
                 Items.Add(CompactionItemViewModel.Running(c.PreTokens, handoff: c.Trigger == PlanHandoffTrigger));
@@ -676,7 +827,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
             case MessageStarted { Role: "user" } m:
                 Title ??= ImagePrompt.Title(TitleText(m.Text, m.Segments));
-                Items.Add(new UserMessageItemViewModel(m.Text ?? "", m.Images, m.Segments));
+                Items.Add(new UserMessageItemViewModel(m.Text ?? "", m.Images, m.Segments) { Index = m.Index ?? -1 });
                 break;
             case MessageStarted { Role: "assistant" } m:
                 // 同一轮内工具调用后的后续回复接在同一条消息里显示。
@@ -690,6 +841,13 @@ public sealed partial class SessionViewModel : ObservableObject
                 {
                     existing.IsStreaming = true;
                 }
+                break;
+            case RequestRetrying r:
+                _retryAt = DateTimeOffset.Now.AddMilliseconds(r.DelayMs);
+                _retryAttempt = (r.Attempt, r.MaxAttempts);
+                var reason = r.Reason.ReplaceLineEndings(" ").Trim();
+                _retryReason = reason.Length > 80 ? reason[..80] + "…" : reason;
+                UpdateRetryText();
                 break;
             case TextDelta d when Current is { } msg:
                 SetPondering(false);
@@ -718,10 +876,18 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
             case MessageEnded { Role: "assistant" } end when Current is { } msg:
                 _lastStopReason = end.StopReason;
+                _lastErrorMessage = end.ErrorMessage;
+                ClearRetry();
                 msg.Complete();
+                msg.IsRequestFailed = end.StopReason == "Error";
                 if (end.StopReason is "Error" or "Aborted")
                 {
                     msg.ErrorMessage = ErrorText(end.StopReason, end.ErrorMessage);
+                }
+                else
+                {
+                    // 重试成功：同一轮里之前的错误不再显示
+                    msg.ErrorMessage = null;
                 }
                 if (end.Usage is { } usage && HasTokens(usage))
                 {
@@ -764,6 +930,11 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             item.RefreshLanguage();
         }
+        foreach (var item in Items.OfType<UserMessageItemViewModel>())
+        {
+            item.RefreshLanguage();
+        }
+        ForkOrigin?.RefreshLanguage();
         foreach (var item in Items.OfType<CompactionItemViewModel>())
         {
             item.RefreshLanguage();
@@ -816,6 +987,8 @@ public sealed partial class SessionViewModel : ObservableObject
         }
         else
         {
+            // 有了输出（或运行结束）：重试的提示也结束
+            ClearRetry();
             _ponderTimer.Stop();
         }
     }
@@ -834,6 +1007,54 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         var seconds = Math.Max(1, (int)(DateTimeOffset.Now - _ponderStart).TotalSeconds);
         PonderText = $"{seconds}s";
+        UpdateRetryText();
+    }
+
+    // ---- 自动重试的状态（docs/design/message-features-report.md R1）：等待输出时显示在「Thinking」旁 ----
+
+    private DateTimeOffset _retryAt;
+    private (int Attempt, int Max) _retryAttempt;
+    private string? _retryReason;
+
+    /// <summary>「503 overloaded · 8 秒后重试（第 1/2 次）」；没有在重试时为 null。</summary>
+    [ObservableProperty]
+    public partial string? RetryText { get; private set; }
+
+    private void UpdateRetryText()
+    {
+        if (_retryReason is null)
+        {
+            RetryText = null;
+            return;
+        }
+        var left = (int)Math.Ceiling((_retryAt - DateTimeOffset.Now).TotalSeconds);
+        RetryText = left > 0
+            ? Strings.Format(TKCodeLangResourceKind.RequestRetryingIn, _retryReason, left, _retryAttempt.Attempt, _retryAttempt.Max)
+            : Strings.Format(TKCodeLangResourceKind.RequestRetryingNow, _retryReason, _retryAttempt.Attempt, _retryAttempt.Max);
+    }
+
+    private void ClearRetry()
+    {
+        _retryReason = null;
+        RetryText = null;
+    }
+
+    /// <summary>本轮最后一段助手正文（从末尾往前找，遇到用户消息就停）；没有正文时为 null。</summary>
+    internal static string? FinalText(IEnumerable<TranscriptItemViewModel> items)
+    {
+        foreach (var item in items.Reverse())
+        {
+            if (item is UserMessageItemViewModel)
+            {
+                return null;
+            }
+            if (item is AssistantMessageItemViewModel assistant &&
+                assistant.Blocks.OfType<TextBlockViewModel>().LastOrDefault(b => !string.IsNullOrWhiteSpace(b.Text)) is { } text)
+            {
+                return text.Text;
+            }
+        }
+        return null;
     }
 
     private static string ErrorText(string stopReason, string? message) =>
@@ -844,4 +1065,16 @@ public sealed partial class SessionViewModel : ObservableObject
     /// 不能拿它覆盖上一次的用量，否则一轮里占用环（和它的悬停卡片）会反复消失又出现。
     /// </summary>
     private static bool HasTokens(UsageDto usage) => usage.Input + usage.CacheRead + usage.CacheWrite + usage.Output > 0;
+}
+
+/// <summary>一轮运行的结果（<see cref="SessionViewModel.TurnEnded"/>）。</summary>
+/// <param name="StopReason">最后一条助手消息的停止原因（Error / Aborted / 其他）；没有助手消息时为 null。</param>
+/// <param name="FinalText">本轮最后一段助手正文。</param>
+public sealed record TurnSummary(string? StopReason, string? ErrorMessage, TimeSpan Duration, string? FinalText)
+{
+    /// <summary>正常完成（未被停止、未出错）。</summary>
+    public bool Completed => StopReason is not ("Error" or "Aborted");
+
+    /// <summary>正常完成且排队的下一条消息会自动发出（不通知「回合结束」）。</summary>
+    public bool ContinuesWithQueue { get; init; }
 }

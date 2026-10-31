@@ -12,6 +12,8 @@
 | Windows 任务栏按钮右键（跳转列表） | 任务：新会话、退出 TKCode；类别「项目」：最近项目 | `AppTray.BuildJumpList` → `WindowsJumpList` |
 | Linux 启动器 | 无（`.desktop` 的动作是静态的，不放项目） | — |
 
+有会话在后台结束或等待处理、还没打开过时，托盘提示文字附上「待查看：N」、图标右上角加红点；macOS Dock 显示角标，Windows 任务栏按钮显示覆盖图标（`AppTray.SetUnread`，见 [notifications.md](notifications.md) §4.5）。
+
 ## 项目列表
 
 - 最近使用的在前，最多 8 个（`AppTray.ProjectLimit`）；`state.json` 的 `recentProjects`（项目 id）记录使用顺序，`ConversationViewModel.SetWorkspace` 每次切换项目时更新。

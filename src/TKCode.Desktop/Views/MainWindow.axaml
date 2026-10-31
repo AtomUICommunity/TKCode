@@ -396,6 +396,20 @@
                             <StackPanel DockPanel.Dock="Bottom" Margin="32,6,32,14" MaxWidth="760" Spacing="6">
                                 <!-- 运行中发送的消息：排队，可编辑、移除或立即插入当前轮 -->
                                 <!-- 卡片出现 / 消失时高度平滑过渡，输入框被顺滑地推上去 -->
+                                <!-- 编辑已发送的消息（docs/design/message-rewind.md §4.2）：发送后在新会话中继续 -->
+                                <motion:Reveal IsOpen="{Binding Conversation.IsEditingMessage}" Offset="10">
+                                    <Border Classes="card" Padding="12,6,6,6">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <icons:LucideIcon Kind="Pencil" Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,8,0"
+                                                              StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
+                                            <TextBlock Grid.Column="1" Classes="secondary" FontSize="12" VerticalAlignment="Center"
+                                                       TextWrapping="Wrap" Text="{Binding Conversation.EditingBanner}" />
+                                            <arc:Button Grid.Column="2" Variant="Ghost" Size="Small" Margin="8,0,0,0"
+                                                        Command="{Binding Conversation.CancelEditCommand}"
+                                                        Content="{loc:TKCodeLangResource MessageEditCancel}" />
+                                        </Grid>
+                                    </Border>
+                                </motion:Reveal>
                                 <motion:Reveal IsOpen="{Binding Conversation.Active.HasQueuedPrompts, FallbackValue=False}" Offset="10">
                                 <Border Classes="card" Padding="10,8">
                                     <StackPanel Spacing="4">
@@ -564,6 +578,9 @@
                             <!-- 任务球（右上角）：收起是一个球，展开是 Agent / Shell / 任务清单 / 更改 -->
                             <views:TaskOrbView x:Name="TaskOrb" DataContext="{Binding Conversation.Active, FallbackValue={x:Null}}"
                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,20,0" />
+                            <!-- 会话内查找（⌘F）：顶部居中浮出 -->
+                            <views:TranscriptFindBar x:Name="FindBar" IsVisible="False"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8,0,0" />
                             <!-- 向上滚动离开底部后浮出：↓ 回到底部 -->
                             <Button x:Name="ScrollToBottomButton" Theme="{StaticResource TKCode.PillButton}" motion:Presence.IsPresent="False"
                                     motion:Presence.Effect="SlideUp" motion:Presence.Distance="14"

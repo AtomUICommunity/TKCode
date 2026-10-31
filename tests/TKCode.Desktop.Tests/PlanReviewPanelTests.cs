@@ -18,6 +18,7 @@ using TKCode.Desktop.Controls;
 using TKCode.Desktop.Services;
 using TKCode.Desktop.ViewModels;
 using TKCode.Desktop.Views;
+using ToolCallStatus = TKCode.Desktop.ViewModels.ToolCallStatus;
 using TKCode.Rpc;
 using Xunit;
 

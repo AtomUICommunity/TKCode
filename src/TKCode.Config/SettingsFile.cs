@@ -19,7 +19,7 @@ public static class SettingsFile
         AllowTrailingCommas = true,
     };
 
-    private static readonly HashSet<string> TopLevelKeys = new(StringComparer.OrdinalIgnoreCase) { "$schema", "model", "fastModel", "language", "theme", "reduceMotion", "providers", "webSearch", "permissions", "mcpServers", "update", "closeToTray", "autoCompact", "autoMemory", "originalImages", "defaultRole", "skills", "promptCacheTtl", "uiScale", "agent", "terminal" };
+    private static readonly HashSet<string> TopLevelKeys = new(StringComparer.OrdinalIgnoreCase) { "$schema", "model", "fastModel", "language", "theme", "reduceMotion", "providers", "webSearch", "permissions", "mcpServers", "update", "closeToTray", "autoCompact", "autoMemory", "originalImages", "defaultRole", "skills", "promptCacheTtl", "uiScale", "agent", "terminal", "notifications" };
     private static readonly HashSet<string> WebSearchKeys = new(StringComparer.OrdinalIgnoreCase) { "provider", "apiKey", "baseUrl" };
     private static readonly HashSet<string> WebSearchProviders = new(StringComparer.OrdinalIgnoreCase) { "brave", "tavily", "exa", "searxng" };
     private static readonly HashSet<string> UpdateKeys = new(StringComparer.OrdinalIgnoreCase) { "prerelease", "autoCheck" };
@@ -27,6 +27,8 @@ public static class SettingsFile
     private static readonly HashSet<string> AgentKeys = new(StringComparer.OrdinalIgnoreCase) { "shell" };
     private static readonly HashSet<string> AgentShellKeys = new(StringComparer.OrdinalIgnoreCase) { "profile" };
     private static readonly HashSet<string> TerminalKeys = new(StringComparer.OrdinalIgnoreCase) { "defaultProfile" };
+    private static readonly HashSet<string> NotificationKeys = new(StringComparer.OrdinalIgnoreCase) { "turnCompleted", "needsInput", "sound", "minTurnSeconds" };
+    private static readonly HashSet<string> NotificationModes = new(StringComparer.Ordinal) { "never", "background", "always" };
     private static readonly HashSet<string> ProviderKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "name", "api", "baseUrl", "apiKey", "enabled", "hidden", "headers", "models", "compat",
@@ -139,6 +141,14 @@ public static class SettingsFile
             Check(terminal, TerminalKeys, "terminal.", warnings);
             CheckShellValue(terminal, "defaultProfile", "terminal.defaultProfile", warnings);
         }
+        if (obj["notifications"] is { } notificationsNode && notificationsNode is not JsonObject)
+        {
+            errors.Add("notifications: must be an object.");
+        }
+        else if (obj["notifications"] is JsonObject notifications)
+        {
+            CheckNotifications(notifications, warnings, errors);
+        }
         if (obj["promptCacheTtl"] is JsonNode ttl && ttl.ToString() is not ("5m" or "1h"))
         {
             warnings.Add($"promptCacheTtl: expected \"5m\" or \"1h\", got {ttl.ToJsonString()}; using 5m.");
@@ -174,6 +184,45 @@ public static class SettingsFile
         catch (JsonException ex)
         {
             return new SettingsLoadResult(null, [Describe(ex)], warnings);
+        }
+    }
+
+    /// <summary>
+    /// notifications 节（docs/design/notifications.md §4.8）：档位取值不对只警告并按默认（background）处理；
+    /// 类型不对会让整份文件反序列化失败，所以报错。
+    /// </summary>
+    private static void CheckNotifications(JsonObject notifications, List<string> warnings, List<string> errors)
+    {
+        Check(notifications, NotificationKeys, "notifications.", warnings);
+        foreach (var key in (string[])["turnCompleted", "needsInput"])
+        {
+            if (notifications[key] is not { } mode)
+            {
+                continue;
+            }
+            if (mode is not JsonValue value || !value.TryGetValue<string>(out var text))
+            {
+                errors.Add($"notifications.{key}: expected \"never\", \"background\" or \"always\".");
+            }
+            else if (!NotificationModes.Contains(text))
+            {
+                warnings.Add($"notifications.{key}: expected \"never\", \"background\" or \"always\", got \"{text}\"; using background.");
+            }
+        }
+        if (notifications["sound"] is { } sound && (sound is not JsonValue soundValue || !soundValue.TryGetValue<bool>(out _)))
+        {
+            errors.Add("notifications.sound: expected true or false.");
+        }
+        if (notifications["minTurnSeconds"] is { } seconds)
+        {
+            if (seconds is not JsonValue secondsValue || !secondsValue.TryGetValue<int>(out var value))
+            {
+                errors.Add("notifications.minTurnSeconds: expected a whole number of seconds.");
+            }
+            else if (value < 0)
+            {
+                warnings.Add($"notifications.minTurnSeconds: expected 0 or more, got {value}; using 0.");
+            }
         }
     }
 

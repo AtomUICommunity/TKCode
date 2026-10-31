@@ -15,6 +15,7 @@ public sealed record SubagentEventNotification(string SessionId, string ToolCall
 [JsonDerivedType(typeof(AgentStarted), "agentStarted")]
 [JsonDerivedType(typeof(AgentEnded), "agentEnded")]
 [JsonDerivedType(typeof(MessageStarted), "messageStarted")]
+[JsonDerivedType(typeof(RequestRetrying), "requestRetrying")]
 [JsonDerivedType(typeof(TextDelta), "textDelta")]
 [JsonDerivedType(typeof(TextEnded), "textEnded")]
 [JsonDerivedType(typeof(ThinkingDelta), "thinkingDelta")]
@@ -57,8 +58,15 @@ public sealed record SessionTitleChanged(string Title) : SessionEvent;
 /// <summary>Role：user / assistant / toolResult。用户消息附带文本与附图路径；助手消息内容随后以增量到达。</summary>
 /// <param name="Source">非用户输入的来源：task-notification / session-message；null 表示用户输入。</param>
 /// <param name="Segments">用户消息在输入框里的样子（含 tag）；没有 tag 时为 null。</param>
+/// <param name="Index">用户消息在会话完整历史中的位置（同 <see cref="HistoryMessageDto.Index"/>）；助手消息为 null。</param>
 public sealed record MessageStarted(string MessageId, string Role, string? Text, IReadOnlyList<string>? Images = null, string? Source = null,
-    IReadOnlyList<PromptSegmentDto>? Segments = null) : SessionEvent;
+    IReadOnlyList<PromptSegmentDto>? Segments = null, int? Index = null) : SessionEvent;
+
+/// <summary>模型请求失败、即将自动重试（首字节之前，docs/design/message-features-report.md R1）。</summary>
+/// <param name="Attempt">即将进行的是第几次重试（从 1 开始）。</param>
+/// <param name="DelayMs">等待多久后重试。</param>
+/// <param name="Reason">上一次失败的原因。</param>
+public sealed record RequestRetrying(string MessageId, int Attempt, int MaxAttempts, long DelayMs, string Reason) : SessionEvent;
 
 public sealed record TextDelta(string MessageId, int ContentIndex, string Delta) : SessionEvent;
 

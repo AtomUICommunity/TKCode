@@ -196,7 +196,7 @@ record UserAnswerDto(string QuestionId, IReadOnlyList<string> Selected, string? 
 - 待回答的请求挂在 `SessionViewModel.PendingQuestions` 上，与审批分开存放。切换会话时，已选的答案和输入的文本都保留。
 - 侧边栏橙点（`IsWaitingApproval`）同时考虑审批、MCP 表单和提问，提示文字统一为"等待你的操作"。自动更新同样把这些会话视为忙碌。
 - 删除会话时，取消它所有待处理的请求。
-- 系统通知、托盘角标不在本期范围内。
+- 系统通知、提示音与 Dock / 任务栏 / 托盘未读角标见 [notifications.md](notifications.md)：提问属于「需要你处理」。
 
 ### 7.4 转录里的问答卡片
 

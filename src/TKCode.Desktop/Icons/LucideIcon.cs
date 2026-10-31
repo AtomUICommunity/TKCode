@@ -12,7 +12,7 @@ public enum LucideKind
     Lightbulb, Wrench, Copy, Layers, Maximize, Brain, CircleAlert,
     StarFilled, Box, Paperclip, Monitor, Zap, SlidersHorizontal, CornerDownLeft, MessageSquare, ArrowDown, Languages, StopFilled, Eye, EyeOff, Image, Trash, Pencil, FolderTree, Maximize2, Minimize2, FileCode, Braces, History, BookOpen, Crosshair, Code, ZoomIn, ZoomOut, Scan,
     ShieldQuestion, ShieldCheck, ShieldAlert, Pin, Plug, LogIn, Download, Upload, Sparkles, GitCommit, MessageCircleQuestion,
-    ClipboardCheck, ClipboardList,
+    ClipboardCheck, ClipboardList, ArrowUpToLine, ChevronUp, Undo2, GitFork,
 }
 
 /// <summary>

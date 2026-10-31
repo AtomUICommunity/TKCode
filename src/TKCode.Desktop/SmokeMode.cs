@@ -11,6 +11,7 @@ using TKCode.Desktop.Controls;
 using TKCode.Desktop.Controls.Composer;
 using TKCode.Desktop.Previews;
 using TKCode.Desktop.Services;
+using TKCode.Desktop.Services.Notifications;
 using TKCode.Desktop.Updates;
 using TKCode.Desktop.ViewModels;
 using TKCode.Desktop.Views;
@@ -75,10 +76,17 @@ internal static class SmokeMode
 
             Check("models.loaded", WaitUntil(() => vm.Conversation.Picker.Selected is not null), vm.Conversation.Picker.Selected?.ToString());
 
+            // 系统通知的决策链路（docs/design/notifications.md §6）：记录用的通知器，应用视为在后台，不弹出真实通知
+            var notifier = new RecordingNotifier();
+            using var notifications = new NotificationCenter(notifier, () => NotificationPreferences.Default with { MinTurnDuration = TimeSpan.Zero },
+                new BackgroundPresence(), post: action => Dispatcher.UIThread.Post(action));
+            DesktopNotifications.Attach(notifications, vm.Conversation);
+
             vm.Conversation.ComposerText = "看看目录里有哪些文件";
             vm.Conversation.SendCommand.Execute(null);
             var finished = WaitUntil(() => vm.Conversation.Active is { IsRunning: false, Items.Count: >= 2 });
             Check("conversation.finished", finished, $"{vm.Conversation.Active?.Items.Count ?? 0} items");
+            CheckNotifications(Check, vm, notifier, notifications);
 
             var assistant = vm.Conversation.Active?.Items.OfType<AssistantMessageItemViewModel>().FirstOrDefault();
             var texts = assistant?.Blocks.OfType<TextBlockViewModel>().ToList() ?? [];
@@ -223,6 +231,53 @@ internal static class SmokeMode
         var restored = ComposerClipboard.Deserialize(json);
         check("composer.clipboard-json", restored is not null && restored.SequenceEqual(editor.Document.Segments), json);
         editor.Document.SetContent([]);
+    }
+
+    // 系统通知：回合结束 → 正文提取 → 通知器、未读；角标图片渲染；macOS 的 ObjC 类与委托注册（不弹出任何东西）
+    private static void CheckNotifications(Action<string, bool, string?> check, MainWindowViewModel vm, RecordingNotifier notifier, NotificationCenter center)
+    {
+        var session = vm.Conversation.Active;
+        var shown = WaitUntil(() => notifier.Shown.Any(n => n.SessionId == session?.SessionId), 5_000)
+            ? notifier.Shown.Last(n => n.SessionId == session?.SessionId)
+            : null;
+        check("notifications.turn", shown is { Body.Length: > 0, Title.Length: > 0 } && center.IsUnread(session!.SessionId) && notifier.Badge == 1,
+            shown is null ? "no notification" : $"{shown.Title} — {shown.Body}");
+        var png = BadgeRenderer.OverlayPng(3);
+        check("notifications.badge", png.Length > 8 && png[1] == (byte)'P', $"{png.Length} bytes");
+        if (OperatingSystem.IsMacOS())
+        {
+            check("notifications.macos", true, MacNotifier.Probe() ? "UNUserNotificationCenter" : "fallback (no bundle id)");
+        }
+    }
+
+    private sealed class RecordingNotifier : ISystemNotifier
+    {
+        public List<SystemNotification> Shown { get; } = [];
+        public int Badge { get; private set; }
+
+        public event Action<string>? Activated
+        {
+            add { }
+            remove { }
+        }
+
+        public void Show(SystemNotification notification) => Shown.Add(notification);
+
+        public void Withdraw(string sessionId)
+        {
+        }
+
+        public void SetBadge(int count) => Badge = count;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class BackgroundPresence : IAppPresence
+    {
+        public bool IsForeground => false;
+        public string? VisibleSessionId => null;
     }
 
     // 输入框草稿：落盘（源生成 JSON）与读回、↑ 历史消息还原成草稿，在 AOT 下都要可用（docs/design/composer-drafts.md）

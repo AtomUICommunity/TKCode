@@ -219,8 +219,11 @@ public sealed partial class TurnChangesItemViewModel : TranscriptItemViewModel
         {
             await file.RevertCoreAsync();
         }
-        OnPropertyChanged(nameof(CanRevertAll));
+        NotifyRevertState();
     }
+
+    /// <summary>文件在别处被撤销后（回退到某条消息）刷新整轮撤销按钮。</summary>
+    public void NotifyRevertState() => OnPropertyChanged(nameof(CanRevertAll));
 
     [RelayCommand]
     private void Review(FileChangeViewModel file) => _review(file.Path);

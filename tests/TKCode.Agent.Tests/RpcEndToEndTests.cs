@@ -180,7 +180,7 @@ public sealed class RpcEndToEndTests
         }
     }
 
-    private sealed class RecordingClient : IAgentHostClient
+    internal sealed class RecordingClient : IAgentHostClient
     {
         public Channel<SessionEventNotification> Events { get; } = Channel.CreateUnbounded<SessionEventNotification>();
 

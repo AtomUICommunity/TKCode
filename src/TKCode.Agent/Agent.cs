@@ -196,6 +196,29 @@ public sealed class Agent : IAgentLoop
         return _running;
     }
 
+    /// <summary>
+    /// 不追加新的输入，按现有历史再请求一次：上一次请求出错后「重试」（docs/design/message-features-report.md R1）。
+    /// 出错 / 中止的助手消息在构造请求时本来就被跳过，历史只追加、不改写。
+    /// </summary>
+    public Task ContinueAsync()
+    {
+        CancellationTokenSource cts;
+        lock (_gate)
+        {
+            if (_runCts is not null)
+            {
+                throw new InvalidOperationException("Agent is already running.");
+            }
+            if (_messages.Count == 0)
+            {
+                throw new InvalidOperationException("There is nothing to continue.");
+            }
+            cts = _runCts = new CancellationTokenSource();
+            _running = Task.Run(() => RunAsync([], cts.Token));
+        }
+        return _running;
+    }
+
     public void Steer(UserMessage message)
     {
         lock (_gate)

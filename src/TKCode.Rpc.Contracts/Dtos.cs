@@ -170,8 +170,12 @@ public sealed record CreateSessionRequest(string Cwd, string ModelId, SessionOpt
 /// <param name="Runtime">外部运行时 id；null 表示内置 Agent。会话内只能切换到同一运行时的模型。</param>
 /// <param name="ProjectId">会话头里记录的项目（旧会话为 null，归属按 §5.3 的回退规则由 UI 计算）。</param>
 /// <param name="SessionDirectories">只给本会话追加的文件夹（§6.4）。</param>
+/// <param name="ForkedFrom">本会话从哪里分叉而来（docs/design/message-rewind.md §4.5）；不是分叉的会话为 null。</param>
 public sealed record SessionDto(string SessionId, string Cwd, string ModelId, string FilePath, SessionOptionsDto Options, string? Runtime = null,
-    string? ProjectId = null, IReadOnlyList<string>? SessionDirectories = null);
+    string? ProjectId = null, IReadOnlyList<string>? SessionDirectories = null, ForkedFromDto? ForkedFrom = null);
+
+/// <param name="Title">分叉时原会话的标题。</param>
+public sealed record ForkedFromDto(string SessionId, string FilePath, string? Title);
 
 /// <param name="Title">用户重命名的标题；没有时为第一条用户消息（截断），尚无消息时为 null。</param>
 /// <param name="IsPinned">置顶。</param>
@@ -211,6 +215,7 @@ public sealed record SubagentOpenResult(string AgentId, string Name, string? Mod
     IReadOnlyList<SessionEvent> Replay, bool IsRunning);
 
 /// <param name="Role">user / assistant / toolResult。</param>
+/// <param name="Index">这条消息在会话完整历史中的位置（分页下标，只增不减）；分叉的截止点用它（docs/design/message-rewind.md §5.1）。</param>
 public sealed record HistoryMessageDto(
     string Role,
     DateTimeOffset Timestamp,
@@ -219,7 +224,8 @@ public sealed record HistoryMessageDto(
     string? ErrorMessage = null,
     UsageDto? Usage = null,
     string? Source = null,
-    IReadOnlyList<PromptSegmentDto>? Segments = null);
+    IReadOnlyList<PromptSegmentDto>? Segments = null,
+    int Index = -1);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(HistoryText), "text")]

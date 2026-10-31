@@ -2,9 +2,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
-using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.VisualTree;
+using StreamMark.Avalonia.Transcript;
 using TKCode.Desktop.Controls;
 using TKCode.Desktop.ViewModels;
 
@@ -26,11 +27,31 @@ public partial class TranscriptTemplates : DataTemplates
         }
     }
 
-    private async void OnCopyMessageClick(object? sender, RoutedEventArgs e)
+    /// <summary>助手消息底栏「回到提问」：滚动到这一轮的用户消息。</summary>
+    private void OnScrollToPromptClick(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Control)?.DataContext is AssistantMessageItemViewModel message && TopLevel.GetTopLevel(sender as Visual)?.Clipboard is { } clipboard)
+        if ((sender as Control)?.DataContext is not AssistantMessageItemViewModel message ||
+            (sender as Visual)?.FindAncestorOfType<TranscriptView>() is not { } view)
         {
-            await clipboard.SetTextAsync(message.CopyText);
+            return;
+        }
+        var entries = view.Entries;
+        var index = -1;
+        for (var i = entries.Count - 1; i >= 0; i--)
+        {
+            if (entries[i] is ContentEntry content && ReferenceEquals(content.Content, message))
+            {
+                index = i;
+                break;
+            }
+        }
+        for (var i = index - 1; i >= 0; i--)
+        {
+            if (entries[i] is ContentEntry { Content: UserMessageItemViewModel prompt })
+            {
+                TranscriptNavigation.ScrollToItem(view, prompt);
+                return;
+            }
         }
     }
 }

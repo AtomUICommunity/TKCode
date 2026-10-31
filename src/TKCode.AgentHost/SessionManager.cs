@@ -905,6 +905,11 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
         }
         if (Map(e) is { } mapped)
         {
+            // 用户消息还没追加进历史：它的下标就是当前历史的长度（分叉的截止点，docs/design/message-rewind.md §5.1）
+            if (mapped is MessageStarted { Role: "user" } started && e is MessageStartEvent)
+            {
+                mapped = started with { Index = entry.Session.History.Count };
+            }
             Publish(entry, mapped);
         }
         if (e is MessageEndEvent { Message: UserMessage { Source: null } user } &&
@@ -979,6 +984,7 @@ public sealed class SessionManager : IAsyncDisposable, IUserInputService, IPlanM
             user.Source, ToDto(user.Display)),
         MessageStartEvent { Message: ToolResultMessage or SystemMessage } => null,
         MessageStartEvent s => new MessageStarted(s.MessageId, "assistant", null),
+        MessageUpdateEvent { Event: RetryEvent r } u => new RequestRetrying(u.MessageId, r.Attempt, r.MaxAttempts, (long)r.Delay.TotalMilliseconds, r.Reason),
         MessageUpdateEvent { Event: TextDeltaEvent d } u => new TextDelta(u.MessageId, d.ContentIndex, d.Delta),
         MessageUpdateEvent { Event: TextEndEvent d } u => new TextEnded(u.MessageId, d.ContentIndex),
         MessageUpdateEvent { Event: ThinkingDeltaEvent d } u => new ThinkingDelta(u.MessageId, d.ContentIndex, d.Delta),

@@ -9,6 +9,7 @@ using TKCode.Desktop.Controls.Composer;
 using TKCode.Desktop.Icons;
 using TKCode.Desktop.Localization;
 using TKCode.Desktop.Services;
+using TKCode.Desktop.Services.Notifications;
 using TKCode.Desktop.ViewModels.Completion;
 using TKCode.Rpc;
 
@@ -520,6 +521,13 @@ public sealed partial class ConversationViewModel : ObservableObject
         if (from == to)
         {
             return;
+        }
+        // 离开正在编辑的会话（切走，或编辑后分叉到新会话）：结束编辑，原来的草稿还给它
+        if (_editing is { } editing && editing.Session.SessionId == from)
+        {
+            _editing = null;
+            EditingBanner = null;
+            ApplyDraft(editing.Stash);
         }
         _drafts.Set(from, CaptureDraft());
         History.End();
@@ -1143,6 +1151,11 @@ public sealed partial class ConversationViewModel : ObservableObject
             StatusMessage = mcpError;
             return;
         }
+        // 编辑重发：在原消息处分叉成新会话，在新会话里发送（docs/design/message-rewind.md §4.2）；取消或失败时输入框保持原样
+        if (_editing is { } editing && ReferenceEquals(editing.Session, Active) && await ForkForEditAsync(editing) is null)
+        {
+            return;
+        }
         // 发送期间用户可能切走会话：发给哪个会话、失败时草稿回到哪里，都以发送这一刻为准（docs/design/composer-drafts.md §4.3）
         var target = Active;
         var ownerKey = DraftKey;
@@ -1450,20 +1463,27 @@ public sealed partial class ConversationViewModel : ObservableObject
             Sessions.Remove(item);
             // 放在 NewChat() 之后：删除的是当前会话时，切换已把它的草稿存进了 DraftStore
             _drafts.Remove(item.SessionId);
+            SessionDeleted?.Invoke(item.SessionId);
         });
     }
 
     internal Task ForkSessionAsync(SessionItemViewModel item) => RunSessionActionAsync(async server =>
     {
         var result = await server.ForkSessionAsync(item.FilePath);
-        var live = Track(new SessionViewModel(result.Session) { Title = item.CustomTitle ?? item.Title });
+        OpenFork(result, item.CustomTitle, item.Title);
+    });
+
+    /// <summary>把 Host 分叉出来的会话放进列表（置顶之后）并切过去。</summary>
+    private SessionViewModel OpenFork(OpenSessionResult result, string? customTitle, string? title)
+    {
+        var live = Track(new SessionViewModel(result.Session) { Title = customTitle ?? title });
         live.LoadHistory(result.History, result.HistoryStart);
         var fork = new SessionItemViewModel(result.Session.SessionId, result.Session.FilePath, result.Session.Cwd,
             _projects.Resolve(result.Session.ProjectId, result.Session.Cwd))
         {
             Live = live,
             Owner = this,
-            CustomTitle = item.CustomTitle,
+            CustomTitle = customTitle,
         };
         fork.SyncFrom(live);
         Sessions.Insert(Sessions.TakeWhile(s => s.IsPinned).Count(), fork);
@@ -1473,7 +1493,234 @@ public sealed partial class ConversationViewModel : ObservableObject
         }
         Push(fork.SessionId);
         Activate(live);
-    });
+        return live;
+    }
+
+    // ---- 编辑重发 / 回退到这里 / 从这里分叉（docs/design/message-rewind.md §4） ----
+
+    private sealed record EditState(SessionViewModel Session, UserMessageItemViewModel Message, ComposerDraft Stash);
+
+    private EditState? _editing;
+
+    /// <summary>编辑一条已发送的消息时，输入框上方的提示；不在编辑时为 null。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditingMessage))]
+    public partial string? EditingBanner { get; private set; }
+
+    public bool IsEditingMessage => EditingBanner is not null;
+
+    /// <summary>三选一的对话框（标题、正文、主按钮、次按钮）：主按钮 true，次按钮 false，取消 null。由主窗口提供。</summary>
+    public Func<string, string, string, string, Task<bool?>>? ChooseAsync { get; set; }
+
+    /// <summary>界面右下角的短提示（主窗口用 Arc 的 Toast 显示）。</summary>
+    public event Action<AppNotice>? NoticeRequested;
+
+    /// <summary>请求把焦点放回输入框。</summary>
+    public event Action? ComposerFocusRequested;
+
+    private async Task OnMessageActionAsync(SessionViewModel session, UserMessageItemViewModel message, MessageAction action)
+    {
+        if (!message.CanRewind)
+        {
+            return;
+        }
+        switch (action)
+        {
+            case MessageAction.Edit:
+                BeginEdit(session, message);
+                break;
+            case MessageAction.RewindConversation:
+                await ForkAtAsync(session, message.Index, revertFrom: null, prefill: message);
+                break;
+            case MessageAction.RewindAll:
+                if (await ConfirmRevertAsync(session, message) is { } revertAll)
+                {
+                    await ForkAtAsync(session, message.Index, revertFrom: revertAll ? message : null, prefill: message);
+                }
+                break;
+            case MessageAction.RewindCode:
+                if (await ConfirmRevertAsync(session, message) is true)
+                {
+                    NotifyReverted(await session.RevertFromAsync(message));
+                }
+                else if (session.ChangedFilesFrom(message) == 0)
+                {
+                    NotifyReverted((0, []));
+                }
+                break;
+        }
+    }
+
+    /// <summary>通用确认框（标题、正文、确认按钮文字），由主窗口提供。</summary>
+    public Func<string, string, string, Task<bool>>? ConfirmAsync { get; set; }
+
+    /// <summary>
+    /// 回退文件会改动工作区，先确认并说明范围（只回退 TKCode 编辑工具改过的文件）。
+    /// 返回 true 回退、false 没有可回退的文件、null 取消。
+    /// </summary>
+    private async Task<bool?> ConfirmRevertAsync(SessionViewModel session, UserMessageItemViewModel message)
+    {
+        var changed = session.ChangedFilesFrom(message);
+        if (changed == 0)
+        {
+            return false;
+        }
+        if (ConfirmAsync is not { } confirm)
+        {
+            return true;
+        }
+        return await confirm(Strings.Get(TKCodeLangResourceKind.RevertFilesTitle),
+            Strings.Format(TKCodeLangResourceKind.RevertFilesMessage, changed) + "\n\n" + Strings.Get(TKCodeLangResourceKind.MessageRewindScope),
+            Strings.Get(TKCodeLangResourceKind.RevertFilesConfirm))
+            ? true
+            : null;
+    }
+
+    /// <summary>编辑：原消息回填到输入框，输入框上方提示「正在编辑…」；发送时在这条消息处分叉（见 <see cref="SendAsync"/>）。</summary>
+    private void BeginEdit(SessionViewModel session, UserMessageItemViewModel message)
+    {
+        if (!ReferenceEquals(session, Active))
+        {
+            return;
+        }
+        // 编辑中又点了另一条：保留最初的草稿，取消时还原它
+        var stash = _editing?.Stash ?? CaptureDraft();
+        _editing = new EditState(session, message, stash);
+        ApplyDraft(InputHistory.ToDraft(message, _drafts.Now));
+        var preview = message.DisplayText.ReplaceLineEndings(" ").Trim();
+        EditingBanner = Strings.Format(TKCodeLangResourceKind.MessageEditingBanner, preview.Length > 40 ? preview[..40] + "…" : preview);
+        ComposerFocusRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    private void CancelEdit()
+    {
+        if (_editing is { } editing)
+        {
+            _editing = null;
+            EditingBanner = null;
+            ApplyDraft(editing.Stash);
+            ComposerFocusRequested?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// 发送编辑后的消息之前：这条消息及之后改过文件时问要不要回退（回退文件 / 保留文件 / 取消），再在这条消息处分叉。
+    /// 返回分叉出来的会话；取消或失败时为 null，输入框内容不变。
+    /// </summary>
+    private async Task<SessionViewModel?> ForkForEditAsync(EditState editing)
+    {
+        var revert = false;
+        var changed = editing.Session.ChangedFilesFrom(editing.Message);
+        if (changed > 0 && ChooseAsync is { } choose)
+        {
+            var choice = await choose(Strings.Get(TKCodeLangResourceKind.RevertFilesTitle),
+                Strings.Format(TKCodeLangResourceKind.RevertFilesMessage, changed) + "\n\n" + Strings.Get(TKCodeLangResourceKind.MessageRewindScope),
+                Strings.Get(TKCodeLangResourceKind.RevertFilesConfirm), Strings.Get(TKCodeLangResourceKind.RevertFilesKeep));
+            if (choice is null)
+            {
+                return null;
+            }
+            revert = choice.Value;
+        }
+        return await ForkAtAsync(editing.Session, editing.Message.Index, revert ? editing.Message : null, prefill: null);
+    }
+
+    /// <summary>
+    /// 在 <paramref name="before"/> 处分叉成新会话并切过去（docs/design/message-rewind.md §5.2）：
+    /// 先回退 <paramref name="revertFrom"/> 起改过的文件（部分失败照样分叉并列出），再把 <paramref name="prefill"/> 回填到新会话的输入框。
+    /// </summary>
+    private async Task<SessionViewModel?> ForkAtAsync(SessionViewModel source, int? before, UserMessageItemViewModel? revertFrom,
+        UserMessageItemViewModel? prefill)
+    {
+        try
+        {
+            (int Reverted, IReadOnlyList<string> Failed)? reverted = revertFrom is null ? null : await source.RevertFromAsync(revertFrom);
+            var server = await _host.GetServerAsync();
+            var result = await server.ForkSessionAsync(source.FilePath, before);
+            var item = Sessions.FirstOrDefault(s => s.SessionId == source.SessionId);
+            var live = OpenFork(result, item?.CustomTitle, item?.Title ?? source.Title);
+            if (prefill is not null)
+            {
+                ApplyDraft(InputHistory.ToDraft(prefill, _drafts.Now));
+                ComposerFocusRequested?.Invoke();
+            }
+            if (reverted is { } r && (r.Reverted > 0 || r.Failed.Count > 0))
+            {
+                NotifyReverted(r);
+            }
+            NoticeRequested?.Invoke(new AppNotice(Strings.Get(TKCodeLangResourceKind.ForkedToast), AppNoticeKind.Success,
+                Strings.Get(TKCodeLangResourceKind.ForkedBack), () => _ = OpenSessionByIdAsync(source.SessionId, source.FilePath)));
+            StatusMessage = null;
+            return live;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Fork from message failed");
+            StatusMessage = Strings.Format(TKCodeLangResourceKind.StatusSessionActionFailedFormat, ex.Message);
+            return null;
+        }
+    }
+
+    private void NotifyReverted((int Reverted, IReadOnlyList<string> Failed) result)
+    {
+        if (result.Failed.Count > 0)
+        {
+            NoticeRequested?.Invoke(new AppNotice(Strings.Format(TKCodeLangResourceKind.RevertedPartialToast, result.Reverted, result.Failed.Count,
+                string.Join(", ", result.Failed.Select(Path.GetFileName))), AppNoticeKind.Warning));
+        }
+        else
+        {
+            NoticeRequested?.Invoke(result.Reverted > 0
+                ? new AppNotice(Strings.Format(TKCodeLangResourceKind.RevertedToast, result.Reverted), AppNoticeKind.Success)
+                : new AppNotice(Strings.Get(TKCodeLangResourceKind.NothingToRevert), AppNoticeKind.Info));
+        }
+    }
+
+    /// <summary>错误卡片上的重试：Host 按现有历史再请求一次（docs/design/message-features-report.md R1）。</summary>
+    private async Task RetryAsync(SessionViewModel session)
+    {
+        try
+        {
+            var server = await _host.GetServerAsync();
+            var result = await server.RetryAsync(session.SessionId);
+            StatusMessage = result.Started ? null : Strings.Get(TKCodeLangResourceKind.RequestFailed);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Retry failed");
+            StatusMessage = Strings.Format(TKCodeLangResourceKind.StatusSendFailedFormat, ex.Message);
+        }
+    }
+
+    /// <summary>打开「分叉自」的原会话。</summary>
+    private Task OpenOriginAsync(ForkedFromDto origin) => OpenSessionByIdAsync(origin.SessionId, origin.FilePath);
+
+    /// <summary>按会话 id 打开：已在列表里的直接切过去；不在（列表只加载了一部分）时从文件打开并放进列表。</summary>
+    private async Task OpenSessionByIdAsync(string sessionId, string filePath)
+    {
+        if (Sessions.FirstOrDefault(s => s.SessionId == sessionId) is { } item)
+        {
+            await OpenSessionAsync(item);
+            return;
+        }
+        await RunSessionActionAsync(async server =>
+        {
+            var result = await server.OpenSessionAsync(filePath, HistoryTurnsPerPage);
+            var live = Track(new SessionViewModel(result.Session));
+            live.LoadHistory(result.History, result.HistoryStart);
+            live.SetRunning(result.IsRunning);
+            var opened = new SessionItemViewModel(result.Session.SessionId, result.Session.FilePath, result.Session.Cwd,
+                _projects.Resolve(result.Session.ProjectId, result.Session.Cwd))
+            {
+                Live = live,
+                Owner = this,
+            };
+            opened.SyncFrom(live);
+            Sessions.Insert(Sessions.TakeWhile(s => s.IsPinned).Count(), opened);
+            await OpenSessionAsync(opened);
+        });
+    }
 
     internal async Task CopySessionIdAsync(SessionItemViewModel item)
     {
@@ -1572,6 +1819,24 @@ public sealed partial class ConversationViewModel : ObservableObject
             }
         };
         session.RevertFile = RevertFileAsync;
+        // 系统通知与未读（docs/design/notifications.md §4.2）；队列里的下一条会自动发出时，这一轮还不算结束
+        session.TurnEnded += summary =>
+        {
+            if (!summary.ContinuesWithQueue)
+            {
+                RaiseAttention(session, summary.StopReason switch
+                {
+                    "Aborted" => AttentionKind.TurnAborted,
+                    "Error" => AttentionKind.TurnFailed,
+                    _ => AttentionKind.TurnCompleted,
+                }, summary.StopReason == "Error" ? summary.ErrorMessage : summary.FinalText, summary.Duration);
+            }
+        };
+        // 编辑重发 / 回退 / 分叉（docs/design/message-rewind.md）
+        session.MessageActionRequested += (s, message, action) => _ = OnMessageActionAsync(s, message, action);
+        session.ForkRequested += (s, message) => _ = ForkAtAsync(s, s.ForkPointAfter(message), revertFrom: null, prefill: null);
+        session.OriginRequested += origin => _ = OpenOriginAsync(origin);
+        session.RetryRequested += s => _ = RetryAsync(s);
         // 本轮正常结束：发出队列中的下一条（后台会话同样继续）
         session.RunEnded += completed =>
         {
@@ -1705,6 +1970,7 @@ public sealed partial class ConversationViewModel : ObservableObject
         {
             item.SyncFrom(session);
         }
+        RaiseAttention(session, AttentionKind.Approval, approval.Title);
         return approval.Result;
     }
 
@@ -1722,6 +1988,7 @@ public sealed partial class ConversationViewModel : ObservableObject
         var elicitation = new McpElicitationViewModel(request, OpenExternalUrl);
         session.AddElicitation(elicitation);
         WithdrawOnCancel(ct, elicitation.Cancel);
+        RaiseAttention(session, AttentionKind.Elicitation, string.IsNullOrWhiteSpace(request.ServerTitle) ? request.Server : request.ServerTitle);
         return elicitation.Result;
     }
 
@@ -1742,6 +2009,7 @@ public sealed partial class ConversationViewModel : ObservableObject
         {
             QuestionOpened?.Invoke();
         }
+        RaiseAttention(session, AttentionKind.Question);
         return question.Result;
     }
 
@@ -1765,11 +2033,45 @@ public sealed partial class ConversationViewModel : ObservableObject
         {
             PlanReviewOpened?.Invoke();
         }
+        RaiseAttention(session, AttentionKind.PlanReview);
         return review.Result;
     }
 
     /// <summary>新的计划审批出现在当前会话（视图据此把焦点移到审批面板）。</summary>
     public event Action? PlanReviewOpened;
+
+    /// <summary>某个会话需要用户注意：回合结束，或等待审批 / 回答 / 计划审批 / MCP 表单（系统通知与未读，docs/design/notifications.md）。</summary>
+    public event Action<SessionAttention>? AttentionRaised;
+
+    /// <summary>会话被删除（通知中心据此清除它的未读与通知）。</summary>
+    public event Action<string>? SessionDeleted;
+
+    private void RaiseAttention(SessionViewModel session, AttentionKind kind, string? detail = null, TimeSpan duration = default)
+    {
+        if (session.IsSubagent)
+        {
+            return;
+        }
+        AttentionRaised?.Invoke(new SessionAttention(session.SessionId, AttentionTitle(session), kind, detail, duration));
+    }
+
+    /// <summary>通知标题：会话标题（自定义优先），没有时用项目名。</summary>
+    private string AttentionTitle(SessionViewModel session)
+    {
+        var item = Sessions.FirstOrDefault(s => s.SessionId == session.SessionId);
+        foreach (var title in (string?[])[item?.CustomTitle, item?.Title, session.Title])
+        {
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                return title;
+            }
+        }
+        return item?.ProjectName is { Length: > 0 } project ? project : session.ProjectName;
+    }
+
+    /// <summary>点击系统通知：打开该会话（与命令面板相同，不改侧栏筛选）。会话已不在列表中时什么也不做。</summary>
+    public Task OpenSessionByIdAsync(string sessionId) =>
+        Sessions.FirstOrDefault(s => s.SessionId == sessionId) is { } item ? OpenSessionCommand.ExecuteAsync(item) : Task.CompletedTask;
 
     /// <summary>规划用掉的上下文比例（与上下文占用环同一组数据：最近一次回复的 tokens / 会话的上下文窗口）；不知道时为 null。</summary>
     private int? ContextPercent(SessionViewModel session)

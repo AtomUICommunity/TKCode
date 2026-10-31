@@ -104,6 +104,8 @@ internal static class Program
                 ? tag
                 : LanguageTags.ZhCN;
             arc.UseArcControls();
+            // AI 组件（TKCode.Arc.Special）
+            arc.UseArcSpecial();
             // 应用自己的文案目录（Localization/*.xlf → TKCodeLangResources）
             arc.UsePackage(TKCode.Arc.Generated.TKCode.ArcGeneratedAssets.PackageId,
                 static package => TKCode.Arc.Generated.TKCode.ArcGeneratedAssets.AddTo(package.DependsOn(static b => b.UseArcControls())));

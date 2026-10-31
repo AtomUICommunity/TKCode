@@ -13,7 +13,8 @@ public sealed record FileSearchItemDto(string Path, bool IsDirectory, int Score,
 
 /// <summary>撤销 Agent 的一次文件改动（见 TKCode.Agent.Coding.Tools.Files.FileRevert）。RestoreText 为 null 时删除文件（新建的文件）。</summary>
 /// <param name="ExpectedSha256">改动后文件的 SHA-256；不一致说明文件已被改过，撤销被拒绝。</param>
-public sealed record RevertFileRequest(string Path, string ExpectedSha256, string? RestoreText);
+/// <param name="SessionId">回退后仍留在这个会话里时传入：Host 在下一批输入前追加一条系统消息告诉 Agent（docs/design/message-rewind.md §5.3）。</param>
+public sealed record RevertFileRequest(string Path, string ExpectedSha256, string? RestoreText, string? SessionId = null);
 
 /// <param name="Error">失败原因；成功时为 null。</param>
 public sealed record RevertFileResult(string? Error);

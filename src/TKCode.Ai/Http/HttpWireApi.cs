@@ -58,7 +58,7 @@ public abstract class HttpWireApi : IWireApi
         try
         {
             var prepared = context with { Messages = PrepareMessages(model, context.Messages) };
-            using var response = await SendWithRetryAsync(() => BuildRequest(model, prepared, options), ct);
+            using var response = await SendWithRetryAsync(() => BuildRequest(model, prepared, options), stream.Push, ct);
             if (response.Content.Headers.ContentType?.MediaType is { } mediaType &&
                 mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase))
             {
@@ -93,7 +93,7 @@ public abstract class HttpWireApi : IWireApi
         }
     }
 
-    private async Task<HttpResponseMessage> SendWithRetryAsync(Func<HttpRequestMessage> factory, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendWithRetryAsync(Func<HttpRequestMessage> factory, Action<LlmEvent> report, CancellationToken ct)
     {
         for (var attempt = 0; ; attempt++)
         {
@@ -110,7 +110,9 @@ public abstract class HttpWireApi : IWireApi
                 {
                     throw new ProviderException($"Connection failed: {ex.Message}", isRetryable: true);
                 }
-                await Task.Delay(Backoff(attempt), ct);
+                var backoff = Backoff(attempt);
+                report(new RetryEvent(attempt + 1, MaxRetries, backoff, $"Connection failed: {ex.Message}"));
+                await Task.Delay(backoff, ct);
                 continue;
             }
             if (response.IsSuccessStatusCode)
@@ -128,6 +130,7 @@ public abstract class HttpWireApi : IWireApi
             {
                 throw error;
             }
+            report(new RetryEvent(attempt + 1, MaxRetries, delay, error.Message));
             await Task.Delay(delay, ct);
         }
     }

@@ -126,7 +126,8 @@ public sealed class AgentHostServer(
 
     private static SessionDto ToDto(AgentSession session, SessionOptionsDto options) =>
         new(session.Id, session.Cwd, ModelCatalog.RefOf(session.Agent.Model), session.Store.FilePath, options, session.External?.RuntimeId,
-            session.Store.ProjectId, session.Store.SessionDirectories);
+            session.Store.ProjectId, session.Store.SessionDirectories,
+            session.Store.ForkedFrom is { } fork ? new ForkedFromDto(fork.SessionId, fork.FilePath, fork.Title) : null);
 
     public async Task<SessionDto> AddSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default)
     {
@@ -228,10 +229,15 @@ public sealed class AgentHostServer(
         logger.LogInformation("Session file {File} deleted", path);
     }
 
-    /// <summary>在新会话中继续：复制当前分支的消息与参数到同一项目下的新会话（外部 Agent 的上下文在 CLI 里，无法复制）。</summary>
-    public async Task<OpenSessionResult> ForkSessionAsync(string filePath, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 在新会话中继续：复制当前分支的消息与参数到同一项目下的新会话（外部 Agent 的上下文在 CLI 里，无法复制）。
+    /// <paramref name="before"/> 不为 null 时只复制完整历史的 [0, before)：编辑重发、回退到某条消息、从某个回合分叉（docs/design/message-rewind.md §5.2）。
+    /// 截止点必须在最近一次压缩之后，并落在回合边界（一条用户输入的消息之前，或历史末尾）。
+    /// </summary>
+    public async Task<OpenSessionResult> ForkSessionAsync(string filePath, int? before = null, CancellationToken cancellationToken = default)
     {
-        var snapshot = SessionStore.Read(RequireSessionFile(filePath));
+        var sourcePath = RequireSessionFile(filePath);
+        var snapshot = SessionStore.Read(sourcePath);
         if (sessions.RuntimeOf(snapshot) is not null)
         {
             throw new InvalidOperationException("Sessions of external agents cannot be continued in a new session.");
@@ -239,6 +245,25 @@ public sealed class AgentHostServer(
         if (snapshot.Messages.Count == 0)
         {
             throw new InvalidOperationException("The session has no messages to continue from.");
+        }
+        IReadOnlyList<TKCode.Ai.Messages.Message> messages = snapshot.Messages;
+        if (before is { } cut)
+        {
+            var earlier = snapshot.EarlierMessages.Count;
+            var all = snapshot.AllMessages;
+            if (cut <= earlier || cut > all.Count)
+            {
+                throw new InvalidOperationException("Messages before the last compaction cannot be forked from.");
+            }
+            if (cut < all.Count && all[cut] is not TKCode.Ai.Messages.UserMessage { Source: null })
+            {
+                throw new InvalidOperationException("A fork must start before a message the user sent.");
+            }
+            if (sessions.TryGet(snapshot.SessionId) is { Agent.IsRunning: true })
+            {
+                throw new InvalidOperationException("Stop the session before forking from a message.");
+            }
+            messages = snapshot.Messages.Take(cut - earlier).ToArray();
         }
         var store = SessionStore.Create(snapshot.Cwd, projectId: snapshot.ProjectId);
         if (snapshot.SessionDirectories.Count > 0)
@@ -268,10 +293,12 @@ public sealed class AgentHostServer(
             await store.AppendCompactionAsync(c.Trigger, c.Summary, c.PreTokens, c.PostTokens, c.DurationMs, c.Instructions, c.TruncatedForRetry,
                 cancellationToken);
         }
-        foreach (var message in snapshot.Messages)
+        foreach (var message in messages)
         {
             await store.AppendMessageAsync(message, cancellationToken);
         }
+        await store.AppendForkedFromAsync(new TKCode.Agent.Coding.Sessions.ForkedFromEntry(snapshot.SessionId, sourcePath,
+            snapshot.CustomTitle ?? SessionIndex.TitleOf(snapshot.AllMessages), before), cancellationToken);
         return await OpenSessionAsync(store.FilePath, cancellationToken);
     }
 
@@ -358,6 +385,12 @@ public sealed class AgentHostServer(
             parts.Add(request.Text.Trim());
         }
         return string.Join("\n\n", parts);
+    }
+
+    public Task<PromptResult> RetryAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation("Retry requested for session {SessionId}", sessionId);
+        return Task.FromResult(new PromptResult(sessions.Get(sessionId).Retry()));
     }
 
     public Task AbortAsync(string sessionId, CancellationToken cancellationToken = default)
@@ -455,7 +488,7 @@ public sealed class AgentHostServer(
         {
             if (ToHistory(messages[i]) is { } dto)
             {
-                result.Add(dto);
+                result.Add(dto with { Index = i });
             }
         }
         return result.ToArray();
@@ -537,6 +570,11 @@ public sealed class AgentHostServer(
             return Task.FromResult(new RevertFileResult($"Path must be absolute: {request.Path}"));
         }
         var error = TKCode.Agent.Coding.Tools.Files.FileRevert.Revert(request.Path, request.ExpectedSha256, request.RestoreText);
+        // 回退后仍留在这个会话：下一批输入前告诉 Agent（docs/design/message-rewind.md §5.3）
+        if (error is null && request.SessionId is { } sessionId && sessions.TryGet(sessionId)?.Tools is { } tools)
+        {
+            tools.RevertNotices.Add(request.Path);
+        }
         return Task.FromResult(new RevertFileResult(error));
     }
 

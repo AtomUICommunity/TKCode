@@ -3,7 +3,7 @@
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <AvaloniaVersion>12.1.4</AvaloniaVersion>
         <StreamMarkVersion>0.1.1</StreamMarkVersion>
-        <ArcVersion>0.3.2-preview.1</ArcVersion>
+        <ArcVersion>0.3.2-preview.2</ArcVersion>
         <MicrosoftExtensionsVersion>11.0.0-rc.2.26504.105</MicrosoftExtensionsVersion>
     </PropertyGroup>
     <ItemGroup>
@@ -18,6 +18,8 @@
         <PackageVersion Include="TKCode.Arc" Version="$(ArcVersion)" />
         <PackageVersion Include="TKCode.Arc.Icons.Lucide" Version="$(ArcVersion)" />
         <PackageVersion Include="TKCode.Arc.Terminal" Version="$(ArcVersion)" />
+        <!-- Arc 的 AI 组件（ReasoningBlock、FeedbackActions、GenerationStats 等），见 docs/design/message-features-report.md §5 -->
+        <PackageVersion Include="TKCode.Arc.Special" Version="$(ArcVersion)" />
         <!-- Markdown 渲染：StreamMark（独立仓库，包 ID 与 nuget.org 一致；TKCode.Arc 依赖同名包，见 nuget.config） -->
         <PackageVersion Include="TKCode.StreamMark.Avalonia" Version="$(StreamMarkVersion)" />
         <PackageVersion Include="TKCode.StreamMark.RaTeX" Version="$(StreamMarkVersion)" />

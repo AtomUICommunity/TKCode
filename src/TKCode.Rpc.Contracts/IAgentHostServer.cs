@@ -73,11 +73,14 @@ public interface IAgentHostServer
     Task<SessionDto> RemoveSessionDirectoryAsync(string sessionId, string path, CancellationToken cancellationToken = default);
 
     /// <summary>在新会话中继续：复制当前分支的历史与参数到一个新会话并打开（仅内置 Agent）。</summary>
-    Task<OpenSessionResult> ForkSessionAsync(string filePath, CancellationToken cancellationToken = default);
+    Task<OpenSessionResult> ForkSessionAsync(string filePath, int? before = null, CancellationToken cancellationToken = default);
 
     Task<PromptResult> PromptAsync(PromptRequest request, CancellationToken cancellationToken = default);
 
     Task AbortAsync(string sessionId, CancellationToken cancellationToken = default);
+
+    /// <summary>上一次请求出错后重试：按现有历史再请求一次，不追加新输入（docs/design/message-features-report.md R1）。不能重试时 Started 为 false。</summary>
+    Task<PromptResult> RetryAsync(string sessionId, CancellationToken cancellationToken = default);
 
     /// <summary>压缩上下文（/compact，仅内置 Agent）：空闲时立即开始，运行中则在下一次模型请求前执行。进度以会话事件推送。</summary>
     Task CompactAsync(string sessionId, string? instructions, CancellationToken cancellationToken = default);

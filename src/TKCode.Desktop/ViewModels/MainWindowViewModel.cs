@@ -119,7 +119,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public SettingsViewModel Settings => field ??= new SettingsViewModel(userSettings, host, Conversation, Themes, SetLanguageAsync, settingsLogger)
     {
         ConfirmAsync = (title, text, ok) => ConfirmAsync?.Invoke(title, text, ok) ?? Task.FromResult(false),
+        SendTestNotification = () => TestNotification?.Invoke(),
     };
+
+    /// <summary>设置 › 通用 › 通知的「发送测试通知」（由 App 接到通知中心；测试与冒烟模式下为 null）。</summary>
+    public Action? TestNotification { get; set; }
+
+    /// <summary>点击系统通知：离开设置页并打开该会话（窗口由托盘负责显示）。</summary>
+    public Task ShowSessionAsync(string sessionId)
+    {
+        IsSettingsOpen = false;
+        return Conversation.OpenSessionByIdAsync(sessionId);
+    }
 
     [ObservableProperty]
     public partial bool IsSettingsOpen { get; private set; }

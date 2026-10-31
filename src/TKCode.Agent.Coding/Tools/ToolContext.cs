@@ -97,6 +97,9 @@ public sealed class ToolContext(WorkspaceRoots workspace, string sessionId, Back
     /// <summary>读过的文件（先读后改、过期检测）。</summary>
     public FileStateTracker Files { get; } = new();
 
+    /// <summary>用户在界面上回退的文件，下一批输入前告诉 Agent（docs/design/message-rewind.md §5.3）。</summary>
+    public RevertNotices RevertNotices { get; } = new();
+
     /// <summary>压缩后重新按需加载子目录的上下文文件（之前附在工具结果里的已被摘要替换）。</summary>
     public void ResetNestedInstructions()
     {

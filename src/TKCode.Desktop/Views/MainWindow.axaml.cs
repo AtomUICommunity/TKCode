@@ -170,6 +170,27 @@ public partial class MainWindow : Window
         await vm.Conversation.LoadEarlierHistoryAsync();
     }
 
+    /// <summary>会话内查找要搜全部历史：把更早的分页都加载进来。</summary>
+    private async Task LoadAllEarlierAsync()
+    {
+        if (DataContext is not MainWindowViewModel vm)
+        {
+            return;
+        }
+        while (vm.Conversation.Active is { HasEarlierHistory: true } session)
+        {
+            await vm.Conversation.LoadEarlierHistoryAsync();
+            if (session.HasEarlierHistory && !ReferenceEquals(session, vm.Conversation.Active))
+            {
+                return;
+            }
+        }
+    }
+
+    // 各会话离开时读到的位置（视口最上方的条目）；会话关闭后随之回收
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<SessionViewModel, object> _readingPositions = new();
+    private SessionViewModel? _shownSession;
+
     private void UpdateScrollToBottom() =>
         Motion.Presence.SetIsPresent(ScrollToBottomButton, !Transcript.IsPinnedToBottom && Transcript.Extent.Height > Transcript.Viewport.Height + 1);
 
@@ -302,6 +323,13 @@ public partial class MainWindow : Window
         MarkdownServices.SetServices(this, MarkdownSetup.Services);
         Transcript.DataTemplates.AddRange(new TranscriptTemplates());
         _transcript = new TranscriptAdapter(Transcript.Entries);
+        // 右键菜单（复制 / 复制为 Markdown / 全选 / 查找）与会话内查找（⌘F）
+        TranscriptContextMenu.Attach(Transcript, find: true);
+        FindBar.Attach(Transcript,
+            () => (DataContext as MainWindowViewModel)?.Conversation.Active?.HasEarlierHistory == true,
+            LoadAllEarlierAsync);
+        FindBar.Closed += (_, _) => DockedComposer.FocusInput();
+        Transcript.AddHandler(StreamMark.Avalonia.Selection.MarkdownContextMenu.FindRequestedEvent, (_, _) => FindBar.Open());
         // 发送新消息时回到底部并恢复贴底跟随（流式中的贴底由会话视图自己处理）
         _transcript.UserMessageAdded += () => Transcript.ScrollToEnd();
         // 离开底部（不再贴底跟随）且内容超过一屏时显示“回到底部”
@@ -325,6 +353,8 @@ public partial class MainWindow : Window
         // 系统“减少动态效果”可能在后台被修改
         Activated += (_, _) => Motion.MotionSettings.RefreshSystem();
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
+        // Esc 停止运行中的 Agent：放在冒泡阶段，补全列表、面板、菜单、查找条先处理自己的 Esc
+        AddHandler(KeyDownEvent, OnWindowEscape, RoutingStrategies.Bubble);
         // 把文件拖到消息区域：同样交给输入框（图片为附件，其他文件为绝对路径；输入框本身目标太小）
         DragDrop.SetAllowDrop(Transcript, true);
         Transcript.AddHandler(DragDrop.DragEnterEvent, (_, e) => DockedComposer.OnDragOver(e));
@@ -343,6 +373,10 @@ public partial class MainWindow : Window
             if (DataContext is MainWindowViewModel vm)
             {
                 vm.Conversation.ConfirmDangerAsync = ConfirmDangerAsync;
+                vm.Conversation.ConfirmAsync = ConfirmAsync;
+                vm.Conversation.ChooseAsync = (title, message, primary, secondary) => ConfirmDialog.ChooseAsync(this, title, message, primary, secondary);
+                vm.Conversation.NoticeRequested += ShowNotice;
+                vm.Conversation.ComposerFocusRequested += () => Dispatcher.UIThread.Post(DockedComposer.FocusInput, DispatcherPriority.Input);
                 vm.Workbench.ConfirmAsync = ConfirmAsync;
                 vm.ConfirmAsync = ConfirmAsync;
                 vm.Conversation.SetClipboardAsync = text => Clipboard?.SetTextAsync(text) ?? Task.CompletedTask;
@@ -353,8 +387,23 @@ public partial class MainWindow : Window
                 {
                     if (e.PropertyName == nameof(ConversationViewModel.Active))
                     {
+                        FindBar.Close();
+                        // 记住离开的会话读到哪里（贴底时不记），切回来时回到那里
+                        if (_shownSession is not null)
+                        {
+                            _readingPositions.Remove(_shownSession);
+                            if (!Transcript.IsPinnedToBottom && TranscriptNavigation.TopVisibleItem(Transcript) is { } anchor)
+                            {
+                                _readingPositions.Add(_shownSession, anchor);
+                            }
+                        }
+                        _shownSession = vm.Conversation.Active;
                         _transcript.Attach(vm.Conversation.Active);
                         Transcript.ScrollToEnd();
+                        if (_shownSession is not null && _readingPositions.TryGetValue(_shownSession, out var position))
+                        {
+                            Dispatcher.UIThread.Post(() => TranscriptNavigation.ScrollToItem(Transcript, position), DispatcherPriority.Loaded);
+                        }
                         // 切换会话：会话内容淡入并轻微上移
                         if (vm.Conversation.Active is not null)
                         {
@@ -690,7 +739,35 @@ public partial class MainWindow : Window
                     _ = vm.OpenSettingsCommand.ExecuteAsync(null);
                     e.Handled = true;
                     break;
+                // ⌘F 会话内查找（焦点在右侧编辑区 / 终端时留给它们）
+                case Key.F when !IsInEditorColumn(e.Source) && vm.Conversation.Active is not null:
+                    FindBar.Open();
+                    e.Handled = true;
+                    break;
+                case Key.G when FindBar.IsOpen:
+                    FindBar.Next();
+                    e.Handled = true;
+                    break;
             }
+        }
+        // ⇧⌘C：复制最后一条回复（ChatGPT、Open WebUI 同款）
+        else if (e.KeyModifiers == (CommandModifier | KeyModifiers.Shift) && e.Key == Key.C && !IsInEditorColumn(e.Source) &&
+                 vm.Conversation.Active?.Items.OfType<AssistantMessageItemViewModel>().LastOrDefault(m => !m.IsStreaming && m.CopyText.Length > 0) is { } reply)
+        {
+            _ = CopyLastReplyAsync(reply.CopyText);
+            e.Handled = true;
+        }
+        else if (e.KeyModifiers == (CommandModifier | KeyModifiers.Shift) && e.Key == Key.G && FindBar.IsOpen)
+        {
+            FindBar.Previous();
+            e.Handled = true;
+        }
+        // ⌘⌥↑ / ⌘⌥↓（Windows / Linux 为 Ctrl+Alt）：在自己的提问之间跳转
+        else if (e.KeyModifiers == (CommandModifier | KeyModifiers.Alt) && e.Key is Key.Up or Key.Down &&
+                 vm.Conversation.Active is not null && !IsInEditorColumn(e.Source))
+        {
+            TranscriptNavigation.JumpToPrompt(Transcript, e.Key == Key.Up ? -1 : 1, item => item is UserMessageItemViewModel);
+            e.Handled = true;
         }
         else if (e.KeyModifiers == (CommandModifier | KeyModifiers.Shift) && e.Key == Key.N)
         {
@@ -703,6 +780,53 @@ public partial class MainWindow : Window
             e.Handled = true;
         }
     }
+
+    private void OnWindowEscape(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || DataContext is not MainWindowViewModel vm ||
+            vm.Palette.IsOpen || vm.IsSettingsOpen || IsInEditorColumn(e.Source))
+        {
+            return;
+        }
+        if (vm.Conversation.Active is { IsRunning: true })
+        {
+            vm.Conversation.StopCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (vm.Conversation.IsEditingMessage)
+        {
+            // 编辑已发送的消息时：Esc 取消编辑，原来的草稿回到输入框
+            vm.Conversation.CancelEditCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>右下角的短提示（Arc Toast）。</summary>
+    private void ShowNotice(AppNotice notice)
+    {
+        var kind = notice.Kind switch
+        {
+            AppNoticeKind.Success => TKCode.Arc.ToastKind.Success,
+            AppNoticeKind.Warning => TKCode.Arc.ToastKind.Warning,
+            AppNoticeKind.Error => TKCode.Arc.ToastKind.Error,
+            _ => TKCode.Arc.ToastKind.Info,
+        };
+        var action = notice is { ActionLabel: { } label, Action: { } run } ? new TKCode.Arc.ToastAction(label, run) : null;
+        TKCode.Arc.Toast.Show(this, notice.Title, kind, action: action);
+    }
+
+    private async Task CopyLastReplyAsync(string text)
+    {
+        if (Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(text);
+            TKCode.Arc.Toast.Show(this, Strings.Get(TKCodeLangResourceKind.CopiedLastReply), TKCode.Arc.ToastKind.Success,
+                duration: TimeSpan.FromSeconds(2));
+        }
+    }
+
+    private bool IsInEditorColumn(object? source) =>
+        source is Visual visual && (ReferenceEquals(visual, EditorColumn) || EditorColumn.IsVisualAncestorOf(visual));
 
     private void OnPalettePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

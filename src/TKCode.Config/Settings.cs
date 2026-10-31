@@ -65,6 +65,24 @@ public sealed record TKCodeSettings
 
     /// <summary>交互终端的设置（目前只有默认 shell）。</summary>
     public TerminalSettings? Terminal { get; init; }
+
+    /// <summary>系统通知、提示音（docs/design/notifications.md §4.8）。</summary>
+    public NotificationSettings? Notifications { get; init; }
+}
+
+public sealed record NotificationSettings
+{
+    /// <summary>回合结束（成功且耗时够长，或出错）时通知：never | background（默认）| always。</summary>
+    public string? TurnCompleted { get; init; }
+
+    /// <summary>会话等待用户处理（审批、提问、计划审批、MCP 表单）时通知：never | background（默认）| always。</summary>
+    public string? NeedsInput { get; init; }
+
+    /// <summary>通知时播放提示音（默认 true）。</summary>
+    public bool? Sound { get; init; }
+
+    /// <summary>成功结束的回合至少运行多少秒才通知（默认 30）；出错的回合不受限制。</summary>
+    public int? MinTurnSeconds { get; init; }
 }
 
 public sealed record AgentSettings

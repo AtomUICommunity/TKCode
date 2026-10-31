@@ -27,6 +27,7 @@ public static class RpcMethods
     public const string OpenSession = "session/open";
     public const string Prompt = "session/prompt";
     public const string Abort = "session/abort";
+    public const string Retry = "session/retry";
     public const string Compact = "session/compact";
     public const string ContextUsage = "session/contextUsage";
     public const string SetModel = "session/setModel";
@@ -79,6 +80,10 @@ public sealed record RenameSessionParams(string FilePath, string Title);
 public sealed record PinSessionParams(string FilePath, bool Pinned);
 
 public sealed record SessionFileParams(string FilePath);
+
+/// <summary>在新会话中继续（docs/design/message-rewind.md §5.2）。</summary>
+/// <param name="Before">截止点：复制原会话历史的 [0, Before)，必须落在回合边界（一条用户输入的消息之前，或历史末尾）；null 复制整条分支。</param>
+public sealed record ForkSessionParams(string FilePath, int? Before = null);
 
 /// <param name="TurnLimit">只返回最近若干轮（每轮以用户消息开头）；null 返回全部。</param>
 public sealed record OpenSessionParams(string FilePath, int? TurnLimit = null);

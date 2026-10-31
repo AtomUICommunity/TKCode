@@ -420,6 +420,42 @@ MarkdownMenuCopy	Copy	复制
 MarkdownMenuCopyAsMarkdown	Copy as Markdown	复制为 Markdown
 MarkdownMenuSelectAll	Select All	全选
 MarkdownMenuFind	Find…	查找…
+CopyCopied	Copied	已复制
+CopyFailed	Copy failed	复制失败
+CopyUserMessage	Copy message	复制消息
+ScrollToPrompt	Scroll to prompt	回到提问
+FindInConversation	Find in conversation	在对话中查找
+FindNoResults	No results	无结果
+FindPrevious	Previous match (⇧↵)	上一个（⇧↵）
+FindNext	Next match (↵)	下一个（↵）
+FindClose	Close (Esc)	关闭（Esc）
+FindLoadAll	Search all history	搜索全部历史
+FindLoadedOnly	Only loaded messages are searched	只搜索了已加载的消息
+ToolExitCode	exit {0}	退出码 {0}
+CopiedLastReply	Copied the last reply	已复制最后一条回复
+MessageEdit	Edit	编辑
+MessageRewind	Rewind	回退
+MessageRewindAll	Restore code and conversation	恢复对话和代码
+MessageRewindConversation	Restore conversation only	只恢复对话
+MessageRewindCode	Restore code only	只恢复代码
+MessageRewindScope	Only files changed by TKCode's edit tools are restored; changes made by commands, MCP tools and subagents are not.	只回退 TKCode 编辑工具改过的文件；命令行、MCP 和子 Agent 改的文件不会恢复。
+MessageForkHere	Fork from here	从这里分叉
+MessageEditingBanner	Editing “{0}”. Sending continues in a new session; this one stays as it is.	正在编辑「{0}」，发送后在新会话中继续，原会话保留。
+MessageEditCancel	Cancel	取消
+RevertFilesTitle	Revert file changes?	回退文件改动？
+RevertFilesMessage	{0} files were changed from this message on. Revert them to how they were before it?	这条消息及之后改过 {0} 个文件，要回退到这条消息之前的样子吗？
+RevertFilesConfirm	Revert files	回退文件
+RevertFilesKeep	Keep files	保留文件
+ForkedToast	Continued in a new session	已在新会话中继续
+ForkedBack	Back to original	返回原会话
+RevertedToast	Reverted {0} files	已回退 {0} 个文件
+RevertedPartialToast	Reverted {0} files; {1} were changed elsewhere and not reverted: {2}	已回退 {0} 个文件；{1} 个在外部被改过，未回退：{2}
+NothingToRevert	No file changes to revert	没有可以回退的文件改动
+ForkedFromBanner	Forked from “{0}”	分叉自「{0}」
+RequestRetryingIn	{0} · retrying in {1}s (attempt {2}/{3})	{0} · {1} 秒后重试（第 {2}/{3} 次）
+RequestRetryingNow	{0} · retrying (attempt {1}/{2})	{0} · 正在重试（第 {1}/{2} 次）
+RetryRequest	Retry	重试
+CopyError	Copy error	复制错误
 StepPlan	Tasks	任务清单
 TasksHeaderFormat	Tasks {0}/{1}	任务 {0}/{1}
 SessionMessageFromFormat	Message from {0}	来自 {0} 的消息
@@ -658,6 +694,26 @@ TrayProjects	Projects	项目
 TrayNoProjects	No projects yet	暂无项目
 CloseToTrayLabel	Keep running in the tray	关闭窗口时保留在托盘
 CloseToTrayHint	Closing the window hides TKCode to the system tray and keeps sessions running. Quit from the tray menu.	关闭窗口后 TKCode 隐藏到系统托盘，会话继续运行；从托盘菜单退出。
+NotificationsTitle	Notifications	通知
+NotificationsHint	“In background” means TKCode isn't the active window, or the session isn't the one on screen.	「仅在后台」指 TKCode 不是当前活动窗口，或该会话不是正在显示的会话。
+NotifyTurnCompletedLabel	Turn completed	回合结束
+NotifyTurnCompletedHintFormat	When a turn that ran {0} s or longer finishes, or when a turn fails.	运行 {0} 秒以上的回合结束，或回合出错时。
+NotifyNeedsInputLabel	Needs your input	需要你处理
+NotifyNeedsInputHint	Tool approvals, questions, plan reviews and MCP forms.	工具审批、提问、计划审批和 MCP 表单。
+NotifyNever	Never	从不
+NotifyInBackground	In background	仅在后台
+NotifyAlways	Always	总是
+NotifySoundLabel	Play sound	播放提示音
+NotifySoundHint	Play a short sound with each notification.	每条通知播放一声简短的提示音。
+NotifyTestButton	Send test notification	发送测试通知
+NotifyTestBody	Notifications are on. Click to come back to TKCode.	通知已开启。点击回到 TKCode。
+NotifyTurnFinished	Finished	已完成
+NotifyTurnFailedFormat	Turn failed: {0}	运行失败：{0}
+NotifyApprovalFormat	Waiting for approval: {0}	等待审批：{0}
+NotifyQuestion	Has a question for you	有问题需要你回答
+NotifyPlanReview	Plan ready for review	计划已就绪，等待审批
+NotifyElicitationFormat	{0} is asking for input	{0} 需要你填写信息
+TrayUnreadFormat	Needs attention: {0}	待查看：{0}
 UpdateCheckFailedFormat	Check failed: {0}	检查失败：{0}
 UpdatePrereleaseLabel	Receive pre-release updates	接收预发布版本更新
 UpdatePrereleaseHint	Also offer versions marked as Pre-release on GitHub. They may be less stable than regular releases.	也接收 GitHub 上标记为预发布（Pre-release）的版本，可能不如正式版稳定。

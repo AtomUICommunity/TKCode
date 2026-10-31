@@ -423,6 +423,42 @@
     <unit id="MarkdownMenuCopyAsMarkdown"><segment><source>Copy as Markdown</source><target state="translated">复制为 Markdown</target></segment></unit>
     <unit id="MarkdownMenuSelectAll"><segment><source>Select All</source><target state="translated">全选</target></segment></unit>
     <unit id="MarkdownMenuFind"><segment><source>Find…</source><target state="translated">查找…</target></segment></unit>
+    <unit id="CopyCopied"><segment><source>Copied</source><target state="translated">已复制</target></segment></unit>
+    <unit id="CopyFailed"><segment><source>Copy failed</source><target state="translated">复制失败</target></segment></unit>
+    <unit id="CopyUserMessage"><segment><source>Copy message</source><target state="translated">复制消息</target></segment></unit>
+    <unit id="ScrollToPrompt"><segment><source>Scroll to prompt</source><target state="translated">回到提问</target></segment></unit>
+    <unit id="FindInConversation"><segment><source>Find in conversation</source><target state="translated">在对话中查找</target></segment></unit>
+    <unit id="FindNoResults"><segment><source>No results</source><target state="translated">无结果</target></segment></unit>
+    <unit id="FindPrevious"><segment><source>Previous match (⇧↵)</source><target state="translated">上一个（⇧↵）</target></segment></unit>
+    <unit id="FindNext"><segment><source>Next match (↵)</source><target state="translated">下一个（↵）</target></segment></unit>
+    <unit id="FindClose"><segment><source>Close (Esc)</source><target state="translated">关闭（Esc）</target></segment></unit>
+    <unit id="FindLoadAll"><segment><source>Search all history</source><target state="translated">搜索全部历史</target></segment></unit>
+    <unit id="FindLoadedOnly"><segment><source>Only loaded messages are searched</source><target state="translated">只搜索了已加载的消息</target></segment></unit>
+    <unit id="ToolExitCode"><segment><source>exit {0}</source><target state="translated">退出码 {0}</target></segment></unit>
+    <unit id="CopiedLastReply"><segment><source>Copied the last reply</source><target state="translated">已复制最后一条回复</target></segment></unit>
+    <unit id="MessageEdit"><segment><source>Edit</source><target state="translated">编辑</target></segment></unit>
+    <unit id="MessageRewind"><segment><source>Rewind</source><target state="translated">回退</target></segment></unit>
+    <unit id="MessageRewindAll"><segment><source>Restore code and conversation</source><target state="translated">恢复对话和代码</target></segment></unit>
+    <unit id="MessageRewindConversation"><segment><source>Restore conversation only</source><target state="translated">只恢复对话</target></segment></unit>
+    <unit id="MessageRewindCode"><segment><source>Restore code only</source><target state="translated">只恢复代码</target></segment></unit>
+    <unit id="MessageRewindScope"><segment><source>Only files changed by TKCode's edit tools are restored; changes made by commands, MCP tools and subagents are not.</source><target state="translated">只回退 TKCode 编辑工具改过的文件；命令行、MCP 和子 Agent 改的文件不会恢复。</target></segment></unit>
+    <unit id="MessageForkHere"><segment><source>Fork from here</source><target state="translated">从这里分叉</target></segment></unit>
+    <unit id="MessageEditingBanner"><segment><source>Editing “{0}”. Sending continues in a new session; this one stays as it is.</source><target state="translated">正在编辑「{0}」，发送后在新会话中继续，原会话保留。</target></segment></unit>
+    <unit id="MessageEditCancel"><segment><source>Cancel</source><target state="translated">取消</target></segment></unit>
+    <unit id="RevertFilesTitle"><segment><source>Revert file changes?</source><target state="translated">回退文件改动？</target></segment></unit>
+    <unit id="RevertFilesMessage"><segment><source>{0} files were changed from this message on. Revert them to how they were before it?</source><target state="translated">这条消息及之后改过 {0} 个文件，要回退到这条消息之前的样子吗？</target></segment></unit>
+    <unit id="RevertFilesConfirm"><segment><source>Revert files</source><target state="translated">回退文件</target></segment></unit>
+    <unit id="RevertFilesKeep"><segment><source>Keep files</source><target state="translated">保留文件</target></segment></unit>
+    <unit id="ForkedToast"><segment><source>Continued in a new session</source><target state="translated">已在新会话中继续</target></segment></unit>
+    <unit id="ForkedBack"><segment><source>Back to original</source><target state="translated">返回原会话</target></segment></unit>
+    <unit id="RevertedToast"><segment><source>Reverted {0} files</source><target state="translated">已回退 {0} 个文件</target></segment></unit>
+    <unit id="RevertedPartialToast"><segment><source>Reverted {0} files; {1} were changed elsewhere and not reverted: {2}</source><target state="translated">已回退 {0} 个文件；{1} 个在外部被改过，未回退：{2}</target></segment></unit>
+    <unit id="NothingToRevert"><segment><source>No file changes to revert</source><target state="translated">没有可以回退的文件改动</target></segment></unit>
+    <unit id="ForkedFromBanner"><segment><source>Forked from “{0}”</source><target state="translated">分叉自「{0}」</target></segment></unit>
+    <unit id="RequestRetryingIn"><segment><source>{0} · retrying in {1}s (attempt {2}/{3})</source><target state="translated">{0} · {1} 秒后重试（第 {2}/{3} 次）</target></segment></unit>
+    <unit id="RequestRetryingNow"><segment><source>{0} · retrying (attempt {1}/{2})</source><target state="translated">{0} · 正在重试（第 {1}/{2} 次）</target></segment></unit>
+    <unit id="RetryRequest"><segment><source>Retry</source><target state="translated">重试</target></segment></unit>
+    <unit id="CopyError"><segment><source>Copy error</source><target state="translated">复制错误</target></segment></unit>
     <unit id="StepPlan"><segment><source>Tasks</source><target state="translated">任务清单</target></segment></unit>
     <unit id="TasksHeaderFormat"><segment><source>Tasks {0}/{1}</source><target state="translated">任务 {0}/{1}</target></segment></unit>
     <unit id="SessionMessageFromFormat"><segment><source>Message from {0}</source><target state="translated">来自 {0} 的消息</target></segment></unit>
@@ -659,6 +695,26 @@
     <unit id="TrayNoProjects"><segment><source>No projects yet</source><target state="translated">暂无项目</target></segment></unit>
     <unit id="CloseToTrayLabel"><segment><source>Keep running in the tray</source><target state="translated">关闭窗口时保留在托盘</target></segment></unit>
     <unit id="CloseToTrayHint"><segment><source>Closing the window hides TKCode to the system tray and keeps sessions running. Quit from the tray menu.</source><target state="translated">关闭窗口后 TKCode 隐藏到系统托盘，会话继续运行；从托盘菜单退出。</target></segment></unit>
+    <unit id="NotificationsTitle"><segment><source>Notifications</source><target state="translated">通知</target></segment></unit>
+    <unit id="NotificationsHint"><segment><source>“In background” means TKCode isn't the active window, or the session isn't the one on screen.</source><target state="translated">「仅在后台」指 TKCode 不是当前活动窗口，或该会话不是正在显示的会话。</target></segment></unit>
+    <unit id="NotifyTurnCompletedLabel"><segment><source>Turn completed</source><target state="translated">回合结束</target></segment></unit>
+    <unit id="NotifyTurnCompletedHintFormat"><segment><source>When a turn that ran {0} s or longer finishes, or when a turn fails.</source><target state="translated">运行 {0} 秒以上的回合结束，或回合出错时。</target></segment></unit>
+    <unit id="NotifyNeedsInputLabel"><segment><source>Needs your input</source><target state="translated">需要你处理</target></segment></unit>
+    <unit id="NotifyNeedsInputHint"><segment><source>Tool approvals, questions, plan reviews and MCP forms.</source><target state="translated">工具审批、提问、计划审批和 MCP 表单。</target></segment></unit>
+    <unit id="NotifyNever"><segment><source>Never</source><target state="translated">从不</target></segment></unit>
+    <unit id="NotifyInBackground"><segment><source>In background</source><target state="translated">仅在后台</target></segment></unit>
+    <unit id="NotifyAlways"><segment><source>Always</source><target state="translated">总是</target></segment></unit>
+    <unit id="NotifySoundLabel"><segment><source>Play sound</source><target state="translated">播放提示音</target></segment></unit>
+    <unit id="NotifySoundHint"><segment><source>Play a short sound with each notification.</source><target state="translated">每条通知播放一声简短的提示音。</target></segment></unit>
+    <unit id="NotifyTestButton"><segment><source>Send test notification</source><target state="translated">发送测试通知</target></segment></unit>
+    <unit id="NotifyTestBody"><segment><source>Notifications are on. Click to come back to TKCode.</source><target state="translated">通知已开启。点击回到 TKCode。</target></segment></unit>
+    <unit id="NotifyTurnFinished"><segment><source>Finished</source><target state="translated">已完成</target></segment></unit>
+    <unit id="NotifyTurnFailedFormat"><segment><source>Turn failed: {0}</source><target state="translated">运行失败：{0}</target></segment></unit>
+    <unit id="NotifyApprovalFormat"><segment><source>Waiting for approval: {0}</source><target state="translated">等待审批：{0}</target></segment></unit>
+    <unit id="NotifyQuestion"><segment><source>Has a question for you</source><target state="translated">有问题需要你回答</target></segment></unit>
+    <unit id="NotifyPlanReview"><segment><source>Plan ready for review</source><target state="translated">计划已就绪，等待审批</target></segment></unit>
+    <unit id="NotifyElicitationFormat"><segment><source>{0} is asking for input</source><target state="translated">{0} 需要你填写信息</target></segment></unit>
+    <unit id="TrayUnreadFormat"><segment><source>Needs attention: {0}</source><target state="translated">待查看：{0}</target></segment></unit>
     <unit id="UpdateCheckFailedFormat"><segment><source>Check failed: {0}</source><target state="translated">检查失败：{0}</target></segment></unit>
     <unit id="UpdatePrereleaseLabel"><segment><source>Receive pre-release updates</source><target state="translated">接收预发布版本更新</target></segment></unit>
     <unit id="UpdatePrereleaseHint"><segment><source>Also offer versions marked as Pre-release on GitHub. They may be less stable than regular releases.</source><target state="translated">也接收 GitHub 上标记为预发布（Pre-release）的版本，可能不如正式版稳定。</target></segment></unit>

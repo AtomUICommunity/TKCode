@@ -41,6 +41,9 @@ public sealed class SessionStore
     /// <summary>只给本会话追加的文件夹（docs/design/projects.md §6.4）；随 <see cref="AppendDirectoriesAsync"/> 更新。</summary>
     public IReadOnlyList<string> SessionDirectories { get; private set; } = [];
 
+    /// <summary>本会话从哪里分叉而来；不是分叉的会话为 null。</summary>
+    public ForkedFromEntry? ForkedFrom { get; private set; }
+
     public static string DefaultRoot =>
         Path.Combine(TKCodePaths.Home, "sessions");
 
@@ -73,6 +76,7 @@ public sealed class SessionStore
             _created = true,
             _titleChanged = snapshot.CustomTitle is not null,
             SessionDirectories = snapshot.SessionDirectories,
+            ForkedFrom = snapshot.ForkedFrom,
         }, snapshot);
     }
 
@@ -94,6 +98,7 @@ public sealed class SessionStore
         string? customTitle = null;
         var pinned = false;
         IReadOnlyList<string> directories = [];
+        ForkedFromEntry? forkedFrom = null;
         var entries = new Dictionary<string, TreeEntry>();
         string? leaf = null;
         using var lines = new Utf8LineReader(filePath);
@@ -121,6 +126,9 @@ public sealed class SessionStore
                     break;
                 case SessionDirectoriesEntry d:
                     directories = d.Directories ?? [];
+                    break;
+                case ForkedFromEntry f:
+                    forkedFrom = f;
                     break;
                 case TreeEntry t:
                     entries[t.Id] = t;
@@ -198,6 +206,7 @@ public sealed class SessionStore
             Role = role,
             ProjectId = header.ProjectId,
             SessionDirectories = directories,
+            ForkedFrom = forkedFrom,
             EarlierMessages = earlier,
             Compaction = compaction,
         };
@@ -273,6 +282,29 @@ public sealed class SessionStore
         {
             var line = Serialize(new SessionDirectoriesEntry(directories));
             SessionDirectories = directories;
+            if (!_created)
+            {
+                _pending.AppendLine(line);
+            }
+            else
+            {
+                await File.AppendAllTextAsync(FilePath, line + Environment.NewLine, ct);
+            }
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    /// <summary>记录本会话从哪里分叉而来。文件尚未创建时随第一条消息写入。</summary>
+    public async Task AppendForkedFromAsync(ForkedFromEntry entry, CancellationToken ct = default)
+    {
+        await _writeLock.WaitAsync(ct);
+        try
+        {
+            var line = Serialize(entry);
+            ForkedFrom = entry;
             if (!_created)
             {
                 _pending.AppendLine(line);
@@ -369,6 +401,9 @@ public sealed record SessionSnapshot(
 
     /// <summary>任务清单的最新快照。</summary>
     public IReadOnlyList<TKCode.Agent.Coding.Tools.TaskItem>? Tasks { get; init; }
+
+    /// <summary>本会话从哪里分叉而来（docs/design/message-rewind.md）。</summary>
+    public ForkedFromEntry? ForkedFrom { get; init; }
 
     /// <summary>最后一次压缩之前的消息（只用于界面回看与标题，不发给模型）；<see cref="Messages"/> 从压缩之后开始。</summary>
     public IReadOnlyList<Message> EarlierMessages { get; init; } = [];

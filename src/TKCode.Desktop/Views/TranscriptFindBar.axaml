@@ -1,0 +1,41 @@
+<!--
+  会话内查找条（⌘F，docs/design/message-features-report.md R4）：输入即查找，↵ / ⇧↵ 下一个 / 上一个，Esc 关闭。
+  还有更早的历史没加载时，第二行提示「只搜索了已加载的消息」并提供「搜索全部历史」。
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+             xmlns:icons="using:TKCode.Desktop.Icons"
+             xmlns:loc="using:TKCode.Desktop.Localization"
+             x:Class="TKCode.Desktop.Views.TranscriptFindBar">
+    <Border Background="{DynamicResource TKCode.PopupBg}" BorderBrush="{DynamicResource TKCode.PillBorder}" BorderThickness="1"
+            CornerRadius="10" Padding="6,4" BoxShadow="0 6 18 0 #22000000">
+        <StackPanel Spacing="2">
+            <StackPanel Orientation="Horizontal" Spacing="2">
+                <arc:SearchField x:Name="Field" Size="Small" Width="240"
+                                 Label="{loc:TKCodeLangResource FindInConversation}" IsLabelVisible="False"
+                                 Placeholder="{loc:TKCodeLangResource FindInConversation}"
+                                 ClearText="{loc:TKCodeLangResource ClearSearch}" />
+                <TextBlock x:Name="CountText" Classes="tertiary" FontSize="12" MinWidth="52" Margin="4,0"
+                           TextAlignment="Center" VerticalAlignment="Center" />
+                <arc:Button x:Name="PreviousButton" Classes="icon" Variant="Ghost" Size="Small"
+                            arc:Tooltip.Tip="{loc:TKCodeLangResource FindPrevious}" AutomationProperties.Name="{loc:TKCodeLangResource FindPrevious}">
+                    <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="ChevronUp" />
+                </arc:Button>
+                <arc:Button x:Name="NextButton" Classes="icon" Variant="Ghost" Size="Small"
+                            arc:Tooltip.Tip="{loc:TKCodeLangResource FindNext}" AutomationProperties.Name="{loc:TKCodeLangResource FindNext}">
+                    <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="ChevronDown" />
+                </arc:Button>
+                <arc:Button x:Name="CloseButton" Classes="icon" Variant="Ghost" Size="Small"
+                            arc:Tooltip.Tip="{loc:TKCodeLangResource FindClose}" AutomationProperties.Name="{loc:TKCodeLangResource FindClose}">
+                    <icons:LucideIcon StrokeBrush="{Binding $parent[arc:Button].Foreground}" Width="14" Height="14" Kind="X" />
+                </arc:Button>
+            </StackPanel>
+            <StackPanel x:Name="LoadedOnlyRow" Orientation="Horizontal" Spacing="6" Margin="8,0,0,2" IsVisible="False">
+                <TextBlock Classes="tertiary" FontSize="12" VerticalAlignment="Center" Text="{loc:TKCodeLangResource FindLoadedOnly}" />
+                <Button x:Name="LoadAllButton" Theme="{StaticResource TKCode.TextButton}" Padding="2,0" FontSize="12"
+                        Content="{loc:TKCodeLangResource FindLoadAll}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -65,8 +65,8 @@ public sealed class AgentHostServerProxy(JsonRpcConnection rpc) : IAgentHostServ
     public Task DeleteSessionAsync(string filePath, CancellationToken cancellationToken = default) =>
         rpc.InvokeAsync(RpcMethods.DeleteSession, new SessionFileParams(filePath), J.SessionFileParams, cancellationToken);
 
-    public Task<OpenSessionResult> ForkSessionAsync(string filePath, CancellationToken cancellationToken = default) =>
-        rpc.InvokeAsync(RpcMethods.ForkSession, new SessionFileParams(filePath), J.SessionFileParams, J.OpenSessionResult, cancellationToken);
+    public Task<OpenSessionResult> ForkSessionAsync(string filePath, int? before = null, CancellationToken cancellationToken = default) =>
+        rpc.InvokeAsync(RpcMethods.ForkSession, new ForkSessionParams(filePath, before), J.ForkSessionParams, J.OpenSessionResult, cancellationToken);
 
     public Task<OpenSessionResult> OpenSessionAsync(string filePath, int? turnLimit, CancellationToken cancellationToken = default) =>
         rpc.InvokeAsync(RpcMethods.OpenSession, new OpenSessionParams(filePath, turnLimit), J.OpenSessionParams, J.OpenSessionResult, cancellationToken);
@@ -82,6 +82,9 @@ public sealed class AgentHostServerProxy(JsonRpcConnection rpc) : IAgentHostServ
 
     public Task AbortAsync(string sessionId, CancellationToken cancellationToken = default) =>
         rpc.InvokeAsync(RpcMethods.Abort, new SessionIdParams(sessionId), J.SessionIdParams, cancellationToken);
+
+    public Task<PromptResult> RetryAsync(string sessionId, CancellationToken cancellationToken = default) =>
+        rpc.InvokeAsync(RpcMethods.Retry, new SessionIdParams(sessionId), J.SessionIdParams, J.PromptResult, cancellationToken);
 
     public Task CompactAsync(string sessionId, string? instructions, CancellationToken cancellationToken = default) =>
         rpc.InvokeAsync(RpcMethods.Compact, new CompactParams(sessionId, instructions), J.CompactParams, cancellationToken);
@@ -171,9 +174,10 @@ public static class AgentHostServerDispatcher
         rpc.AddRequestHandler(RpcMethods.RenameSession, j.RenameSessionParams, (p, ct) => server.RenameSessionAsync(p.FilePath, p.Title, ct));
         rpc.AddRequestHandler(RpcMethods.PinSession, j.PinSessionParams, (p, ct) => server.PinSessionAsync(p.FilePath, p.Pinned, ct));
         rpc.AddRequestHandler(RpcMethods.DeleteSession, j.SessionFileParams, (p, ct) => server.DeleteSessionAsync(p.FilePath, ct));
-        rpc.AddRequestHandler(RpcMethods.ForkSession, j.SessionFileParams, j.OpenSessionResult, (p, ct) => server.ForkSessionAsync(p.FilePath, ct));
+        rpc.AddRequestHandler(RpcMethods.ForkSession, j.ForkSessionParams, j.OpenSessionResult, (p, ct) => server.ForkSessionAsync(p.FilePath, p.Before, ct));
         rpc.AddRequestHandler(RpcMethods.Prompt, j.PromptRequest, j.PromptResult, server.PromptAsync);
         rpc.AddRequestHandler(RpcMethods.Abort, j.SessionIdParams, (p, ct) => server.AbortAsync(p.SessionId, ct));
+        rpc.AddRequestHandler(RpcMethods.Retry, j.SessionIdParams, j.PromptResult, (p, ct) => server.RetryAsync(p.SessionId, ct));
         rpc.AddRequestHandler(RpcMethods.Compact, j.CompactParams, (p, ct) => server.CompactAsync(p.SessionId, p.Instructions, ct));
         rpc.AddRequestHandler(RpcMethods.ContextUsage, j.SessionIdParams, j.ContextUsageDto, (p, ct) => server.GetContextUsageAsync(p.SessionId, ct));
         rpc.AddRequestHandler(RpcMethods.SetModel, j.SetModelParams, j.SessionOptionsDto, (p, ct) => server.SetModelAsync(p.SessionId, p.ModelId, ct));

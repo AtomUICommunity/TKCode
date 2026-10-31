@@ -337,11 +337,11 @@ public sealed class AgentSession : IAsyncDisposable
             var updates = await prompt.UpdatesAsync(agent.Model, ct);
             agent.SystemPrompt = prompt.InitialPrompt;
             // 当前历史里还没有记忆索引（新会话、启用前的旧会话）时随本批注入；压缩结果自带索引（docs/design/memory.md §4.2）
-            if (memory is not null && !agent.Messages.Any(ProjectMemory.IsIndexMessage))
-            {
-                return [.. updates, memory.IndexMessage()];
-            }
-            return updates;
+            IReadOnlyList<Message> result = memory is not null && !agent.Messages.Any(ProjectMemory.IsIndexMessage)
+                ? [.. updates, memory.IndexMessage()]
+                : updates;
+            // 用户在界面上回退了文件：随本批告诉 Agent（docs/design/message-rewind.md §5.3）
+            return toolContext.RevertNotices.Take() is { } reverted ? [.. result, reverted] : result;
         };
         toolContext.ModelSupportsImages = () => agent.Model.SupportsImages;
         toolContext.CurrentModel = () => agent.Model;
@@ -402,6 +402,28 @@ public sealed class AgentSession : IAsyncDisposable
             Agent.FollowUp(message);
         }
         return PromptDisposition.Queued;
+    }
+
+    /// <summary>
+    /// 上一次请求出错后重试：内置 Agent、空闲，且最后一条消息是出错的助手消息时，按现有历史再请求一次。
+    /// </summary>
+    /// <returns>是否开始了重试。</returns>
+    public bool Retry()
+    {
+        if (Agent is not TKCode.Agent.Agent builtin || builtin.IsRunning ||
+            builtin.Messages.LastOrDefault() is not AssistantMessage { StopReason: StopReason.Error })
+        {
+            return false;
+        }
+        try
+        {
+            _ = builtin.ContinueAsync();
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

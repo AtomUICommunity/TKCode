@@ -88,6 +88,19 @@ public sealed class UserSettingsService : IDisposable
     public void SetTerminalShell(string? profile) =>
         Update(root => SetPath(root, ["terminal", "defaultProfile"], profile is null ? null : JsonValue.Create(profile)));
 
+    /// <summary>回合结束的通知档位（notifications.turnCompleted）：never / background / always；默认的 background 写回时删除该字段。</summary>
+    public void SetNotifyTurnCompleted(string mode) => SetNotificationMode("turnCompleted", mode);
+
+    /// <summary>需要处理时的通知档位（notifications.needsInput），写法同 <see cref="SetNotifyTurnCompleted"/>。</summary>
+    public void SetNotifyNeedsInput(string mode) => SetNotificationMode("needsInput", mode);
+
+    /// <summary>通知提示音（notifications.sound）：true 为默认值，写回时删除该字段（空的 notifications 节一并删除）。</summary>
+    public void SetNotificationSound(bool value) =>
+        Update(root => SetPath(root, ["notifications", "sound"], value ? null : JsonValue.Create(false)));
+
+    private void SetNotificationMode(string key, string mode) =>
+        Update(root => SetPath(root, ["notifications", key], mode is "never" or "always" ? JsonValue.Create(mode) : null));
+
     public void SetDefaultRole(string? role) => Update(root => SettingsFile.Set(root, "defaultRole", role is null or "agent" ? null : JsonValue.Create(role)));
 
     /// <summary>接收预发布版本：true 写回时删除该字段（默认值）。</summary>

@@ -96,6 +96,10 @@ internal static class LucidePaths
         LucideKind.MessageCircleQuestion => ["M7.9 20A9 9 0 1 0 4 16.1L2 22Z", "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3", "M12 17h.01"],
         LucideKind.ClipboardCheck => [ClipboardTab, ClipboardBody, "M9 14l2 2 4-4"],
         LucideKind.ClipboardList => [ClipboardTab, ClipboardBody, "M12 11h4", "M12 16h4", "M8 11h.01", "M8 16h.01"],
+        LucideKind.ArrowUpToLine => ["M5 3h14", "M18 13l-6-6-6 6", "M12 7v14"],
+        LucideKind.ChevronUp => ["M18 15l-6-6-6 6"],
+        LucideKind.Undo2 => ["M9 14L4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"],
+        LucideKind.GitFork => ["M9 18a3 3 0 1 0 6 0a3 3 0 1 0-6 0", "M3 6a3 3 0 1 0 6 0a3 3 0 1 0-6 0", "M15 6a3 3 0 1 0 6 0a3 3 0 1 0-6 0", "M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9", "M12 12v3"],
         LucideKind.Pin => ["M12 17v5", "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"],
         _ => [],
     };

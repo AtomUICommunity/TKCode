@@ -183,6 +183,11 @@ public sealed class TranscriptAdapter
             {
                 desired.Add(EntryFor(session.EarlierHistory));
             }
+            // 分叉出来的会话：历史全部加载后，顶部显示「分叉自…」
+            else if (session.ForkOrigin is { } origin)
+            {
+                desired.Add(EntryFor(origin));
+            }
             var items = session.Items;
             var start = 0;
             for (var i = 1; i <= items.Count; i++)

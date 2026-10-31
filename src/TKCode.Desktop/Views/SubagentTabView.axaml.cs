@@ -15,6 +15,7 @@ public partial class SubagentTabView : UserControl
         InitializeComponent();
         Transcript.DataTemplates.AddRange(new TranscriptTemplates());
         _adapter = new TranscriptAdapter(Transcript.Entries);
+        TranscriptContextMenu.Attach(Transcript, find: false);
         DataContextChanged += (_, _) =>
         {
             var tab = DataContext as SubagentTabViewModel;

@@ -17,6 +17,7 @@ namespace TKCode.Agent.Coding.Sessions;
 [JsonDerivedType(typeof(RuntimeSessionEntry), "runtimeSession")]
 [JsonDerivedType(typeof(SessionMetaEntry), "meta")]
 [JsonDerivedType(typeof(SessionDirectoriesEntry), "directories")]
+[JsonDerivedType(typeof(ForkedFromEntry), "forkedFrom")]
 [JsonDerivedType(typeof(SystemPromptEntry), "systemPrompt")]
 [JsonDerivedType(typeof(TasksEntry), "tasks")]
 [JsonDerivedType(typeof(CompactionEntry), "compaction")]
@@ -38,6 +39,15 @@ public sealed record SessionMetaEntry(string? Title, bool? Pinned) : SessionEntr
 /// 只给本会话追加的文件夹（docs/design/projects.md §6.4），不属于对话树：每次写完整列表，最后一条生效。
 /// </summary>
 public sealed record SessionDirectoriesEntry(IReadOnlyList<string> Directories) : SessionEntry;
+
+/// <summary>
+/// 会话从哪里分叉而来（docs/design/message-rewind.md §5.2），不属于对话树，只写一次。
+/// </summary>
+/// <param name="SessionId">原会话 id。</param>
+/// <param name="FilePath">分叉时原会话文件的路径。</param>
+/// <param name="Title">分叉时原会话的标题（自定义标题或第一条用户消息）。</param>
+/// <param name="Before">截止点：原会话历史中复制了 [0, Before)；整条复制时为 null。</param>
+public sealed record ForkedFromEntry(string SessionId, string FilePath, string? Title, int? Before) : SessionEntry;
 
 public abstract record TreeEntry(string Id, string? ParentId) : SessionEntry;
 

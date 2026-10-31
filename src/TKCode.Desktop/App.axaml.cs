@@ -4,10 +4,12 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TKCode.Arc.Localization;
 using TKCode.Desktop.Controls;
 using TKCode.Desktop.Localization;
 using TKCode.Desktop.Services;
+using TKCode.Desktop.Services.Notifications;
 using TKCode.Desktop.ViewModels;
 using TKCode.Desktop.Views;
 
@@ -66,6 +68,9 @@ public class App : Application
             {
                 instance.CommandReceived += command => Dispatcher.UIThread.Post(() => tray.Execute(command));
             }
+            // 系统通知、提示音与未读角标（docs/design/notifications.md）
+            var notifications = new DesktopNotifications(window, mainViewModel, userSettings, tray,
+                Services.GetRequiredService<ILoggerFactory>().CreateLogger("TKCode.Notifications"));
             desktop.ShutdownRequested += (_, _) =>
             {
                 // 输入框里没发送的内容落盘，重启后恢复（docs/design/composer-drafts.md §4.4）
@@ -78,6 +83,7 @@ public class App : Application
                     // 草稿是尽力而为的，不能拖住退出
                 }
                 Services.GetRequiredService<AgentHostConnection>().Dispose();
+                notifications.Dispose();
             };
             // 应用内更新：安装程序启动后退出；启动 60 秒后开始检查（docs/design/auto-update.md）
             Services.GetRequiredService<UpdatesViewModel>().Shutdown = () => desktop.Shutdown();
