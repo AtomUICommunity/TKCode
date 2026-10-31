@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.1.9
+
+You can now edit or rewind your earlier messages and fork a conversation from any reply. Retry a failed request from its error card, and search a long conversation with ⌘F. TKCode also sends a system notification when a turn finishes or a session is waiting for you. The app moves to TKCode.Arc 0.3.2-preview.2.
+
+On Windows and Linux, the shortcuts below use Ctrl instead of ⌘.
+
+### Added
+
+- **Edit, rewind and fork.** Hover over one of your messages to see when you sent it and to copy, edit or rewind it. A forked session starts just before the chosen message. The original session stays in the list, unchanged.
+  - **Edit** puts the message back in the composer, with a banner above it. Sending continues in a new session. If files were changed from that message on, TKCode first asks whether to revert them. Esc or Cancel ends editing and brings back your draft.
+  - **Rewind** has three options:
+    - *Restore code and conversation*: reverts the files and continues in a new session, with the message back in the composer.
+    - *Restore conversation only*: continues in a new session without touching the files.
+    - *Restore code only*: reverts the files and stays in the current session. Before your next message, the agent is told which files were reverted, so it reads them again.
+  - **Only some changes are reverted.** Only files changed by TKCode's edit tools are reverted. Changes made by commands, MCP tools and subagents are not. If a file was changed elsewhere since, it is not reverted, and TKCode lists it.
+  - **Fork from here**, in the footer of a reply, continues in a new session that ends with that reply.
+  - A forked session shows "Forked from …" at the top. Click it to go back to the original.
+  - **Not available** for messages before the last compaction, while the agent is running, or in sessions of external runtimes (Claude Code, Codex, ACP).
+- **Retry.** The card of a failed request has **Retry** and **Copy error**. Retry sends the request again with the same history, without adding a "continue" message. While TKCode retries a request on its own, the reason, the countdown and the attempt number show next to "Thinking".
+- **Find in conversation.** ⌘F opens a find bar that searches both replies and your messages.
+  - ↵ / ⇧↵ or ⌘G / ⇧⌘G move between matches, and Esc closes the bar.
+  - By default only the loaded part of the conversation is searched. **Search all history** loads the rest.
+- **Moving through long conversations.**
+  - ⌘⌥↑ / ⌘⌥↓ jump to your previous / next message.
+  - **Scroll to prompt**, in the footer of a reply, goes back to the message that the reply answers.
+  - Each session remembers how far you scrolled. Switching back to it returns you to the same spot.
+- **Copying and other message actions.**
+  - Right-click the conversation for Copy, Copy as Markdown, Select All and Find.
+  - Your messages and the replies have a copy button that confirms the copy.
+  - ⇧⌘C copies the last reply.
+  - Esc stops the running agent, unless the focus is in the panel on the right, such as the editor or the terminal.
+- **Tool rows** show how long the tool ran, and the exit code when a command fails.
+- **System notifications.** TKCode can notify you in two cases:
+  - A turn finished after running at least 30 seconds, or a turn failed.
+  - A session needs your input: a tool approval, a question, a plan review or an MCP form.
+  - Clicking a notification brings TKCode back and opens that session.
+  - The Dock, the taskbar or the tray shows how many sessions are waiting for you.
+  - Settings › General has separate options for the two cases: Never, In background (the default) or Always. "In background" means TKCode is not the active window, or the session is not the one on screen. You can also turn the sound on or off, and send a test notification.
+  - On macOS, notifications use the Notification Center when TKCode runs as the app bundle. Windows uses toast notifications, and Linux uses the desktop notification service. The Windows and Linux versions are new and have not been run on those systems yet, so please report any problems.
+
+### Changed
+
+- **Dependencies.** TKCode.Arc, TKCode.Arc.Icons.Lucide and TKCode.Arc.Terminal 0.3.2-preview.2. TKCode.Arc.Special, which provides Arc's AI components, is added.
+
+**Full Changelog**: https://github.com/AtomUICommunity/TKCode/compare/v0.1.8...v0.1.9
+
 ## 0.1.8
 
 TKCode no longer depends on AtomUI. The UI now runs on TKCode.Arc 0.3.2-preview.1, which only needs Avalonia, and uses Arc's default theme.
