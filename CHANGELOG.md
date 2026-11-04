@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.10
+
+The tabs in the panel on the right now follow the project you select in the sidebar.
+
+### Added
+
+- **Per-project file tabs.** Switching the project on the left switches the open tabs on the right. Each project keeps its own file tabs, and switching back restores them, along with the file you had active at the time.
+- Terminal, browser, changes and subagent tabs stay open and keep their place, because they are not tied to a single project.
+- Selecting **All sessions** does not change the current project, so your file tabs stay open. Only picking another project, or **No project**, switches them.
+
+**Full Changelog**: https://github.com/AtomUICommunity/TKCode/compare/v0.1.9...v0.1.10
+
 ## 0.1.9
 
 You can now edit or rewind your earlier messages and fork a conversation from any reply. Retry a failed request from its error card, and search a long conversation with ⌘F. TKCode also sends a system notification when a turn finishes or a session is waiting for you. The app moves to TKCode.Arc 0.3.2-preview.2.
