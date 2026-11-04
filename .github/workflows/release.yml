@@ -369,6 +369,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          version="${{ needs.setup.outputs.version }}"
+          # 正文优先用 CHANGELOG.md 里该版本的段落（就是客户端更新说明里显示的内容），没有就退回自动生成的说明
+          notes="$RUNNER_TEMP/notes.md"
+          if python3 -I tools/release/changelog-notes.py "$version" CHANGELOG.md > "$notes" && [ -s "$notes" ]; then
+            notes_arg=(--notes-file "$notes")
+          else
+            echo "::warning::no CHANGELOG section for $version, falling back to generated notes"
+            notes_arg=(--generate-notes)
+          fi
           # 手动运行时 tag 不存在，gh 在当前提交（--target）上创建
-          gh release create "${{ needs.setup.outputs.tag }}" dist/* --target "$GITHUB_SHA" --title "TKCode ${{ needs.setup.outputs.version }}" --generate-notes \
+          gh release create "${{ needs.setup.outputs.tag }}" dist/* --target "$GITHUB_SHA" --title "TKCode $version" "${notes_arg[@]}" \
             ${{ needs.setup.outputs.draft == 'true' && '--draft' || '' }} ${{ needs.setup.outputs.prerelease == 'true' && '--prerelease' || '' }}

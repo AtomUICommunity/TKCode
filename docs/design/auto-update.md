@@ -261,7 +261,7 @@ Linux 没有安装程序。在 Unix 上，运行中的文件可以被改名（�
    - 需要先验证：AOT 程序在 hardened runtime 下是否需要额外的 entitlements（预期不需要 JIT 相关权限）。
 3. **Windows**：用 `iscc` 编译 `packaging/windows/TKCode.iss`，生成 setup.exe。签名步骤预留开关，有 secret 时才执行。
 4. **Linux**：打包 tar.gz，保留可执行权限位。
-5. **release**：汇总所有产物，生成 `manifest.json`（大小、SHA-256），用 `UPDATE_SIGNING_KEY` 签名，用 `gh release create` 上传（预发布版本加 `--prerelease`；tag 触发时加 `--draft`，由人工检查后再点 Publish，发布前客户端看不到 draft 版本）。
+5. **release**：汇总所有产物，生成 `manifest.json`（大小、SHA-256），用 `UPDATE_SIGNING_KEY` 签名，用 `gh release create` 上传（预发布版本加 `--prerelease`；tag 触发时加 `--draft`，由人工检查后再点 Publish，发布前客户端看不到 draft 版本）。Release 正文取自 `CHANGELOG.md` 里该版本的段落（`tools/release/changelog-notes.py`，也就是客户端更新说明显示的内容）；没有对应段落时退回 `--generate-notes`。
 
 需要的 secrets：`MACOS_APP_CERT_P12`（Developer ID Application，base64）、`MACOS_CERT_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID`、`UPDATE_SIGNING_KEY`（以及将来的 Windows 证书）。
 
