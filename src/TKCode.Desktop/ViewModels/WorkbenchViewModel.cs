@@ -298,6 +298,16 @@ public sealed partial class WorkbenchViewModel : ObservableObject
 {
     private readonly PtyHostService _hosts;
 
+    /// <summary>一个项目记住的文件标签（按项目分别保留；终端、浏览器、变更等工具标签全局共用）。</summary>
+    private sealed class ProjectFiles
+    {
+        public List<FileTabViewModel> Files { get; set; } = [];
+        public FileTabViewModel? ActiveFile { get; set; }
+    }
+
+    private readonly Dictionary<string, ProjectFiles> _filesByProject = [];
+    private string _projectKey = "";
+
     public WorkbenchViewModel(PtyHostService hosts)
     {
         _hosts = hosts;
@@ -308,6 +318,14 @@ public sealed partial class WorkbenchViewModel : ObservableObject
             foreach (var tab in Tabs)
             {
                 tab.RefreshLanguage();
+            }
+            // 已归档到其他项目的文件标签也一起刷新（可见的与归档的可能是同一批对象，重复刷新无害）
+            foreach (var group in _filesByProject.Values)
+            {
+                foreach (var file in group.Files)
+                {
+                    file.RefreshLanguage();
+                }
             }
         };
     }
@@ -360,6 +378,68 @@ public sealed partial class WorkbenchViewModel : ObservableObject
         Tabs.Add(terminal);
         Activate(terminal);
         OpenRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// 切换项目（当前工作区）：文件标签按项目分别保留，切回来时恢复原来的文件与活动文件；
+    /// 终端、浏览器、变更等工具标签全局共用，不随项目切换。终端 / 子 Agent 标签保持在原位。
+    /// 项目标识为 null 表示「不使用项目」，与已有项目各自拥有一套文件标签。
+    /// </summary>
+    public void SetProject(string? projectId)
+    {
+        var key = projectId ?? "";
+        if (key == _projectKey)
+        {
+            return;
+        }
+        var previousActive = ActiveTab;
+        // 归档当前项目的文件标签
+        var current = ProjectFilesFor(_projectKey);
+        current.Files = Tabs.OfType<FileTabViewModel>().ToList();
+        current.ActiveFile = previousActive as FileTabViewModel;
+        var insertAt = current.Files.Count > 0 ? Tabs.IndexOf(current.Files[0]) : Tabs.Count;
+        foreach (var file in current.Files)
+        {
+            file.IsActive = false;
+            Tabs.Remove(file);
+        }
+        _projectKey = key;
+        // 恢复新项目的文件标签：插到原来文件标签所在的位置，工具标签的相对顺序不变
+        var group = ProjectFilesFor(key);
+        insertAt = Math.Clamp(insertAt, 0, Tabs.Count);
+        foreach (var file in group.Files)
+        {
+            Tabs.Insert(insertAt++, file);
+        }
+        // 活动标签：之前是文件标签就切到新项目记住的文件标签，否则保持原来的工具标签
+        WorkbenchTabViewModel? active = previousActive is FileTabViewModel
+            ? group.ActiveFile ?? group.Files.FirstOrDefault() ?? Tabs.FirstOrDefault()
+            : previousActive is not null && Tabs.Contains(previousActive)
+                ? previousActive
+                : group.ActiveFile ?? Tabs.FirstOrDefault();
+        foreach (var tab in Tabs)
+        {
+            tab.IsActive = tab == active;
+        }
+        ActiveTab = active;
+        if (Tabs.Count > 0)
+        {
+            OpenRequested?.Invoke();
+        }
+        else
+        {
+            IsMaximized = false;
+            Emptied?.Invoke();
+        }
+    }
+
+    private ProjectFiles ProjectFilesFor(string key)
+    {
+        if (!_filesByProject.TryGetValue(key, out var group))
+        {
+            _filesByProject[key] = group = new ProjectFiles();
+        }
+        return group;
     }
 
     public void RetargetFiles(string oldPath, string newPath, bool isDirectory)

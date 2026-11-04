@@ -63,10 +63,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
             {
                 SyncExplorerRoot();
             }
+            // 编辑区的文件标签按项目分别保留，切换当前工作区时跟随切换
+            if (e.PropertyName == nameof(ConversationViewModel.Workspace))
+            {
+                workbench.SetProject(conversation.Workspace?.Id);
+            }
         };
         conversation.WorkspaceRootsChanged += SyncExplorerRoot;
         Explorer.RemoveSessionRootAsync = conversation.RemoveSessionDirectoryAsync;
         SyncExplorerRoot();
+        // 初始项目（Sidebar 构造时已经从 state.json 恢复）
+        workbench.SetProject(conversation.Workspace?.Id);
     }
 
     private readonly IExplorerPlatformActions _platformActions;

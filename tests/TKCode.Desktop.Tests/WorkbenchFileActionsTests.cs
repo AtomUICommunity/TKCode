@@ -296,6 +296,54 @@ public sealed class WorkbenchFileActionsTests
         Assert.Same(second, files.Workbench.ActiveTab);
     });
 
+    [Fact]
+    public Task SetProject_SwapsFileTabsPerProject_AndKeepsToolTabsWithTheirActiveState() => OnUi(async () =>
+    {
+        await using var files = new Workspace();
+        var first = files.Open(files.File("src/first.cs", "first"));
+        var second = files.Open(files.File("src/second.cs", "second"));
+        await WaitUntil(() => first.Preview is not null && second.Preview is not null);
+        Assert.Same(second, files.Workbench.ActiveTab);
+
+        // 切到项目 a：文件标签被归档，项目 a 还没有文件
+        files.Workbench.SetProject("a");
+        Assert.Empty(files.Workbench.Tabs);
+        Assert.Null(files.Workbench.ActiveTab);
+        Assert.False(first.IsActive);
+        Assert.False(second.IsActive);
+
+        var other = files.Open(files.File("src/other.cs", "other"));
+        await WaitUntil(() => other.Preview is not null);
+        Assert.Same(other, Assert.Single(files.Workbench.Tabs));
+
+        // 切回默认（不使用项目）：恢复原来的文件，并恢复记住的活动文件
+        files.Workbench.SetProject("");
+        AssertIdentityOrder([first, second], files.Workbench);
+        Assert.Same(second, files.Workbench.ActiveTab);
+        Assert.True(second.IsActive);
+        Assert.False(first.IsActive);
+
+        // 再切回项目 a：恢复 a 的文件与活动文件
+        files.Workbench.SetProject("a");
+        AssertIdentityOrder([other], files.Workbench);
+        Assert.Same(other, files.Workbench.ActiveTab);
+
+        // 工具标签是全局的：不归档，切换项目时保持原位与活动状态
+        files.Workbench.AddToolCommand.Execute(new WorkbenchToolViewModel(WorkbenchTabKind.Browser));
+        var browser = files.Workbench.ActiveTab!;
+        files.Workbench.SetProject("");
+        AssertIdentityOrder([first, second, browser], files.Workbench);
+        Assert.Same(browser, files.Workbench.ActiveTab);
+
+        // 离开时活动的是文件标签：新项目的活动文件被切换为活动标签
+        files.Workbench.ActivateCommand.Execute(second);
+        files.Workbench.SetProject("a");
+        AssertIdentityOrder([other, browser], files.Workbench);
+        Assert.Same(other, files.Workbench.ActiveTab);
+        Assert.True(other.IsActive);
+        Assert.False(browser.IsActive);
+    });
+
     private static void AssertIdentityOrder(IReadOnlyList<WorkbenchTabViewModel> expected, WorkbenchViewModel workbench)
     {
         Assert.Equal(expected.Count, workbench.Tabs.Count);
