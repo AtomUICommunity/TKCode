@@ -9,6 +9,12 @@ public partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
+        if (!OperatingSystem.IsMacOS())
+        {
+            // Windows / Linux 的窗口按钮在右上角，左上角没有红绿灯：只留一条很窄的拖拽区，导航贴着窗口顶部开始。
+            NavHeader.Height = 8;
+            NavMenu.Margin = new Thickness(0, 0, 0, 8);
+        }
     }
 
     /// <summary>macOS 红绿灯落在导航栏顶部，留出位置。</summary>
