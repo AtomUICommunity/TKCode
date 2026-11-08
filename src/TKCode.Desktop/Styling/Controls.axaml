@@ -304,6 +304,30 @@
                 </ControlTemplate>
             </Setter>
         </ControlTheme>
+
+        <ControlTheme x:Key="{x:Type ToolTip}" TargetType="ToolTip">
+            <Setter Property="Background" Value="{DynamicResource TKCode.MenuBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TKCode.MenuBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource TKCode.RadiusSmall}" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Foreground" Value="{DynamicResource TKCode.TextPrimary}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="Left"
+                                          VerticalContentAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
     </Styles.Resources>
 
     <!-- 弹层卡片：半透明深色、低对比描边、柔和投影 -->
@@ -445,6 +469,24 @@
     <Style Selector="TextBlock.title">
         <Setter Property="FontSize" Value="15" />
         <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="arc|Tooltip">
+        <Setter Property="Background" Value="{DynamicResource TKCode.MenuBg}" />
+        <Setter Property="Foreground" Value="{DynamicResource TKCode.TextPrimary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource TKCode.MenuBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="CornerRadius" Value="{StaticResource TKCode.RadiusSmall}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="ContentTemplate">
+           <Setter.Value>
+               <DataTemplate x:DataType="x:String">
+                   <TextBlock Text="{Binding}" MaxWidth="200"
+                              TextTrimming="PathSegmentEllipsis" />
+               </DataTemplate>
+           </Setter.Value>
+        </Setter>
     </Style>
     <Style Selector="SelectableTextBlock">
         <Setter Property="SelectionBrush" Value="#553B82F6" />
