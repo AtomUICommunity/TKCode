@@ -10,6 +10,22 @@
         xmlns:composer="using:TKCode.Desktop.Controls.Composer"
         xmlns:arc="https://github.com/AIDotNet/TKCode.Arc">
     <Styles.Resources>
+        <!--
+          窗口装饰：使用 Full 装饰保留系统原生的窗口动画（Windows 的 DWM 最小化 / 最大化 / 还原 / 关闭，
+          macOS 的红绿灯），但模板留空——标题栏、边框和窗口按钮都由界面自绘。
+          标题栏高度与边框/阴影厚度和 Fluent 主题保持一致，Linux 的 BorderOnly 窗口靠它们保留边缘缩放热区。
+        -->
+        <ControlTheme x:Key="TKCode.WindowDecorations" TargetType="WindowDrawnDecorations">
+            <Setter Property="DefaultTitleBarHeight" Value="44" />
+            <Setter Property="DefaultFrameThickness" Value="1" />
+            <Setter Property="DefaultShadowThickness" Value="8" />
+            <Setter Property="Template">
+                <WindowDrawnDecorationsTemplate>
+                    <WindowDrawnDecorationsContent />
+                </WindowDrawnDecorationsTemplate>
+            </Setter>
+        </ControlTheme>
+
         <!-- 侧栏导航、列表行、菜单行：透明背景，悬停/选中时填充 -->
         <ControlTheme x:Key="TKCode.RowButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />

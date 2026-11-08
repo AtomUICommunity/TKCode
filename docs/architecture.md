@@ -271,8 +271,9 @@ PromptAsync → AgentStart
 ### 7.7 窗口
 
 - 不显示 AtomUI 标题栏（`IsTitleBarVisible=False`）。
-- **macOS**：在 code-behind 中恢复 `WindowDecorations.Full`，再用 `MacStandardWindowButtons` 把红绿灯移到侧栏顶部。
-- **Windows / Linux**：在右上角自绘窗口按钮（`WindowDecorationProperties.ElementRole`）。
+- **macOS / Windows**：`WindowDecorations.Full` + `ExtendClientAreaToDecorationsHint`，保留系统窗口样式（macOS 的红绿灯，Windows 的 `WS_CAPTION` / `WS_MINIMIZEBOX` / `WS_MAXIMIZEBOX`），系统的原生最小化 / 最大化 / 还原 / 关闭动画才会播放。
+- **Windows / Linux**：标题栏和窗口按钮由界面自绘；`Window.WindowDecorationsTheme` 指向 `TKCode.WindowDecorations`（`Controls.axaml`），其模板留空，只保留标题栏高度 / 边框 / 阴影厚度等几何信息，避免系统再画一套标题栏和按钮。Linux 保留 `BorderOnly`（X11 默认由窗口管理器绘制标题栏）。
+- **macOS**：`ExtendClientAreaTitleBarHeightHint` 让标题栏区域与 44 高的头部对齐，再用避让宽度把红绿灯让到侧栏顶部。
 - 拖拽区域设为 `ElementRole="TitleBar"`；标题栏里可交互的按钮设为 `User`。
 
 ### 7.8 许可证

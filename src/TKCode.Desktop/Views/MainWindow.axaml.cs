@@ -456,33 +456,35 @@ public partial class MainWindow : Window
     /// </summary>
     private void ConfigureChrome()
     {
-        if (OperatingSystem.IsMacOS())
+        if (OperatingSystem.IsMacOS() || OperatingSystem.IsWindows())
         {
-            // 保留系统装饰（红绿灯），内容延伸到标题栏区域。
+            // Full 装饰保留系统窗口样式（Windows 为 WS_CAPTION / WS_MINIMIZEBOX / WS_MAXIMIZEBOX），
+            // 这样 DWM 的最小化 / 最大化 / 还原 / 关闭动画才会播放；标题栏本身由 TKCode.WindowDecorations
+            // 主题留空，窗口按钮仍由界面自绘（参见 Styling/Controls.axaml）。macOS 也靠它保留原生红绿灯。
             WindowDecorations = WindowDecorations.Full;
-            ExtendClientAreaTitleBarHeightHint = HeaderHeight;
         }
         else
         {
-            // 只留调整大小的边框，标题栏与窗口按钮由界面自绘
+            // Linux 的标题栏由窗口管理器绘制（X11 默认未启用自绘装饰），只留调整大小的边框
             WindowDecorations = WindowDecorations.BorderOnly;
+        }
+        if (!OperatingSystem.IsMacOS())
+        {
             CaptionButtons.IsVisible = true;
         }
     }
 
     /// <summary>
-    /// 界面缩放变化：窗口最小尺寸、macOS 标题栏高度提示与红绿灯避让宽度都要换算。
-    /// 内容在缩放后的坐标系里排版，而原生红绿灯与窗口边缘不随缩放——避让宽度除以比例，缩放后才落在同一个物理位置。
+    /// 界面缩放变化：窗口最小尺寸、标题栏高度提示与红绿灯避让宽度都要换算。
+    /// 内容在缩放后的坐标系里排版，而原生标题栏 / 红绿灯与窗口边缘不随缩放——提示高度跟随缩放，
+    /// 系统把顶部这么高的区域当作标题栏（拖动、双击最大化、Snap Layouts），避让宽度除以比例，缩放后才落在同一个物理位置。
     /// </summary>
     private void ApplyZoom()
     {
         var scale = UiZoom.Scale;
         MinWidth = BaseMinWidth * scale;
         MinHeight = BaseMinHeight * scale;
-        if (OperatingSystem.IsMacOS())
-        {
-            ExtendClientAreaTitleBarHeightHint = HeaderHeight * scale;
-        }
+        ExtendClientAreaTitleBarHeightHint = HeaderHeight * scale;
         if (DataContext is MainWindowViewModel vm)
         {
             UpdateHeaderInsets(vm);
