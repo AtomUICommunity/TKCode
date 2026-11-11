@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+using TKCode.Desktop.Controls;
 using TKCode.Desktop.ViewModels;
 using TKCode.Desktop.Views;
 using TKCode.Rpc;
@@ -76,7 +78,7 @@ public sealed class ChangeViewSnapshotTests
             var second = edit with { Path = "/Users/dev/project/docs/notes.md", Added = 12, Removed = 0, DiffLines = [] };
             var turn = new TurnChangesItemViewModel(
                 FileChangeSet.Group([edit, second], _ => Task.FromResult(new RevertFileResult(null))),
-                _ => { }, _ => { });
+                _ => { }, () => { });
             var card = new TurnChangesView { DataContext = turn, Width = 560 };
 
             var window = new Window
@@ -90,6 +92,50 @@ public sealed class ChangeViewSnapshotTests
             Dispatcher.UIThread.RunJobs();
 
             HeadlessApp.Save(window, "change-view-diff-and-turn");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task TurnCard_HoveringAFile_ShowsItsDiffInACard()
+    {
+        await HeadlessApp.Session.Dispatch(() =>
+        {
+            var lines = ParsedToolDetails.DiffLinesOf(Diff);
+            var edit = new ParsedToolDetails
+            {
+                Kind = "diff",
+                Path = "/Users/dev/project/src/App.cs",
+                Added = 3,
+                Removed = 2,
+                AfterSha256 = "h",
+                Before = "x",
+                DiffLines = lines,
+            };
+            var turn = new TurnChangesItemViewModel(
+                FileChangeSet.Group([edit], _ => Task.FromResult(new RevertFileResult(null)), "/Users/dev/project"),
+                _ => { }, () => { });
+            var card = new TurnChangesView { DataContext = turn, Width = 560 };
+            var window = new Window
+            {
+                Width = 1000,
+                Height = 700,
+                Background = Avalonia.Media.Brushes.Black,
+                Content = new StackPanel { Margin = new Avalonia.Thickness(16), Spacing = 16, Children = { card } },
+            };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+
+            // 断言文件行显示相对工作区的路径
+            Assert.Contains("src/App.cs", card.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+
+            // 悬停弹出 diff 卡片（顶部对齐会超出窗口，截图时改为向下）。模板里的弹层走 ZoomHost。
+            var hover = card.GetVisualDescendants().OfType<HoverCard>().Single();
+            hover.Placement = PlacementMode.BottomEdgeAlignedLeft;
+            hover.Popup!.ShouldUseOverlayLayer = true;
+            hover.IsOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            HeadlessApp.Save(window, "change-view-file-hover");
             window.Close();
         }, TestContext.Current.CancellationToken);
     }

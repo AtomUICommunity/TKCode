@@ -15,10 +15,11 @@ public sealed partial class FileChangeViewModel : ObservableObject
 {
     private readonly Func<RevertFileRequest, Task<RevertFileResult>> _revert;
 
-    public FileChangeViewModel(string path, bool created, string? before, string? afterSha256, IReadOnlyList<DiffLineViewModel> lines,
-        int added, int removed, Func<RevertFileRequest, Task<RevertFileResult>> revert)
+    public FileChangeViewModel(string path, string displayPath, bool created, string? before, string? afterSha256,
+        IReadOnlyList<DiffLineViewModel> lines, int added, int removed, Func<RevertFileRequest, Task<RevertFileResult>> revert)
     {
         Path = path;
+        DisplayPath = displayPath;
         Created = created;
         Before = before;
         AfterSha256 = afterSha256;
@@ -30,6 +31,9 @@ public sealed partial class FileChangeViewModel : ObservableObject
     }
 
     public string Path { get; }
+
+    /// <summary>列表里显示的路径：工作区内相对工作目录，工作区外为完整路径（见 <see cref="ChangePaths"/>）。</summary>
+    public string DisplayPath { get; }
 
     public string Name => System.IO.Path.GetFileName(Path);
 
@@ -48,6 +52,9 @@ public sealed partial class FileChangeViewModel : ObservableObject
     public string? AfterSha256 { get; }
 
     public IReadOnlyList<DiffLineViewModel> Lines { get; }
+
+    /// <summary>有 diff 行（二进制 / 过大的文件只有路径信息）。</summary>
+    public bool HasDiff => Lines.Count > 0;
 
     public int Added { get; }
     public int Removed { get; }
@@ -106,7 +113,7 @@ public sealed partial class FileChangeViewModel : ObservableObject
 public static class FileChangeSet
 {
     public static IReadOnlyList<FileChangeViewModel> Group(IEnumerable<ParsedToolDetails> edits,
-        Func<RevertFileRequest, Task<RevertFileResult>> revert)
+        Func<RevertFileRequest, Task<RevertFileResult>> revert, string? cwd = null)
     {
         var order = new List<string>();
         var byPath = new Dictionary<string, List<ParsedToolDetails>>(PathComparer);
@@ -123,15 +130,17 @@ public static class FileChangeSet
             }
             list.Add(edit);
         }
-        return order.Select(path => Build(path, byPath[path], revert)).ToArray();
+        return order.Select(path => Build(path, byPath[path], revert, cwd)).ToArray();
     }
 
-    private static FileChangeViewModel Build(string path, List<ParsedToolDetails> edits, Func<RevertFileRequest, Task<RevertFileResult>> revert)
+    private static FileChangeViewModel Build(string path, List<ParsedToolDetails> edits,
+        Func<RevertFileRequest, Task<RevertFileResult>> revert, string? cwd)
     {
         var first = edits[0];
         var last = edits[^1];
         return new FileChangeViewModel(
             path,
+            ChangePaths.Display(path, cwd),
             created: first.Created,
             before: first.Created ? null : first.Before,
             afterSha256: last.AfterSha256,
@@ -147,7 +156,8 @@ public static class FileChangeSet
 }
 
 /// <summary>
-/// 一轮结束后的改动卡片：“N 个文件已更改”，可整轮撤销，逐文件审查或打开。
+/// 一轮结束后的改动卡片：“已编辑 N 个文件 +X −Y”，可整轮撤销、打开变更面板；
+/// 点击文件行在编辑器打开该文件，悬停看 diff（由视图实现）。
 /// 文件超过 <see cref="PreviewCount"/> 个时默认只列出前面几个，其余收起，避免长列表把对话顶出视口。
 /// </summary>
 public sealed partial class TurnChangesItemViewModel : TranscriptItemViewModel
@@ -155,13 +165,13 @@ public sealed partial class TurnChangesItemViewModel : TranscriptItemViewModel
     /// <summary>卡片里默认直接列出的文件数。</summary>
     public const int PreviewCount = 5;
 
-    private readonly Action<string> _review;
     private readonly Action<string> _open;
+    private readonly Action? _viewChanges;
 
-    public TurnChangesItemViewModel(IReadOnlyList<FileChangeViewModel> files, Action<string> review, Action<string> open)
+    public TurnChangesItemViewModel(IReadOnlyList<FileChangeViewModel> files, Action<string> open, Action? viewChanges = null)
     {
-        _review = review;
         _open = open;
+        _viewChanges = viewChanges;
         foreach (var file in files)
         {
             Files.Add(file);
@@ -176,6 +186,10 @@ public sealed partial class TurnChangesItemViewModel : TranscriptItemViewModel
     public string Header => Strings.Format(TKCodeLangResourceKind.ChangesFilesChanged, Files.Count);
 
     public string Stats => $"+{Added} −{Removed}";
+
+    public string AddedText => $"+{Added}";
+
+    public string RemovedText => $"−{Removed}";
 
     /// <summary>还有可以撤销的文件（整轮撤销按钮的可用状态）。</summary>
     public bool CanRevertAll => Files.Any(f => f.CanRevertNow);
@@ -226,7 +240,7 @@ public sealed partial class TurnChangesItemViewModel : TranscriptItemViewModel
     public void NotifyRevertState() => OnPropertyChanged(nameof(CanRevertAll));
 
     [RelayCommand]
-    private void Review(FileChangeViewModel file) => _review(file.Path);
+    private void ViewChanges() => _viewChanges?.Invoke();
 
     [RelayCommand]
     private void Open(FileChangeViewModel file) => _open(file.Path);
@@ -249,7 +263,7 @@ public sealed partial class ChangesTabViewModel : WorkbenchTabViewModel
 
     public string EmptyText => Strings.Get(TKCodeLangResourceKind.ChangesEmpty);
 
-    /// <summary>请求把某个文件滚动到可见处（“审查”进入时）。</summary>
+    /// <summary>请求把某个文件滚动到可见处（<see cref="Select"/> 选中文件时）。</summary>
     public event Action<FileChangeViewModel>? RevealRequested;
 
     /// <summary>切换会话（或会话有新改动）时重新汇总。</summary>
@@ -280,7 +294,7 @@ public sealed partial class ChangesTabViewModel : WorkbenchTabViewModel
         OnPropertyChanged(nameof(IsEmpty));
     }
 
-    /// <summary>展开某个文件的 diff（从转录的“审查”按钮进入）并滚动到它。</summary>
+    /// <summary>展开某个文件的 diff 并滚动到它。</summary>
     public void Select(string path)
     {
         Refresh();

@@ -500,19 +500,19 @@ public sealed partial class WorkbenchViewModel : ObservableObject
 
     private SessionViewModel? _changesSource;
 
-    /// <summary>切换当前会话：变更面板跟随它，转录中的“审查 / 打开”也指向它；其他会话的子 Agent 标签关闭。</summary>
+    /// <summary>切换当前会话：变更面板跟随它，转录中的“打开 / 查看变更”也指向它；其他会话的子 Agent 标签关闭。</summary>
     public void SetChangesSource(SessionViewModel? session)
     {
         if (_changesSource is not null)
         {
-            _changesSource.ReviewRequested -= ReviewChange;
+            _changesSource.ChangesRequested -= ShowChanges;
             _changesSource.OpenRequested -= OpenFile;
             _changesSource.SubagentRequested -= OpenSubagent;
         }
         _changesSource = session;
         if (session is not null)
         {
-            session.ReviewRequested += ReviewChange;
+            session.ChangesRequested += ShowChanges;
             session.OpenRequested += OpenFile;
             session.SubagentRequested += OpenSubagent;
         }
@@ -546,13 +546,6 @@ public sealed partial class WorkbenchViewModel : ObservableObject
 
     [RelayCommand]
     private void OpenChanges() => ShowChanges();
-
-    /// <summary>打开变更面板并选中该文件。</summary>
-    public void ReviewChange(string path)
-    {
-        ShowChanges();
-        Changes.Select(path);
-    }
 
     private void ShowChanges()
     {

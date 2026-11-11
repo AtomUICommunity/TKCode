@@ -730,12 +730,11 @@ TrayUnreadFormat	Needs attention: {0}	待查看：{0}
 UpdateCheckFailedFormat	Check failed: {0}	检查失败：{0}
 UpdatePrereleaseLabel	Receive pre-release updates	接收预发布版本更新
 UpdatePrereleaseHint	Also offer versions marked as Pre-release on GitHub. They may be less stable than regular releases.	也接收 GitHub 上标记为预发布（Pre-release）的版本，可能不如正式版稳定。
-ChangesFilesChanged	{0} files changed	{0} 个文件已更改
+ChangesFilesChanged	Edited {0} files	已编辑 {0} 个文件
 ChangesShowMore	Show {0} more	还有 {0} 个文件
 ChangesShowLess	Show less	收起
 ChangesRevert	Revert	撤销
-ChangesReview	Review	审查
-ChangesOpen	Open	打开
+ChangesViewAll	View changes	查看变更
 ChangesRevertFailed	Revert failed: {0}	撤销失败：{0}
 ChangesNoSnapshot	The file was too large to keep a snapshot; this change cannot be reverted	文件过大，未保存改动前的内容，此改动无法撤销
 ChangesEmpty	No file changes in this session	本会话还没有文件改动

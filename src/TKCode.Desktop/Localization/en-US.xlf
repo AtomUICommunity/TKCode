@@ -731,12 +731,11 @@
     <unit id="UpdateCheckFailedFormat"><segment><source>Check failed: {0}</source></segment></unit>
     <unit id="UpdatePrereleaseLabel"><segment><source>Receive pre-release updates</source></segment></unit>
     <unit id="UpdatePrereleaseHint"><segment><source>Also offer versions marked as Pre-release on GitHub. They may be less stable than regular releases.</source></segment></unit>
-    <unit id="ChangesFilesChanged"><segment><source>{0} files changed</source></segment></unit>
+    <unit id="ChangesFilesChanged"><segment><source>Edited {0} files</source></segment></unit>
     <unit id="ChangesShowMore"><segment><source>Show {0} more</source></segment></unit>
     <unit id="ChangesShowLess"><segment><source>Show less</source></segment></unit>
     <unit id="ChangesRevert"><segment><source>Revert</source></segment></unit>
-    <unit id="ChangesReview"><segment><source>Review</source></segment></unit>
-    <unit id="ChangesOpen"><segment><source>Open</source></segment></unit>
+    <unit id="ChangesViewAll"><segment><source>View changes</source></segment></unit>
     <unit id="ChangesRevertFailed"><segment><source>Revert failed: {0}</source></segment></unit>
     <unit id="ChangesNoSnapshot"><segment><source>The file was too large to keep a snapshot; this change cannot be reverted</source></segment></unit>
     <unit id="ChangesEmpty"><segment><source>No file changes in this session</source></segment></unit>

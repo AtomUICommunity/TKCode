@@ -731,12 +731,11 @@
     <unit id="UpdateCheckFailedFormat"><segment><source>Check failed: {0}</source><target state="translated">检查失败：{0}</target></segment></unit>
     <unit id="UpdatePrereleaseLabel"><segment><source>Receive pre-release updates</source><target state="translated">接收预发布版本更新</target></segment></unit>
     <unit id="UpdatePrereleaseHint"><segment><source>Also offer versions marked as Pre-release on GitHub. They may be less stable than regular releases.</source><target state="translated">也接收 GitHub 上标记为预发布（Pre-release）的版本，可能不如正式版稳定。</target></segment></unit>
-    <unit id="ChangesFilesChanged"><segment><source>{0} files changed</source><target state="translated">{0} 个文件已更改</target></segment></unit>
+    <unit id="ChangesFilesChanged"><segment><source>Edited {0} files</source><target state="translated">已编辑 {0} 个文件</target></segment></unit>
     <unit id="ChangesShowMore"><segment><source>Show {0} more</source><target state="translated">还有 {0} 个文件</target></segment></unit>
     <unit id="ChangesShowLess"><segment><source>Show less</source><target state="translated">收起</target></segment></unit>
     <unit id="ChangesRevert"><segment><source>Revert</source><target state="translated">撤销</target></segment></unit>
-    <unit id="ChangesReview"><segment><source>Review</source><target state="translated">审查</target></segment></unit>
-    <unit id="ChangesOpen"><segment><source>Open</source><target state="translated">打开</target></segment></unit>
+    <unit id="ChangesViewAll"><segment><source>View changes</source><target state="translated">查看变更</target></segment></unit>
     <unit id="ChangesRevertFailed"><segment><source>Revert failed: {0}</source><target state="translated">撤销失败：{0}</target></segment></unit>
     <unit id="ChangesNoSnapshot"><segment><source>The file was too large to keep a snapshot; this change cannot be reverted</source><target state="translated">文件过大，未保存改动前的内容，此改动无法撤销</target></segment></unit>
     <unit id="ChangesEmpty"><segment><source>No file changes in this session</source><target state="translated">本会话还没有文件改动</target></segment></unit>
