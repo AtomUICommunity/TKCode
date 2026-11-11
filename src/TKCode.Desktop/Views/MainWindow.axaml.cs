@@ -378,6 +378,7 @@ public partial class MainWindow : Window
                 vm.Conversation.NoticeRequested += ShowNotice;
                 vm.Conversation.ComposerFocusRequested += () => Dispatcher.UIThread.Post(DockedComposer.FocusInput, DispatcherPriority.Input);
                 vm.Workbench.ConfirmAsync = ConfirmAsync;
+                vm.Workbench.CopyTextAsync = text => Clipboard?.SetTextAsync(text) ?? Task.CompletedTask;
                 vm.ConfirmAsync = ConfirmAsync;
                 vm.Conversation.SetClipboardAsync = text => Clipboard?.SetTextAsync(text) ?? Task.CompletedTask;
                 // /role：打开当前可见的那个模式选择器

@@ -482,6 +482,7 @@ Additional working directories (read, search and edit them just like the primary
   - 选中某个仓库后，下面显示它的分支搜索列表，与现在相同。
 - **切换**：作用于选中的仓库。忙碌判断从「同一个 cwd 有会话正在运行」改为「这个项目里有会话正在运行」，因为所有会话都能访问所有文件夹。
 - **监视**：每个仓库一个 `GitBranchWatcher`。`WorkspaceInfo.ReadBranch` / `ReadBranches` 移到按仓库的 `GitRepository` 辅助类里。
+- **仓库列表复用**：历史面板（[history-panel.md](history-panel.md)）使用同一套仓库发现与去重规则，项目里有多个仓库时在面板顶部用仓库选择器切换。
 
 ### 10.4 会话临时文件夹的入口
 

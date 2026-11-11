@@ -299,6 +299,19 @@ WorkbenchEmpty	Open a file from the file tree, or add a panel	从文件树打开
 AddPanel	Add panel	添加面板
 TabHistory	History	历史
 HistoryDescription	History will show this project's commits and let you inspect each change.	历史面板将展示项目的提交记录，并可查看每次改动。
+HistoryNoRepository	This project is not a Git repository.	此项目不是 Git 仓库
+HistoryNoCommits	No commits on this branch yet	当前分支还没有提交
+HistoryLoading	Loading commits…	正在读取提交…
+HistoryLoadMore	Load more	加载更多
+HistoryLoadFailed	Couldn't read the history: {0}	无法读取历史：{0}
+HistoryRefresh	Refresh	刷新
+HistoryRepository	Repository	仓库
+HistoryCopyHash	Copy commit hash	复制提交哈希
+HistoryNoChanges	This commit has no changes	此提交没有改动
+HistoryRenameOnly	Renamed without content changes	仅重命名，没有内容改动
+HistoryMergeFirstParent	Merge commit — showing changes against the first parent	合并提交：显示相对第一个父提交的改动
+HistoryBinary	Binary file	二进制文件
+HistoryDiffTruncated	Diff is too long; only the beginning is shown	改动过多，只显示开头部分
 AgentsGroup	Agents	智能体
 ApprovalTitle	Approval needed	需要你的批准
 ApprovalCommand	Run command	执行命令

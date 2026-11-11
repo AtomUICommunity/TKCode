@@ -1,3 +1,5 @@
+using TKCode.Config;
+
 namespace TKCode.Desktop.Services;
 
 /// <summary>直接读取 .git 目录得到分支信息（不启动 git 进程）。支持 worktree / submodule / separate git dir。</summary>
@@ -25,6 +27,24 @@ public static class GitRepository
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// 工作区里的 Git 仓库（docs/design/projects.md §10.3）：<paramref name="cwd"/> 在前，然后是其他文件夹；
+    /// 位于同一个仓库（同一个 git 目录）的文件夹只算一次，顺序保持不变。返回的是仓库的根文件夹，不是 git 目录。
+    /// </summary>
+    public static IReadOnlyList<string> Repositories(string? cwd, IReadOnlyList<string> additionalRoots)
+    {
+        var seen = new HashSet<string>(PathRules.Comparer);
+        var result = new List<string>();
+        foreach (var folder in (IEnumerable<string?>)[cwd, .. additionalRoots])
+        {
+            if (!string.IsNullOrEmpty(folder) && GitLayout.Find(folder) is { } layout && seen.Add(Path.GetFullPath(layout.GitDir)))
+            {
+                result.Add(folder);
+            }
+        }
+        return result;
     }
 
     /// <summary>本地分支（refs/heads 与 packed-refs），按名称排序；不是 Git 仓库时为空。worktree 读主仓库的分支。</summary>

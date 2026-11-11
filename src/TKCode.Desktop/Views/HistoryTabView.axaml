@@ -1,0 +1,209 @@
+<!-- 历史标签：当前分支的提交（单栏手风琴）。点击提交在原位展开正文、文件与逐文件 diff；只读。 -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:arc="https://github.com/AIDotNet/TKCode.Arc"
+             xmlns:lucide="https://github.com/AIDotNet/TKCode.Arc/lucide"
+             xmlns:vm="using:TKCode.Desktop.ViewModels"
+             xmlns:icons="using:TKCode.Desktop.Icons"
+             xmlns:controls="using:TKCode.Desktop.Controls"
+             xmlns:motion="using:TKCode.Desktop.Motion"
+             xmlns:views="using:TKCode.Desktop.Views"
+             xmlns:loc="using:TKCode.Desktop.Localization"
+             x:Class="TKCode.Desktop.Views.HistoryTabView"
+             x:DataType="vm:HistoryTabViewModel">
+    <DockPanel>
+        <!-- 顶部：仓库选择（多仓库时）、当前分支、刷新 -->
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource TKCode.Divider}" BorderThickness="0,0,0,1" Padding="12,4,8,4">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <arc:Select ItemsSource="{Binding Repositories}" SelectedItem="{Binding SelectedRepository, Mode=TwoWay}"
+                            Size="Small" MaxWidth="150" Margin="0,0,8,0" VerticalAlignment="Center"
+                            IsVisible="{Binding HasMultipleRepositories}" arc:Tooltip.Tip="{loc:TKCodeLangResource HistoryRepository}" />
+                <Grid Grid.Column="1" ColumnDefinitions="Auto,*" Margin="0,0,8,0" VerticalAlignment="Center">
+                    <icons:LucideIcon Kind="GitBranch" Width="13" Height="13" VerticalAlignment="Center"
+                                      StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
+                    <TextBlock Grid.Column="1" Text="{Binding BranchText}" Margin="6,0,0,0" FontSize="12"
+                               Foreground="{DynamicResource TKCode.TextSecondary}" TextTrimming="CharacterEllipsis"
+                               MaxLines="1" VerticalAlignment="Center" />
+                </Grid>
+                <Button Grid.Column="2" Theme="{StaticResource TKCode.RowButton}" Width="24" MinHeight="24" Padding="0"
+                        HorizontalContentAlignment="Center" Command="{Binding RefreshCommand}"
+                        arc:Tooltip.Tip="{loc:TKCodeLangResource HistoryRefresh}"
+                        AutomationProperties.Name="{loc:TKCodeLangResource HistoryRefresh}">
+                    <icons:LucideIcon Kind="RefreshCw" Width="13" Height="13"
+                                      StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <Panel>
+            <arc:ScrollArea IsVisible="{Binding HasRepository}">
+                <StackPanel Margin="8,6,8,12">
+                    <!-- 读取失败的顶层提示：提交列表仍保留 -->
+                    <arc:Alert Tone="Danger" Content="{Binding Error}" IsVisible="{Binding HasError}" Margin="0,0,0,6" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,4,0,6" IsVisible="{Binding IsLoading}">
+                        <controls:DotSpinner Width="11" Height="11" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:TKCodeLangResource HistoryLoading}" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TKCode.TextSecondary}" />
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding Commits}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:GitCommitViewModel">
+                                <StackPanel Margin="0,0,0,4">
+                                    <Button Theme="{StaticResource TKCode.RowButton}" HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Stretch" Padding="6" Command="{Binding ToggleExpandedCommand}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <icons:LucideIcon Kind="ChevronRight" Width="12" Height="12" Margin="0,0,6,0"
+                                                              VerticalAlignment="Center"
+                                                              StrokeBrush="{DynamicResource TKCode.TextSecondary}"
+                                                              motion:Turn.IsOn="{Binding IsExpanded}" />
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Text="{Binding Subject}" FontSize="13" MaxLines="1"
+                                                               Foreground="{DynamicResource TKCode.TextPrimary}"
+                                                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Subject}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding DateText}" FontSize="11" Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TKCode.TextTertiary}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Text="{Binding ShortSha}" FontSize="11"
+                                                               FontFamily="{StaticResource TKCode.MonoFont}"
+                                                               Foreground="{DynamicResource TKCode.TextTertiary}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Author}" FontSize="11" Margin="8,0,0,0"
+                                                               MaxLines="1" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource TKCode.TextTertiary}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Button>
+
+                                    <!-- 展开区在按钮之外：整行按钮只负责展开 / 折叠 -->
+                                    <StackPanel IsVisible="{Binding IsExpanded}" Margin="24,2,0,8" Spacing="6">
+                                        <SelectableTextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap"
+                                                             Foreground="{DynamicResource TKCode.TextSecondary}" />
+                                        <TextBlock Text="{loc:TKCodeLangResource HistoryMergeFirstParent}" FontSize="11"
+                                                   TextWrapping="Wrap" IsVisible="{Binding IsMerge}"
+                                                   Foreground="{DynamicResource TKCode.TextTertiary}" />
+
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{Binding Sha}" FontSize="11" FontFamily="{StaticResource TKCode.MonoFont}"
+                                                       Foreground="{DynamicResource TKCode.TextTertiary}"
+                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Theme="{StaticResource TKCode.RowButton}" Width="22" MinHeight="22"
+                                                    Padding="0" Margin="6,0,0,0" HorizontalContentAlignment="Center"
+                                                    Command="{Binding $parent[UserControl].((vm:HistoryTabViewModel)DataContext).CopyHashCommand}"
+                                                    CommandParameter="{Binding Sha}"
+                                                    arc:Tooltip.Tip="{loc:TKCodeLangResource HistoryCopyHash}"
+                                                    AutomationProperties.Name="{loc:TKCodeLangResource HistoryCopyHash}">
+                                                <icons:LucideIcon Kind="Copy" Width="12" Height="12"
+                                                                  StrokeBrush="{DynamicResource TKCode.TextSecondary}" />
+                                            </Button>
+                                        </Grid>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsLoading}">
+                                            <controls:DotSpinner Width="10" Height="10" VerticalAlignment="Center" />
+                                            <TextBlock Text="{loc:TKCodeLangResource HistoryLoading}" FontSize="11" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TKCode.TextSecondary}" />
+                                        </StackPanel>
+                                        <arc:Alert Tone="Danger" Content="{Binding Error}" IsVisible="{Binding HasError}" />
+
+                                        <StackPanel IsVisible="{Binding !IsLoading}">
+                                            <StackPanel IsVisible="{Binding !HasError}">
+                                                <TextBlock Text="{loc:TKCodeLangResource HistoryNoChanges}" FontSize="11"
+                                                           Foreground="{DynamicResource TKCode.TextTertiary}"
+                                                           IsVisible="{Binding !HasFiles}" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <ItemsControl ItemsSource="{Binding Files}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:GitFileViewModel">
+                                                    <StackPanel Margin="0,0,0,2">
+                                                        <Button Theme="{StaticResource TKCode.RowButton}" HorizontalAlignment="Stretch"
+                                                                HorizontalContentAlignment="Stretch" Padding="6,5"
+                                                                Command="{Binding ToggleExpandedCommand}">
+                                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                                                                <icons:LucideIcon Kind="ChevronRight" Width="11" Height="11" Margin="0,0,6,0"
+                                                                                  VerticalAlignment="Center"
+                                                                                  StrokeBrush="{DynamicResource TKCode.TextSecondary}"
+                                                                                  motion:Turn.IsOn="{Binding IsExpanded}" />
+                                                                <Border Grid.Column="1" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center">
+                                                                    <icons:FileTypeIcon Kind="{Binding Icon}" ColorKey="{Binding IconColor}"
+                                                                                        Width="14" Height="14"
+                                                                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                </Border>
+                                                                <Grid Grid.Column="2" ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding Name}" FontSize="12" MaxLines="1"
+                                                                               Foreground="{DynamicResource TKCode.TextPrimary}"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Grid.Column="1" Text="{Binding Directory}" FontSize="11" Margin="6,0,0,0"
+                                                                               MaxLines="1" TextTrimming="PrefixCharacterEllipsis"
+                                                                               Foreground="{DynamicResource TKCode.TextTertiary}" />
+                                                                </Grid>
+                                                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0"
+                                                                            VerticalAlignment="Center">
+                                                                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsBinary}">
+                                                                        <TextBlock Text="{Binding AddedText}" FontSize="11"
+                                                                                   Foreground="{DynamicResource TKCode.Success}" />
+                                                                        <TextBlock Text="{Binding RemovedText}" FontSize="11"
+                                                                                   Foreground="{DynamicResource TKCode.Danger}" />
+                                                                    </StackPanel>
+                                                                    <TextBlock Text="{loc:TKCodeLangResource HistoryBinary}" FontSize="11"
+                                                                               Foreground="{DynamicResource TKCode.TextTertiary}"
+                                                                               IsVisible="{Binding IsBinary}" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </Button>
+
+                                                        <StackPanel IsVisible="{Binding IsExpanded}" Margin="20,2,0,4" Spacing="4">
+                                                            <views:DiffView Lines="{Binding Lines}" MaxContentHeight="0" Margin="4,2,0,4"
+                                                                            IsVisible="{Binding HasLines}" />
+                                                            <TextBlock Text="{loc:TKCodeLangResource HistoryRenameOnly}" FontSize="11"
+                                                                       TextWrapping="Wrap" IsVisible="{Binding IsRenameOnly}"
+                                                                       Foreground="{DynamicResource TKCode.TextSecondary}" />
+                                                            <TextBlock Text="{loc:TKCodeLangResource HistoryDiffTruncated}" FontSize="11"
+                                                                       TextWrapping="Wrap" IsVisible="{Binding IsDiffTruncated}"
+                                                                       Foreground="{DynamicResource TKCode.TextTertiary}" />
+                                                            <arc:Alert Tone="Danger" Content="{Binding Error}" IsVisible="{Binding HasError}" />
+                                                            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsLoading}">
+                                                                <controls:DotSpinner Width="10" Height="10" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{loc:TKCodeLangResource HistoryLoading}" FontSize="11"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TKCode.TextSecondary}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button Theme="{StaticResource TKCode.RowButton}" MinHeight="28" Margin="0,6,0,0"
+                            Command="{Binding LoadMoreCommand}" IsVisible="{Binding HasMore}"
+                            IsEnabled="{Binding !IsLoadingMore}">
+                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                            <controls:DotSpinner Width="10" Height="10" VerticalAlignment="Center"
+                                                 IsVisible="{Binding IsLoadingMore}" />
+                            <TextBlock Text="{loc:TKCodeLangResource HistoryLoadMore}" FontSize="12" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TKCode.TextSecondary}" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </arc:ScrollArea>
+
+            <!-- 空状态：不是仓库 / 当前分支没有提交 -->
+            <arc:EmptyState Icon="{lucide:LucideGeometry Kind=History}"
+                            Description="{loc:TKCodeLangResource HistoryNoRepository}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding HasNoRepository}" />
+            <arc:EmptyState Icon="{lucide:LucideGeometry Kind=History}"
+                            Description="{loc:TKCodeLangResource HistoryNoCommits}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsEmpty}" />
+        </Panel>
+    </DockPanel>
+</UserControl>

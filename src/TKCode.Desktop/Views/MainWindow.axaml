@@ -720,6 +720,10 @@
                                 <DataTemplate DataType="vm:ChangesTabViewModel">
                                     <views:ChangesTabView />
                                 </DataTemplate>
+                                <!-- 历史：当前分支的提交（单栏手风琴，展开看正文、文件与 diff） -->
+                                <DataTemplate DataType="vm:HistoryTabViewModel">
+                                    <views:HistoryTabView />
+                                </DataTemplate>
                                 <!-- 子 Agent：它的消息，与主会话同样的转录，没有输入框 -->
                                 <DataTemplate DataType="vm:SubagentTabViewModel">
                                     <views:SubagentTabView />
