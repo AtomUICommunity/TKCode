@@ -1,6 +1,6 @@
 <!-- 一轮结束后的改动卡片：文件图标 + “已编辑 N 个文件 +X −Y”，点击标题折叠 / 展开；
      右侧整轮撤销与“查看变更”（打开变更面板）。文件行点击在编辑器打开，悬停弹出 diff 卡片。
-     文件超过预览数量时默认只列前几个，底部“还有 N 个文件”展开其余。 -->
+     文件超过预览数量时默认只列前几个，底部“还有 N 个文件”展开其余；两种展开都带动画。 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:TKCode.Desktop.ViewModels"
@@ -11,6 +11,48 @@
              xmlns:views="using:TKCode.Desktop.Views"
              x:Class="TKCode.Desktop.Views.TurnChangesView"
              x:DataType="vm:TurnChangesItemViewModel">
+    <UserControl.Resources>
+        <!-- 一个文件行：图标 + 相对路径 + 增删；点击打开，悬停出 diff 卡片 -->
+        <DataTemplate x:Key="FileChangeRow" x:DataType="vm:FileChangeViewModel">
+            <!-- 悬停 600ms 才弹出：文件行挨得近，指针扫过时不该把 diff 卡片带出来 -->
+            <controls:HoverCard Placement="TopEdgeAlignedLeft" OpenDelay="0:0:0.6" Margin="4,1">
+                <StackPanel>
+                    <Button Theme="{StaticResource TKCode.RowButton}" Padding="6,5" MinHeight="28"
+                            Command="{Binding $parent[UserControl].DataContext.OpenCommand}" CommandParameter="{Binding}">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <icons:FileTypeIcon Kind="{Binding Icon}" ColorKey="{Binding IconColor}" Width="14" Height="14"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="{Binding DisplayPath}" FontSize="13" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TKCode.TextPrimary}" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding AddedText}" FontSize="12" Foreground="{DynamicResource TKCode.Success}" />
+                                <TextBlock Text="{Binding RemovedText}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                    <TextBlock Text="{Binding Error}" FontSize="11" IsVisible="{Binding HasError}" Margin="30,0,6,2"
+                               Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" />
+                </StackPanel>
+                <controls:HoverCard.Card>
+                    <controls:InfoCard Width="560" Title="{Binding Name}">
+                        <controls:InfoCard.Extra>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding AddedText}" Foreground="{DynamicResource TKCode.Success}" />
+                                <TextBlock Text="{Binding RemovedText}" Foreground="{DynamicResource TKCode.Danger}" />
+                            </StackPanel>
+                        </controls:InfoCard.Extra>
+                        <views:DiffView Lines="{Binding Lines}" MaxContentHeight="320" IsVisible="{Binding HasDiff}" />
+                        <controls:InfoCard.Footer>
+                            <TextBlock Text="{Binding Path}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TKCode.TextTertiary}" />
+                        </controls:InfoCard.Footer>
+                    </controls:InfoCard>
+                </controls:HoverCard.Card>
+            </controls:HoverCard>
+        </DataTemplate>
+    </UserControl.Resources>
     <Border Background="{DynamicResource TKCode.CardBg}" BorderBrush="{DynamicResource TKCode.TreeLine}"
             BorderThickness="1" CornerRadius="10">
         <StackPanel>
@@ -41,59 +83,24 @@
                     <TextBlock Text="{loc:TKCodeLangResource ChangesViewAll}" FontSize="12" VerticalAlignment="Center" />
                 </Button>
             </Grid>
-            <StackPanel IsVisible="{Binding IsExpanded}" Margin="0,0,0,6">
-                <ItemsControl ItemsSource="{Binding VisibleFiles}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:FileChangeViewModel">
-                            <!-- 悬停：文件名 + 增删行数的信息卡片，正文是这次改动的 diff，底栏是完整路径 -->
-                            <controls:HoverCard Placement="TopEdgeAlignedLeft" OpenDelay="0:0:0.25" Margin="4,1">
-                                <StackPanel>
-                                    <Button Theme="{StaticResource TKCode.RowButton}" Padding="6,5" MinHeight="28"
-                                            Command="{Binding $parent[UserControl].DataContext.OpenCommand}" CommandParameter="{Binding}">
-                                        <Grid ColumnDefinitions="Auto,*,Auto">
-                                            <Border Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center">
-                                                <icons:FileTypeIcon Kind="{Binding Icon}" ColorKey="{Binding IconColor}" Width="14" Height="14"
-                                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                            <TextBlock Grid.Column="1" Text="{Binding DisplayPath}" FontSize="13" VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TKCode.TextPrimary}" />
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding AddedText}" FontSize="12" Foreground="{DynamicResource TKCode.Success}" />
-                                                <TextBlock Text="{Binding RemovedText}" FontSize="12" Foreground="{DynamicResource TKCode.Danger}" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Button>
-                                    <TextBlock Text="{Binding Error}" FontSize="11" IsVisible="{Binding HasError}" Margin="30,0,6,2"
-                                               Foreground="{DynamicResource TKCode.Danger}" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <controls:HoverCard.Card>
-                                    <controls:InfoCard Width="560" Title="{Binding Name}">
-                                        <controls:InfoCard.Extra>
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <TextBlock Text="{Binding AddedText}" Foreground="{DynamicResource TKCode.Success}" />
-                                                <TextBlock Text="{Binding RemovedText}" Foreground="{DynamicResource TKCode.Danger}" />
-                                            </StackPanel>
-                                        </controls:InfoCard.Extra>
-                                        <views:DiffView Lines="{Binding Lines}" MaxContentHeight="320" IsVisible="{Binding HasDiff}" />
-                                        <controls:InfoCard.Footer>
-                                            <TextBlock Text="{Binding Path}" FontSize="11" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource TKCode.TextTertiary}" />
-                                        </controls:InfoCard.Footer>
-                                    </controls:InfoCard>
-                                </controls:HoverCard.Card>
-                            </controls:HoverCard>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <Button Theme="{StaticResource TKCode.TextButton}" Margin="8,1,10,2" Padding="4,2"
-                        IsVisible="{Binding HasOverflow}" Command="{Binding ToggleRestCommand}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <icons:LucideIcon Kind="ChevronRight" Width="12" Height="12" VerticalAlignment="Center"
-                                          motion:Turn.IsOn="{Binding ShowAll}" />
-                        <TextBlock Text="{Binding RestLabel}" FontSize="12" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
+            <!-- 展开 / 收起带动画：高度平滑变化，文件行淡入并从上方滑入（与工具步骤、通知正文一致） -->
+            <motion:Reveal IsOpen="{Binding IsExpanded}" Margin="0,0,0,6">
+                <StackPanel>
+                    <ItemsControl ItemsSource="{Binding PrimaryFiles}" ItemTemplate="{StaticResource FileChangeRow}" />
+                    <!-- “还有 N 个文件”：其余文件同样按高度展开，不整段跳出来 -->
+                    <motion:Reveal IsOpen="{Binding ShowAll}">
+                        <ItemsControl ItemsSource="{Binding OverflowFiles}" ItemTemplate="{StaticResource FileChangeRow}" />
+                    </motion:Reveal>
+                    <Button Theme="{StaticResource TKCode.TextButton}" Margin="8,1,10,2" Padding="4,2"
+                            IsVisible="{Binding HasOverflow}" Command="{Binding ToggleRestCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <icons:LucideIcon Kind="ChevronRight" Width="12" Height="12" VerticalAlignment="Center"
+                                              motion:Turn.IsOn="{Binding ShowAll}" />
+                            <TextBlock Text="{Binding RestLabel}" FontSize="12" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </motion:Reveal>
         </StackPanel>
     </Border>
 </UserControl>

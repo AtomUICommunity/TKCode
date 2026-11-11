@@ -206,6 +206,12 @@ public sealed partial class TurnChangesItemViewModel : TranscriptItemViewModel
     /// <summary>当前应显示的文件：未展开时只取前 <see cref="PreviewCount"/> 个。</summary>
     public IEnumerable<FileChangeViewModel> VisibleFiles => ShowAll ? Files : Files.Take(PreviewCount);
 
+    /// <summary>始终列出的文件（前 <see cref="PreviewCount"/> 个）。</summary>
+    public IEnumerable<FileChangeViewModel> PrimaryFiles => Files.Take(PreviewCount);
+
+    /// <summary>“还有 N 个文件”展开后才列出的文件（由视图做成展开动画）。</summary>
+    public IEnumerable<FileChangeViewModel> OverflowFiles => Files.Skip(PreviewCount);
+
     /// <summary>还有没列出的文件（显示“还有 N 个文件”）。</summary>
     public bool HasOverflow => Files.Count > PreviewCount;
 
