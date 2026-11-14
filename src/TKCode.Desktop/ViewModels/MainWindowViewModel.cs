@@ -70,8 +70,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
         };
         conversation.WorkspaceRootsChanged += SyncExplorerRoot;
+        // 历史面板的仓库列表与分支选择器同一套规则（切换会话 / 项目、文件夹变化）
+        conversation.WorkspaceRootsChanged += SyncHistoryRepositories;
         Explorer.RemoveSessionRootAsync = conversation.RemoveSessionDirectoryAsync;
         SyncExplorerRoot();
+        SyncHistoryRepositories();
         // 初始项目（Sidebar 构造时已经从 state.json 恢复）
         workbench.SetProject(conversation.Workspace?.Id);
     }
@@ -115,6 +118,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>文件树：主文件夹，以及项目的其他文件夹与本会话追加的文件夹（docs/design/projects.md §10.1）。</summary>
     private void SyncExplorerRoot() =>
         Explorer.SetRoots(Conversation.CurrentCwd, Conversation.CurrentAdditionalRoots, Conversation.CurrentSessionRoots);
+
+    /// <summary>历史面板顶部的仓库：主文件夹在前，然后是项目的其他文件夹与本会话追加的文件夹。</summary>
+    private void SyncHistoryRepositories() =>
+        Workbench.SetHistoryRepositories(Conversation.CurrentCwd, Conversation.CurrentAdditionalRoots);
 
     /// <summary>⌘K 命令面板。</summary>
     public CommandPaletteViewModel Palette => field ??= new CommandPaletteViewModel(this);

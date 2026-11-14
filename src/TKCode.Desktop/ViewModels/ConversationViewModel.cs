@@ -730,23 +730,7 @@ public sealed partial class ConversationViewModel : ObservableObject
     /// 工作区里的 Git 仓库（docs/design/projects.md §10.3）：主文件夹在前，然后是项目的其他文件夹与本会话追加的文件夹；
     /// 位于同一个仓库（同一个 git 目录）的文件夹只算一次。
     /// </summary>
-    private IReadOnlyList<string> Repositories()
-    {
-        if (CurrentCwd is not { } cwd)
-        {
-            return [];
-        }
-        var seen = new HashSet<string>(PathRules.Comparer);
-        var result = new List<string>();
-        foreach (var folder in (IEnumerable<string>)[cwd, .. CurrentAdditionalRoots])
-        {
-            if (GitLayout.Find(folder) is { } layout && seen.Add(Path.GetFullPath(layout.GitDir)))
-            {
-                result.Add(folder);
-            }
-        }
-        return result;
-    }
+    private IReadOnlyList<string> Repositories() => GitRepository.Repositories(CurrentCwd, CurrentAdditionalRoots);
 
     /// <summary>重新读取各仓库的当前分支与所选仓库的分支列表（切换项目、弹层打开、.git 变化、文件夹变化时）。</summary>
     private void RefreshBranch()

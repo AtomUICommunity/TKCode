@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TKCode.Desktop.Icons;
 using TKCode.Desktop.Localization;
+using TKCode.Desktop.Services;
 
 namespace TKCode.Desktop.ViewModels;
 
@@ -78,9 +79,7 @@ public sealed record ParsedToolDetails
 
     public IReadOnlyList<TaskItemViewModel>? Tasks { get; init; }
 
-    /// <summary>diff 太长时只显示开头（完整内容仍在文件里）。</summary>
-    private const int MaxDiffLines = 400;
-
+    /// <summary>解析工具结果的 JSON（不认识的 kind 忽略）。</summary>
     public static ParsedToolDetails? Parse(string? json)
     {
         if (string.IsNullOrEmpty(json))
@@ -140,53 +139,9 @@ public sealed record ParsedToolDetails
         }
     }
 
-    /// <summary>解析 unified diff，并按块头 @@ -a,b +c,d @@ 推算每行的新旧行号。</summary>
-    public static IReadOnlyList<DiffLineViewModel> DiffLinesOf(string diff)
-    {
-        var lines = new List<DiffLineViewModel>();
-        int oldNumber = 0, newNumber = 0;
-        foreach (var line in diff.Split('\n'))
-        {
-            if (line.StartsWith("--- ", StringComparison.Ordinal) || line.StartsWith("+++ ", StringComparison.Ordinal) || line.Length == 0)
-            {
-                continue;
-            }
-            if (lines.Count >= MaxDiffLines)
-            {
-                lines.Add(new DiffLineViewModel("…", DiffLineKind.Hunk));
-                break;
-            }
-            if (line[0] == '@')
-            {
-                (oldNumber, newNumber) = HunkStart(line);
-                lines.Add(new DiffLineViewModel(line, DiffLineKind.Hunk));
-                continue;
-            }
-            // 首字符（+ / - / 空格）单独放在符号列，文字只保留行内容
-            var text = line[1..];
-            lines.Add(line[0] switch
-            {
-                '+' => new DiffLineViewModel(text, DiffLineKind.Added) { NewNumber = newNumber++ },
-                '-' => new DiffLineViewModel(text, DiffLineKind.Removed) { OldNumber = oldNumber++ },
-                _ => new DiffLineViewModel(text, DiffLineKind.Context) { OldNumber = oldNumber++, NewNumber = newNumber++ },
-            });
-        }
-        return lines;
-    }
-
-    /// <summary>“@@ -12,4 +12,5 @@”的起始行号；无法解析时返回 (0, 0)。</summary>
-    private static (int Old, int New) HunkStart(string header)
-    {
-        var parts = header.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 3)
-        {
-            return (0, 0);
-        }
-        return (Start(parts[1]), Start(parts[2]));
-
-        static int Start(string range) =>
-            int.TryParse(range.AsSpan(1).ToString().Split(',')[0], out var n) ? n : 0;
-    }
+    /// <summary>解析 unified diff（跳过文件头与 “\ No newline at end of file”，按块头推算行号），最多 400 行。</summary>
+    public static IReadOnlyList<DiffLineViewModel> DiffLinesOf(string diff) =>
+        UnifiedDiffParser.Parse(diff, maxLines: 400).Lines;
 
     // 只对对象取属性：JsonElement.TryGetProperty 对非对象抛 InvalidOperationException
     private static string? Str(JsonElement e, string name) =>

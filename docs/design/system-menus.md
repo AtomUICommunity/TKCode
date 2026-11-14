@@ -12,6 +12,8 @@
 | Windows 任务栏按钮右键（跳转列表） | 任务：新会话、退出 TKCode；类别「项目」：最近项目 | `AppTray.BuildJumpList` → `WindowsJumpList` |
 | Linux 启动器 | 无（`.desktop` 的动作是静态的，不放项目） | — |
 
+Windows 的托盘右键菜单由 Avalonia 用托管的 `MenuFlyoutPresenter` + `MenuItem` + `Separator` 绘制（不是原生菜单）。Arc 的主题不包含这些标准菜单控件，缺少主题时右键只会弹出一个空白小窗口；`Styling/Controls.axaml` 为它们提供了与 Arc 菜单一致的主题，`TrayMenuTests` 防止回退。
+
 有会话在后台结束或等待处理、还没打开过时，托盘提示文字附上「待查看：N」、图标右上角加红点；macOS Dock 显示角标，Windows 任务栏按钮显示覆盖图标（`AppTray.SetUnread`，见 [notifications.md](notifications.md) §4.5）。
 
 ## 项目列表

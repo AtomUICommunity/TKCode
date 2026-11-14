@@ -302,6 +302,19 @@
     <unit id="AddPanel"><segment><source>Add panel</source><target state="translated">添加面板</target></segment></unit>
     <unit id="TabHistory"><segment><source>History</source><target state="translated">历史</target></segment></unit>
     <unit id="HistoryDescription"><segment><source>History will show this project's commits and let you inspect each change.</source><target state="translated">历史面板将展示项目的提交记录，并可查看每次改动。</target></segment></unit>
+    <unit id="HistoryNoRepository"><segment><source>This project is not a Git repository.</source><target state="translated">此项目不是 Git 仓库</target></segment></unit>
+    <unit id="HistoryNoCommits"><segment><source>No commits on this branch yet</source><target state="translated">当前分支还没有提交</target></segment></unit>
+    <unit id="HistoryLoading"><segment><source>Loading commits…</source><target state="translated">正在读取提交…</target></segment></unit>
+    <unit id="HistoryLoadMore"><segment><source>Load more</source><target state="translated">加载更多</target></segment></unit>
+    <unit id="HistoryLoadFailed"><segment><source>Couldn't read the history: {0}</source><target state="translated">无法读取历史：{0}</target></segment></unit>
+    <unit id="HistoryRefresh"><segment><source>Refresh</source><target state="translated">刷新</target></segment></unit>
+    <unit id="HistoryRepository"><segment><source>Repository</source><target state="translated">仓库</target></segment></unit>
+    <unit id="HistoryCopyHash"><segment><source>Copy commit hash</source><target state="translated">复制提交哈希</target></segment></unit>
+    <unit id="HistoryNoChanges"><segment><source>This commit has no changes</source><target state="translated">此提交没有改动</target></segment></unit>
+    <unit id="HistoryRenameOnly"><segment><source>Renamed without content changes</source><target state="translated">仅重命名，没有内容改动</target></segment></unit>
+    <unit id="HistoryMergeFirstParent"><segment><source>Merge commit — showing changes against the first parent</source><target state="translated">合并提交：显示相对第一个父提交的改动</target></segment></unit>
+    <unit id="HistoryBinary"><segment><source>Binary file</source><target state="translated">二进制文件</target></segment></unit>
+    <unit id="HistoryDiffTruncated"><segment><source>Diff is too long; only the beginning is shown</source><target state="translated">改动过多，只显示开头部分</target></segment></unit>
     <unit id="AgentsGroup"><segment><source>Agents</source><target state="translated">智能体</target></segment></unit>
     <unit id="ApprovalTitle"><segment><source>Approval needed</source><target state="translated">需要你的批准</target></segment></unit>
     <unit id="ApprovalCommand"><segment><source>Run command</source><target state="translated">执行命令</target></segment></unit>
@@ -718,12 +731,11 @@
     <unit id="UpdateCheckFailedFormat"><segment><source>Check failed: {0}</source><target state="translated">检查失败：{0}</target></segment></unit>
     <unit id="UpdatePrereleaseLabel"><segment><source>Receive pre-release updates</source><target state="translated">接收预发布版本更新</target></segment></unit>
     <unit id="UpdatePrereleaseHint"><segment><source>Also offer versions marked as Pre-release on GitHub. They may be less stable than regular releases.</source><target state="translated">也接收 GitHub 上标记为预发布（Pre-release）的版本，可能不如正式版稳定。</target></segment></unit>
-    <unit id="ChangesFilesChanged"><segment><source>{0} files changed</source><target state="translated">{0} 个文件已更改</target></segment></unit>
+    <unit id="ChangesFilesChanged"><segment><source>Edited {0} files</source><target state="translated">已编辑 {0} 个文件</target></segment></unit>
     <unit id="ChangesShowMore"><segment><source>Show {0} more</source><target state="translated">还有 {0} 个文件</target></segment></unit>
     <unit id="ChangesShowLess"><segment><source>Show less</source><target state="translated">收起</target></segment></unit>
     <unit id="ChangesRevert"><segment><source>Revert</source><target state="translated">撤销</target></segment></unit>
-    <unit id="ChangesReview"><segment><source>Review</source><target state="translated">审查</target></segment></unit>
-    <unit id="ChangesOpen"><segment><source>Open</source><target state="translated">打开</target></segment></unit>
+    <unit id="ChangesViewAll"><segment><source>View changes</source><target state="translated">查看变更</target></segment></unit>
     <unit id="ChangesRevertFailed"><segment><source>Revert failed: {0}</source><target state="translated">撤销失败：{0}</target></segment></unit>
     <unit id="ChangesNoSnapshot"><segment><source>The file was too large to keep a snapshot; this change cannot be reverted</source><target state="translated">文件过大，未保存改动前的内容，此改动无法撤销</target></segment></unit>
     <unit id="ChangesEmpty"><segment><source>No file changes in this session</source><target state="translated">本会话还没有文件改动</target></segment></unit>
