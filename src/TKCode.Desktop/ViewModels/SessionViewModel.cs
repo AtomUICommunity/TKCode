@@ -409,7 +409,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>这条用户消息及之后各轮改过的文件数（编辑重发前询问是否回退）。</summary>
     public int ChangedFilesFrom(UserMessageItemViewModel message) =>
-        FileChangeSet.Group(EditsIn(Items.Skip(Math.Max(0, Items.IndexOf(message)))), RevertAsync).Count(f => f.CanRevert);
+        FileChangeSet.Group(EditsIn(Items.Skip(Math.Max(0, Items.IndexOf(message)))), RevertAsync, Cwd).Count(f => f.CanRevert);
 
     /// <summary>
     /// 回退这条用户消息及之后各轮改过的文件（docs/design/message-rewind.md §5.3）：按轮次从后往前，
@@ -470,11 +470,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>文件改动有变化（一轮结束、载入历史）时发出，变更面板据此刷新。</summary>
     public event Action? ChangesChanged;
 
-    /// <summary>转录中的“审查”：请求在变更面板中打开该文件。</summary>
-    public event Action<string>? ReviewRequested;
-
     /// <summary>转录中的“打开”：请求在文件标签页中打开该文件。</summary>
     public event Action<string>? OpenRequested;
+
+    /// <summary>改动卡片里的“查看变更”：请求打开变更面板。</summary>
+    public event Action? ChangesRequested;
 
     /// <summary>点击了子 Agent 卡片：在右侧打开它的转录。</summary>
     public event Action<SessionViewModel, ToolCallBlockViewModel>? SubagentRequested;
@@ -486,7 +486,7 @@ public sealed partial class SessionViewModel : ObservableObject
             : Task.FromResult(new RevertFileResult(Strings.Get(TKCodeLangResourceKind.ChangesRevertFailedNoHost)));
 
     /// <summary>整个会话的文件改动，按文件合并（最早的快照、最后的指纹）。</summary>
-    public IReadOnlyList<FileChangeViewModel> FileChanges() => FileChangeSet.Group(EditsIn(Items), RevertAsync);
+    public IReadOnlyList<FileChangeViewModel> FileChanges() => FileChangeSet.Group(EditsIn(Items), RevertAsync, Cwd);
 
     /// <summary>会话的改动总计（转录上方的“更改 +X −Y”）。</summary>
     [ObservableProperty]
@@ -711,9 +711,9 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             return;
         }
-        items.Add(new TurnChangesItemViewModel(FileChangeSet.Group(edits, RevertAsync),
-            path => ReviewRequested?.Invoke(path),
-            path => OpenRequested?.Invoke(path)));
+        items.Add(new TurnChangesItemViewModel(FileChangeSet.Group(edits, RevertAsync, Cwd),
+            path => OpenRequested?.Invoke(path),
+            () => ChangesRequested?.Invoke()));
     }
 
     /// <summary>最后一条用户消息之后的位置（轮次的起点）。</summary>
@@ -729,13 +729,15 @@ public sealed partial class SessionViewModel : ObservableObject
         return 0;
     }
 
-    /// <summary>工具调用中的 diff 结果（按出现顺序）。</summary>
+    /// <summary>
+    /// 工具调用中的 diff 结果（按出现顺序）。计划文件写在 ~/.tkcode/plans 下，属于会话数据，不算工作区改动。
+    /// </summary>
     private static IEnumerable<ParsedToolDetails> EditsIn(IEnumerable<TranscriptItemViewModel> items) =>
         items.OfType<AssistantMessageItemViewModel>()
             .SelectMany(m => m.Blocks.OfType<ToolCallBlockViewModel>())
             .Select(t => t.Parsed)
             .OfType<ParsedToolDetails>()
-            .Where(p => p.Kind == "diff" && p.Path is not null);
+            .Where(p => p.Kind == "diff" && p.Path is { Length: > 0 } path && ChangePaths.IsTracked(path));
 
     public void SetRunning(bool running)
     {

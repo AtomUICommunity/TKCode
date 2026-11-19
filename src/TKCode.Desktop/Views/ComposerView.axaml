@@ -196,7 +196,7 @@
                 <Border Classes="menu" Width="440" Margin="0,24,24,0" Padding="4">
                     <StackPanel>
                         <TextBlock Classes="tertiary" Text="{Binding Completion.EmptyText}" Margin="8,6" IsVisible="{Binding Completion.HasEmptyText}" />
-                        <arc:ScrollArea x:Name="CompletionScroll" MaxHeight="248">
+                        <arc:ScrollArea x:Name="CompletionScroll" MaxHeight="248" Margin="0,0,-6,0">
                             <!-- 右侧留出滚动条的位置，滚动条浮在内容上会盖住来源列 -->
                             <ItemsControl x:Name="CompletionList" ItemsSource="{Binding Completion.Items}" Margin="0,0,10,0">
                                 <ItemsControl.ItemTemplate>

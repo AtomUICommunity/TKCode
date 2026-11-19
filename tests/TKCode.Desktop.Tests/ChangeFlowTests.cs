@@ -75,6 +75,65 @@ public sealed class ChangeFlowTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task PlanFileDiffs_AreNotCountedAsChanges()
+    {
+        var home = Directory.CreateTempSubdirectory("tkcode-plan-home-").FullName;
+        var project = Directory.CreateTempSubdirectory("tkcode-plan-project-").FullName;
+        var previous = Environment.GetEnvironmentVariable("TKCODE_HOME");
+        Environment.SetEnvironmentVariable("TKCODE_HOME", home);
+        try
+        {
+            await HeadlessApp.Session.Dispatch(async () =>
+            {
+                var session = new SessionViewModel(new SessionDto("s1", project, "m", Path.Combine(home, "s.jsonl"), new SessionOptionsDto()));
+                session.RevertFile = _ => Task.FromResult(new RevertFileResult(null));
+
+                // 第一轮只写了计划文件（~/.tkcode/plans/<会话>.md）：这是会话数据，不算工作区改动
+                session.Apply(new AgentStarted());
+                session.Apply(new MessageStarted("u1", "user", "写个计划"));
+                session.Apply(new MessageStarted("m1", "assistant", null));
+                AddDiff(session, "m1", 0, "e1", Path.Combine(home, "plans", "s.md"));
+                session.Apply(new MessageEnded("m1", "assistant", "Stop", null, null));
+                session.Apply(new AgentEnded());
+
+                Assert.Empty(session.Items.OfType<TurnChangesItemViewModel>());
+                Assert.False(session.HasChanges);
+                Assert.Empty(session.FileChanges());
+
+                // 第二轮改了工作区里的文件：卡片与变更面板只有它，且路径相对工作目录
+                session.Apply(new AgentStarted());
+                session.Apply(new MessageStarted("u2", "user", "改代码"));
+                session.Apply(new MessageStarted("m2", "assistant", null));
+                AddDiff(session, "m2", 0, "e2", Path.Combine(project, "a.cs"));
+                session.Apply(new MessageEnded("m2", "assistant", "Stop", null, null));
+                session.Apply(new AgentEnded());
+
+                var card = Assert.Single(session.Items.OfType<TurnChangesItemViewModel>());
+                Assert.Equal("a.cs", Assert.Single(card.Files).DisplayPath);
+                Assert.Equal("a.cs", Assert.Single(session.FileChanges()).DisplayPath);
+                Assert.True(session.HasChanges);
+                return true;
+            }, TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TKCODE_HOME", previous);
+        }
+    }
+
+    /// <summary>一轮里的一个写入工具调用，工具结果带 diff 详情。</summary>
+    private static void AddDiff(SessionViewModel session, string messageId, int index, string toolId, string path)
+    {
+        var quoted = System.Text.Json.JsonSerializer.Serialize(path);
+        session.Apply(new ToolCallStarted(messageId, index, toolId, "write"));
+        session.Apply(new ToolCallEnded(messageId, index, toolId, "{\"path\":" + quoted + "}"));
+        session.Apply(new ToolExecutionStarted(toolId, "write", "{\"path\":" + quoted + "}"));
+        session.Apply(new ToolExecutionEnded(toolId, "write", false, "Wrote " + path, 5,
+            "{\"kind\":\"diff\",\"path\":" + quoted +
+            ",\"diff\":\"--- a/x\\n+++ b/x\\n@@ -1 +1 @@\\n+x\\n\",\"added\":1,\"removed\":0,\"afterSha256\":\"h\"}"));
+    }
+
     private sealed record RecordedRevert(string Path, string Sha, string? Restore);
 
     private static async Task WaitUntil(Func<bool> condition, string what, int timeoutMs = 20_000)

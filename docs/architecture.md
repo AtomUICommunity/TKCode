@@ -198,6 +198,7 @@ PromptAsync → AgentStart
   - 同一轮内工具调用前后的多条助手消息合并显示。
 - **Markdown**：`Controls/MarkdownView` 是轻量渲染器，支持段落、标题、列表、引用、代码块、行内代码、粗体、斜体和链接，不支持表格和图片。
 - **分支选择器**：选择其它分支时，先在弹层内确认，再执行 `git switch`。这个操作是安全的：git 会把未提交的修改带到新分支，如果修改会被覆盖则拒绝切换并显示错误。当前项目中有会话在运行时不允许切换。多文件夹项目里有多个 Git 仓库时，按钮显示主文件夹的分支和「+N」，弹层顶部先选仓库（docs/design/projects.md §10.3）。
+- **历史面板**：工作台的「+」菜单打开当前分支的 Git 提交历史（只读）。提交按时间列出，点击一条在原位展开正文、改动文件与逐文件 diff，可复制完整哈希；多文件夹项目在顶部选择仓库。实现见 [design/history-panel.md](design/history-panel.md)。
 - **命令面板（⌘K）**：
   - 根页列出命令（新对话、新建项目、切换主题 / 语言 / 侧栏 / 工作台）；输入搜索词时，还会列出匹配的会话。
   - 支持多级页面，面包屑可以返回上一页，搜索框为空时按 Backspace 也会返回。“新建项目”（⇧⌘N）关闭面板并打开创建项目弹窗（名称、设备、源文件夹，docs/design/projects.md §9）。
@@ -271,8 +272,9 @@ PromptAsync → AgentStart
 ### 7.7 窗口
 
 - 不显示 AtomUI 标题栏（`IsTitleBarVisible=False`）。
-- **macOS**：在 code-behind 中恢复 `WindowDecorations.Full`，再用 `MacStandardWindowButtons` 把红绿灯移到侧栏顶部。
-- **Windows / Linux**：在右上角自绘窗口按钮（`WindowDecorationProperties.ElementRole`）。
+- **macOS / Windows**：`WindowDecorations.Full` + `ExtendClientAreaToDecorationsHint`，保留系统窗口样式（macOS 的红绿灯，Windows 的 `WS_CAPTION` / `WS_MINIMIZEBOX` / `WS_MAXIMIZEBOX`），系统的原生最小化 / 最大化 / 还原 / 关闭动画才会播放。
+- **Windows / Linux**：标题栏和窗口按钮由界面自绘；`Window.WindowDecorationsTheme` 指向 `TKCode.WindowDecorations`（`Controls.axaml`），其模板留空，只保留标题栏高度 / 边框 / 阴影厚度等几何信息，避免系统再画一套标题栏和按钮。Linux 保留 `BorderOnly`（X11 默认由窗口管理器绘制标题栏）。
+- **macOS**：`ExtendClientAreaTitleBarHeightHint` 让标题栏区域与 44 高的头部对齐，再用避让宽度把红绿灯让到侧栏顶部。
 - 拖拽区域设为 `ElementRole="TitleBar"`；标题栏里可交互的按钮设为 `User`。
 
 ### 7.8 许可证

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TKCode.Config;
 using TKCode.Desktop.Icons;
 using TKCode.Desktop.Services;
 using TKCode.Desktop.Terminal;
@@ -48,7 +49,7 @@ internal static class WorkbenchTexts
     };
 }
 
-/// <summary>编辑区的一个标签页：文件，或尚未实现的工具面板（浏览器 / 终端 / 变更 / 历史）。</summary>
+/// <summary>编辑区的一个标签页：文件，或工具面板（终端 / 变更 / 历史已实现，浏览器仍是占位）。</summary>
 public abstract partial class WorkbenchTabViewModel(WorkbenchTabKind kind) : ObservableObject
 {
     public WorkbenchTabKind Kind { get; } = kind;
@@ -61,6 +62,19 @@ public abstract partial class WorkbenchTabViewModel(WorkbenchTabKind kind) : Obs
 
     [ObservableProperty]
     public partial bool IsActive { get; set; }
+
+    partial void OnIsActiveChanged(bool value)
+    {
+        if (value)
+        {
+            OnActivated();
+        }
+    }
+
+    /// <summary>标签变为可见（切换到它）：面板可以在这里刷新自己的数据。</summary>
+    protected virtual void OnActivated()
+    {
+    }
 
     public virtual void RefreshLanguage() => OnPropertyChanged(nameof(Title));
 }
@@ -473,21 +487,32 @@ public sealed partial class WorkbenchViewModel : ObservableObject
     /// <summary>变更标签页：当前会话的文件改动（一个实例，随会话切换刷新）。</summary>
     public ChangesTabViewModel Changes { get; } = new();
 
+    /// <summary>历史标签页：当前工作区的 Git 提交（只读，一个实例，随项目 / 仓库切换刷新）。</summary>
+    public HistoryTabViewModel History { get; } = new();
+
+    /// <summary>工作区里的 Git 仓库（与分支选择器同一套发现规则）：历史面板顶部的仓库列表。</summary>
+    public void SetHistoryRepositories(string? cwd, IReadOnlyList<string> additionalRoots)
+    {
+        History.SetRepositories(GitRepository.Repositories(cwd, additionalRoots)
+            .Select(path => (Path: path, Name: Project.FolderName(path)))
+            .ToArray());
+    }
+
     private SessionViewModel? _changesSource;
 
-    /// <summary>切换当前会话：变更面板跟随它，转录中的“审查 / 打开”也指向它；其他会话的子 Agent 标签关闭。</summary>
+    /// <summary>切换当前会话：变更面板跟随它，转录中的“打开 / 查看变更”也指向它；其他会话的子 Agent 标签关闭。</summary>
     public void SetChangesSource(SessionViewModel? session)
     {
         if (_changesSource is not null)
         {
-            _changesSource.ReviewRequested -= ReviewChange;
+            _changesSource.ChangesRequested -= ShowChanges;
             _changesSource.OpenRequested -= OpenFile;
             _changesSource.SubagentRequested -= OpenSubagent;
         }
         _changesSource = session;
         if (session is not null)
         {
-            session.ReviewRequested += ReviewChange;
+            session.ChangesRequested += ShowChanges;
             session.OpenRequested += OpenFile;
             session.SubagentRequested += OpenSubagent;
         }
@@ -522,13 +547,6 @@ public sealed partial class WorkbenchViewModel : ObservableObject
     [RelayCommand]
     private void OpenChanges() => ShowChanges();
 
-    /// <summary>打开变更面板并选中该文件。</summary>
-    public void ReviewChange(string path)
-    {
-        ShowChanges();
-        Changes.Select(path);
-    }
-
     private void ShowChanges()
     {
         if (!Tabs.Contains(Changes))
@@ -539,12 +557,27 @@ public sealed partial class WorkbenchViewModel : ObservableObject
         OpenRequested?.Invoke();
     }
 
+    private void ShowHistory()
+    {
+        if (!Tabs.Contains(History))
+        {
+            Tabs.Add(History);
+        }
+        Activate(History);
+        OpenRequested?.Invoke();
+    }
+
     [RelayCommand]
     private void AddTool(WorkbenchToolViewModel tool)
     {
         if (tool.Kind == WorkbenchTabKind.Diffs)
         {
             ShowChanges();
+            return;
+        }
+        if (tool.Kind == WorkbenchTabKind.History)
+        {
+            ShowHistory();
             return;
         }
         if (tool.Kind == WorkbenchTabKind.Terminal)
@@ -575,6 +608,13 @@ public sealed partial class WorkbenchViewModel : ObservableObject
     /// <summary>确认框（标题、说明、确定按钮文字），由主窗口提供。</summary>
     public Func<string, string, string, Task<bool>>? ConfirmAsync { get; set; }
 
+    /// <summary>写剪贴板（历史面板的「复制提交哈希」），由主窗口提供。</summary>
+    public Func<string, Task>? CopyTextAsync
+    {
+        get => History.CopyTextAsync;
+        set => History.CopyTextAsync = value;
+    }
+
     [RelayCommand]
     private async Task CloseAsync(WorkbenchTabViewModel tab)
     {
@@ -596,6 +636,11 @@ public sealed partial class WorkbenchViewModel : ObservableObject
 
     private void RemoveTab(WorkbenchTabViewModel tab)
     {
+        // 历史面板常驻（不实现 IDisposable）：关闭时只取消加载、释放 watcher，再次打开时重新加载
+        if (ReferenceEquals(tab, History))
+        {
+            History.OnClosed();
+        }
         var index = Tabs.IndexOf(tab);
         Tabs.Remove(tab);
         if (ActiveTab == tab)

@@ -10,6 +10,113 @@
         xmlns:composer="using:TKCode.Desktop.Controls.Composer"
         xmlns:arc="https://github.com/AIDotNet/TKCode.Arc">
     <Styles.Resources>
+        <!--
+          窗口装饰：使用 Full 装饰保留系统原生的窗口动画（Windows 的 DWM 最小化 / 最大化 / 还原 / 关闭，
+          macOS 的红绿灯），但模板留空——标题栏、边框和窗口按钮都由界面自绘。
+          标题栏高度与边框/阴影厚度和 Fluent 主题保持一致，Linux 的 BorderOnly 窗口靠它们保留边缘缩放热区。
+        -->
+        <ControlTheme x:Key="TKCode.WindowDecorations" TargetType="WindowDrawnDecorations">
+            <Setter Property="DefaultTitleBarHeight" Value="44" />
+            <Setter Property="DefaultFrameThickness" Value="1" />
+            <Setter Property="DefaultShadowThickness" Value="8" />
+            <Setter Property="Template">
+                <WindowDrawnDecorationsTemplate>
+                    <WindowDrawnDecorationsContent />
+                </WindowDrawnDecorationsTemplate>
+            </Setter>
+        </ControlTheme>
+
+        <!--
+          标准 Avalonia 菜单（Windows 托盘图标的右键菜单由 Avalonia 用 MenuFlyoutPresenter 绘制）。
+          Arc 的主题不包含 Avalonia 的标准菜单样式，缺少它们时托盘弹窗是一个空白小窗口；
+          这里补上托盘菜单实际用到的三种控件，外观与 Arc 菜单一致。
+        -->
+        <ControlTheme x:Key="{x:Type MenuFlyoutPresenter}" TargetType="MenuFlyoutPresenter">
+            <Setter Property="Background" Value="{DynamicResource TKCode.MenuBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TKCode.MenuBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource TKCode.RadiusMenu}" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="MinWidth" Value="180" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ItemsPresenter Name="PART_ItemsPresenter"
+                                        ItemsPanel="{TemplateBinding ItemsPanel}"
+                                        KeyboardNavigation.TabNavigation="Continue"
+                                        Grid.IsSharedSizeScope="True" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+
+        <ControlTheme x:Key="{x:Type MenuItem}" TargetType="MenuItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource TKCode.TextPrimary}" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="CornerRadius" Value="{StaticResource TKCode.RadiusSmall}" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="root" Background="{TemplateBinding Background}"
+                            CornerRadius="{TemplateBinding CornerRadius}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <ContentPresenter Name="PART_HeaderPresenter"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Header}"
+                                              ContentTemplate="{TemplateBinding HeaderTemplate}" />
+                            <Path Name="rightArrow" Grid.Column="1" Margin="12,0,10,0"
+                                  VerticalAlignment="Center"
+                                  Data="M0,0 L4,3.5 0,7 Z"
+                                  Fill="{DynamicResource TKCode.TextTertiary}" />
+                            <Popup Name="PART_Popup"
+                                   IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}"
+                                   Placement="RightEdgeAlignedTop"
+                                   IsLightDismissEnabled="False">
+                                <Border Background="{DynamicResource TKCode.MenuBg}"
+                                        BorderBrush="{DynamicResource TKCode.MenuBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="{StaticResource TKCode.RadiusMenu}"
+                                        Padding="4">
+                                    <ItemsPresenter Name="PART_ItemsPresenter"
+                                                    ItemsPanel="{TemplateBinding ItemsPanel}"
+                                                    Grid.IsSharedSizeScope="True" />
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:selected /template/ Border#root">
+                <Setter Property="Background" Value="{DynamicResource TKCode.MenuItemHoverBg}" />
+            </Style>
+            <Style Selector="^:pressed /template/ Border#root">
+                <Setter Property="Background" Value="{DynamicResource TKCode.SelectedBg}" />
+            </Style>
+            <Style Selector="^:empty /template/ Path#rightArrow">
+                <Setter Property="IsVisible" Value="False" />
+            </Style>
+            <Style Selector="^:disabled">
+                <Setter Property="Opacity" Value="0.45" />
+            </Style>
+        </ControlTheme>
+
+        <ControlTheme x:Key="{x:Type Separator}" TargetType="Separator">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="10,4" />
+            <Setter Property="Background" Value="{DynamicResource TKCode.Divider}" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}" />
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+
         <!-- 侧栏导航、列表行、菜单行：透明背景，悬停/选中时填充 -->
         <ControlTheme x:Key="TKCode.RowButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
@@ -304,6 +411,30 @@
                 </ControlTemplate>
             </Setter>
         </ControlTheme>
+
+        <ControlTheme x:Key="{x:Type ToolTip}" TargetType="ToolTip">
+            <Setter Property="Background" Value="{DynamicResource TKCode.MenuBg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TKCode.MenuBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource TKCode.RadiusSmall}" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Foreground" Value="{DynamicResource TKCode.TextPrimary}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="Left"
+                                          VerticalContentAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
     </Styles.Resources>
 
     <!-- 弹层卡片：半透明深色、低对比描边、柔和投影 -->
@@ -445,6 +576,24 @@
     <Style Selector="TextBlock.title">
         <Setter Property="FontSize" Value="15" />
         <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="arc|Tooltip">
+        <Setter Property="Background" Value="{DynamicResource TKCode.MenuBg}" />
+        <Setter Property="Foreground" Value="{DynamicResource TKCode.TextPrimary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource TKCode.MenuBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="CornerRadius" Value="{StaticResource TKCode.RadiusSmall}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="ContentTemplate">
+           <Setter.Value>
+               <DataTemplate x:DataType="x:String">
+                   <TextBlock Text="{Binding}" MaxWidth="200"
+                              TextTrimming="PathSegmentEllipsis" />
+               </DataTemplate>
+           </Setter.Value>
+        </Setter>
     </Style>
     <Style Selector="SelectableTextBlock">
         <Setter Property="SelectionBrush" Value="#553B82F6" />

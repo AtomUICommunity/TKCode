@@ -34,7 +34,7 @@
 | Markdown 渲染 | StreamMark 流式渲染、按块虚拟化、跨消息选择；代码块有语言标签 / 复制 / 换行 / 下载 / 超 40 行折叠；diff 围栏三种视图；数学、Mermaid（全屏缩放）、表格复制、图片缓存 | `Controls/MarkdownSetup.cs`、`external/StreamMark/.../Rendering/*` |
 | 思考过程 | 流式时 "Thinking…" 微光并自动展开，结束后折叠为 "Thought process"，显示时长与估算 token | `ViewModels/TranscriptItems.cs` L257-371 |
 | 工具调用 | 连续工具调用合并为活动组（"Thought 2× · Ran 4 commands"），读/搜合并为 "Explore"，回合结束折叠为 "Worked for Xm Ys"；bash 输出实时跟尾；编辑显示 +/− 与 diff | `Controls/TranscriptAdapter.cs`、`Views/ToolStepView.axaml`、`Views/ToolCallDetailView.axaml` |
-| 每回合文件改动 | "N files changed +X −Y" 卡片，整回合 Revert，单文件 Review / Open；会话级 Changes 面板逐文件 Revert（Host 先校验 SHA-256） | `Views/TurnChangesView.axaml`、`ViewModels/FileChangeViewModels.cs` |
+| 每回合文件改动 | "已编辑 N 个文件 +X −Y" 卡片，整回合 Revert；点文件行在编辑器打开、悬停显示 diff，"查看变更"打开变更面板；会话级 Changes 面板逐文件 Revert（Host 先校验 SHA-256）。`~/.tkcode/plans` 下的计划文件属于会话数据，不计入改动 | `Views/TurnChangesView.axaml`、`ViewModels/FileChangeViewModels.cs`、`ViewModels/ChangePaths.cs` |
 | 排队与插话 | 运行中发送进入队列卡片，可编辑 / 立即插入（steer）/ 删除；出错后暂停并显示 Resume | `ViewModels/QueuedPromptViewModel.cs`、`MainWindow.axaml` L399-451 |
 | 交互面板 | 计划审批面板、ask_user 面板、MCP 表单、工具审批卡片；计划与问答在对话流里留卡片 | `Views/PlanReviewPanelView.axaml`、`Views/QuestionPanelView.axaml` 等 |
 | 上下文 | 压缩分隔条（N → M tokens，可展开摘要）、上下文圆环 + 六类分解悬浮卡 | `ViewModels/ContextUsageViewModel.cs` |

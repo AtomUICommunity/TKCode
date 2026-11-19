@@ -1,3 +1,4 @@
+using TKCode.Desktop.Localization;
 using TKCode.Desktop.ViewModels;
 using TKCode.Rpc;
 using Xunit;
@@ -110,7 +111,28 @@ public sealed class FileChangeTests
         var files = Enumerable.Range(0, count)
             .Select(i => FileChangeSet.Group([Edit($"/p/f{i}.cs")], _ => Task.FromResult(new RevertFileResult(null)))[0])
             .ToArray();
-        return new TurnChangesItemViewModel(files, _ => { }, _ => { });
+        return new TurnChangesItemViewModel(files, _ => { });
+    }
+
+    [Fact]
+    public void TurnCard_OpenAndViewChanges_GoThroughTheCallbacks()
+    {
+        var opened = new List<string>();
+        var views = 0;
+        var files = new[] { "a.cs", "b.cs" }
+            .Select(name => FileChangeSet.Group([Edit("/p/" + name)], _ => Task.FromResult(new RevertFileResult(null)))[0])
+            .ToArray();
+        var card = new TurnChangesItemViewModel(files, opened.Add, () => views++);
+
+        Assert.Equal(Strings.Format(TKCodeLangResourceKind.ChangesFilesChanged, 2), card.Header);
+        Assert.Equal("+2", card.AddedText);
+        Assert.Equal("−0", card.RemovedText);
+
+        card.OpenCommand.Execute(files[1]);
+        Assert.Equal(["/p/b.cs"], opened);
+
+        card.ViewChangesCommand.Execute(null);
+        Assert.Equal(1, views);
     }
 
     [Fact]
@@ -137,4 +159,29 @@ public sealed class FileChangeTests
         Removed = removed,
         DiffLines = [new DiffLineViewModel("+x", DiffLineKind.Added)],
     };
+
+    [Fact]
+    public void ChangePaths_ExcludePlanFiles_AndShowWorkspacePathsRelative()
+    {
+        var home = Path.Combine(Path.GetTempPath(), "tkcode-home-" + Guid.NewGuid().ToString("N"));
+        var previous = Environment.GetEnvironmentVariable("TKCODE_HOME");
+        Environment.SetEnvironmentVariable("TKCODE_HOME", home);
+        try
+        {
+            var plan = Path.Combine(home, "plans", "session.md");
+            var workspace = Path.Combine(home, "src");
+
+            Assert.False(ChangePaths.IsTracked(plan));
+            Assert.True(ChangePaths.IsTracked(Path.Combine(workspace, "a.cs")));
+            // 只排除 plans 目录本身，同名前缀的兄弟目录仍算工作区改动
+            Assert.True(ChangePaths.IsTracked(Path.Combine(home, "plans-old", "session.md")));
+
+            Assert.Equal("src/a.cs", ChangePaths.Display(Path.Combine(workspace, "a.cs"), home));
+            Assert.Equal(plan, ChangePaths.Display(plan, workspace));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TKCODE_HOME", previous);
+        }
+    }
 }
